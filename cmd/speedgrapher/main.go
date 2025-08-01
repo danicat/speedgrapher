@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/danicat/speedgrapher/internal/prompts"
-	"github.com/danicat/speedgrapher/internal/tools"
+	"github.com/danicat/speedgrapher/internal/tools/fog"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -32,6 +32,6 @@ func run(ctx context.Context, args []string) error {
 	server.AddPrompt(prompts.Review(), prompts.ReviewHandler)
 	server.AddPrompt(prompts.Reflect(), prompts.ReflectHandler)
 	server.AddPrompt(prompts.Readability(), prompts.ReadabilityHandler)
-	mcp.AddTool(server, tools.Fog(), tools.FogHandler)
+	fog.Register(server)
 	return server.Run(ctx, mcp.NewStdioTransport())
 }

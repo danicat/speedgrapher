@@ -125,68 +125,95 @@ func TestIsComplexWord(t *testing.T) {
 
 func TestCalculateFogIndex(t *testing.T) {
 	testCases := []struct {
-		name     string
-		text     string
-		expected float64
+		name          string
+		text          string
+		expected      float64
+		expectError   bool
+		expectedError string
 	}{
 		{
-			name:     "Simple case",
-			text:     "This is a sentence. This is another sentence.",
-			expected: 16.6,
+			name:        "Simple case",
+			text:        "This is a sentence. This is another sentence.",
+			expected:    16.6,
+			expectError: false,
 		},
 		{
-			name:     "Empty string",
-			text:     "",
-			expected: 0.0,
+			name:          "Empty string",
+			text:          "",
+			expected:      0.0,
+			expectError:   true,
+			expectedError: "text does not contain any words",
 		},
 		{
-			name:     "Wikipedia example",
-			text:     "The quick brown fox jumps over the lazy dog.",
-			expected: 3.6,
+			name:        "Wikipedia example",
+			text:        "The quick brown fox jumps over the lazy dog.",
+			expected:    3.6,
+			expectError: false,
 		},
 		{
-			name:     "Complex example",
-			text:     "Automated testing is a cornerstone of modern software development.",
-			expected: 21.38,
+			name:        "Complex example",
+			text:        "Automated testing is a cornerstone of modern software development.",
+			expected:    21.38,
+			expectError: false,
 		},
 		{
-			name:     "Sad path: No sentences",
-			text:     "just a bunch of words",
-			expected: 0.0,
+			name:          "Sad path: No sentences",
+			text:          "just a bunch of words",
+			expected:      0.0,
+			expectError:   true,
+			expectedError: "text does not contain any sentences",
 		},
 		{
-			name:     "Sad path: Only punctuation",
-			text:     "!!! ?? ..",
-			expected: 0.0,
+			name:          "Sad path: Only punctuation",
+			text:          "!!! ?? ..",
+			expected:      0.0,
+			expectError:   true,
+			expectedError: "text does not contain any words",
 		},
 		{
-			name:     "Corner case: All complex words",
-			text:     "Difficult complicated understanding.",
-			expected: 41.2,
+			name:        "Corner case: All complex words",
+			text:        "Difficult complicated understanding.",
+			expected:    41.2,
+			expectError: false,
 		},
 		{
-			name:     "Corner case: Text with numbers",
-			text:     "123 apples and 456 oranges.",
-			expected: 10.0,
+			name:        "Corner case: Text with numbers",
+			text:        "123 apples and 456 oranges.",
+			expected:    10.0,
+			expectError: false,
 		},
 		{
-			name:     "Corner case: Long sentence (100+ words)",
-			text:     "This is an exceedingly long and convoluted sentence, meticulously crafted to test the boundaries of the Gunning Fog Index calculation, which, as we know, is a formula designed to assess the readability of a given passage of English prose by considering both the average sentence length and the percentage of complex words, a task that requires careful enumeration of both words and sentences, as well as a robust and consistent method for determining syllable counts in order to classify words as either simple or complex, thereby providing a numerical score that corresponds to the number of years of formal education a person needs to understand the text on the first reading.",
-			expected: 54.49,
+			name:        "Corner case: Long sentence (100+ words)",
+			text:        "This is an exceedingly long and convoluted sentence, meticulously crafted to test the boundaries of the Gunning Fog Index calculation, which, as we know, is a formula designed to assess the readability of a given passage of English prose by considering both the average sentence length and the percentage of complex words, a task that requires careful enumeration of both words and sentences, as well as a robust and consistent method for determining syllable counts in order to classify words as either simple or complex, thereby providing a numerical score that corresponds to the number of years of formal education a person needs to understand the text on the first reading.",
+			expected:    54.49,
+			expectError: false,
 		},
 		{
-			name:     "Corner case: Long paragraph",
-			text:     "This is an exceedingly long and convoluted sentence, meticulously crafted to test the boundaries of the Gunning Fog Index calculation. Which, as we know, is a formula designed to assess the readability of a given passage of English prose by considering both the average sentence length and the percentage of complex words. A task that requires careful enumeration of both words and sentences, as well as a robust and consistent method for determining syllable counts in order to classify words as either simple or complex. Thereby providing a numerical score that corresponds to the number of years of formal education a person needs to understand the text on the first reading.",
-			expected: 21.19,
+			name:        "Corner case: Long paragraph",
+			text:        "This is an exceedingly long and convoluted sentence, meticulously crafted to test the boundaries of the Gunning Fog Index calculation. Which, as we know, is a formula designed to assess the readability of a given passage of English prose by considering both the average sentence length and the percentage of complex words. A task that requires careful enumeration of both words and sentences, as well as a robust and consistent method for determining syllable counts in order to classify words as either simple or complex. Thereby providing a numerical score that corresponds to the number of years of formal education a person needs to understand the text on the first reading.",
+			expected:    21.19,
+			expectError: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := CalculateFogIndex(tc.text)
-			// Using a small tolerance for float comparison
-			if math.Abs(got-tc.expected) > 1e-9 {
-				t.Errorf("expected %f, got %f", tc.expected, got)
+			got, err := CalculateFogIndex(tc.text)
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("expected an error but got none")
+				}
+				if err != nil && err.Error() != tc.expectedError {
+					t.Errorf("expected error '%s' but got '%s'", tc.expectedError, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("did not expect an error but got: %v", err)
+				}
+				// Using a small tolerance for float comparison
+				if math.Abs(got-tc.expected) > 1e-9 {
+					t.Errorf("expected %f, got %f", tc.expected, got)
+				}
 			}
 		})
 	}

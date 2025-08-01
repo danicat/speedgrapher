@@ -1,9 +1,14 @@
 package fog
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"math"
 	"regexp"
 	"strings"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const (
@@ -14,10 +19,62 @@ const (
 	FogCategorySimplistic   = "Simplistic: May be perceived as childish or overly simple."
 )
 
+// Register registers the fog tool with the server.
+func Register(server *mcp.Server) {
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "fog",
+		Description: "Calculates the Gunning Fog Index for a given text.",
+	}, fogHandler)
+}
+
+// FogParams defines the input parameters for the fog tool.
+type FogParams struct {
+	Text string `json:"text"`
+}
+
+// FogResult defines the structured output for the fog tool.
+type FogResult struct {
+	FogIndex       float64 `json:"fog_index"`
+	Classification string  `json:"classification"`
+}
+
+func fogHandler(ctx context.Context, s *mcp.ServerSession, request *mcp.CallToolParamsFor[FogParams]) (*mcp.CallToolResult, error) {
+	text := request.Arguments.Text
+	if text == "" {
+		return nil, newError("text cannot be empty")
+	}
+
+	index, err := CalculateFogIndex(text)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate fog index: %w", err)
+	}
+	classification := ClassifyFogIndex(index)
+
+	result := &FogResult{
+		FogIndex:       index,
+		Classification: classification,
+	}
+
+	jsonResult, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(jsonResult)},
+		},
+	}, nil
+}
+
+func newError(format string, a ...any) error {
+	return fmt.Errorf(format, a...)
+}
+
 // CountWords counts the number of words and complex words in a given text.
-// It removes punctuation and then counts words based on spaces.
+// It removes all punctuation and then counts words based on spaces.
 func CountWords(text string) (int, int) {
-	// remove punctuation
+	// remove all punctuation
 	cleanText := regexp.MustCompile(`[[:punct:]]`).ReplaceAllString(text, "")
 	words := strings.Fields(cleanText)
 
@@ -33,6 +90,7 @@ func CountWords(text string) (int, int) {
 
 // CountSentences counts the number of sentences in a given text.
 // It counts sentences by looking for sentence-ending punctuation (. ! ?).
+// This is a simplistic approach and may not be accurate for all cases (e.g., abbreviations).
 func CountSentences(text string) int {
 	// This regex counts sentences by looking for sentence-ending punctuation.
 	// It's a simple approach and might not be perfect for all cases.
@@ -48,19 +106,22 @@ func IsComplexWord(word string) bool {
 }
 
 // CalculateFogIndex calculates the Gunning Fog Index for a given text, rounded to two decimal places.
-func CalculateFogIndex(text string) float64 {
+func CalculateFogIndex(text string) (float64, error) {
 	totalWords, complexWords := CountWords(text)
 	totalSentences := CountSentences(text)
 
-	if totalWords == 0 || totalSentences == 0 {
-		return 0.0
+	if totalWords == 0 {
+		return 0.0, newError("text does not contain any words")
+	}
+	if totalSentences == 0 {
+		return 0.0, newError("text does not contain any sentences")
 	}
 
 	averageSentenceLength := float64(totalWords) / float64(totalSentences)
 	percentageComplexWords := 100 * (float64(complexWords) / float64(totalWords))
 
 	index := 0.4 * (averageSentenceLength + percentageComplexWords)
-	return math.Round(index*100) / 100
+	return math.Round(index*100) / 100, nil
 }
 
 // ClassifyFogIndex classifies the Gunning Fog Index into a readability category.
