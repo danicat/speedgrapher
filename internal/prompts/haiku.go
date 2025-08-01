@@ -9,7 +9,7 @@ import (
 
 func Haiku() *mcp.Prompt {
 	return &mcp.Prompt{
-		Name: "haiku",
+		Name:        "haiku",
 		Description: "Creates a haiku about a given topic.",
 		Arguments: []*mcp.PromptArgument{
 			{
@@ -27,7 +27,7 @@ func HaikuHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.G
 		return nil, fmt.Errorf("topic argument not provided")
 	}
 
-	prompt := fmt.Sprintf("Write a haiku about the following topic: %s", topic)
+	prompt := fmt.Sprintf("The user wants to have some fun and has requested a haiku about the following topic: %s", topic)
 
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{

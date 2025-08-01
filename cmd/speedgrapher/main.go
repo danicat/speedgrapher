@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/danicat/speedgrapher/internal/prompts"
+	"github.com/danicat/speedgrapher/internal/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -26,5 +27,11 @@ func run(ctx context.Context, args []string) error {
 		nil,
 	)
 	server.AddPrompt(prompts.Haiku(), prompts.HaikuHandler)
+	server.AddPrompt(prompts.Interview(), prompts.InterviewHandler)
+	server.AddPrompt(prompts.Localize(), prompts.LocalizeHandler)
+	server.AddPrompt(prompts.Review(), prompts.ReviewHandler)
+	server.AddPrompt(prompts.Reflect(), prompts.ReflectHandler)
+	server.AddPrompt(prompts.Readability(), prompts.ReadabilityHandler)
+	mcp.AddTool(server, tools.Fog(), tools.FogHandler)
 	return server.Run(ctx, mcp.NewStdioTransport())
 }

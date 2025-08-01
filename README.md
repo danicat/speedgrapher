@@ -1,6 +1,6 @@
 # Speedgrapher
 
-Speedgrapher is an MCP server to support bloggers and writers in general.
+Speedgrapher is a local MCP server written in Go, designed to assist writers by providing a suite of tools to streamline the writing process.
 
 ## What is it?
 
@@ -10,7 +10,21 @@ Speedgrapher is an MCP server designed to assist professional writers, with a pa
 
 Speedgrapher is written in Go and implements the Model Context Protocol (MCP). It uses the [official Go SDK for MCP](https://github.com/modelcontextprotocol/go-sdk) and communicates over the `stdio` transport layer. This design choice makes it a lightweight and secure local server, with no need for network deployment.
 
-A key reference for this project is the [godoctor](httpss://github.com/danicat/godoctor) implementation, which also serves as an MCP server written in Go.
+## Available Tools
+
+### Gunning Fog Index
+
+The `fog` tool calculates the Gunning Fog Index for a given text. The Gunning Fog Index is a readability test that estimates the years of formal education a person needs to understand a text on the first reading.
+
+The tool returns not only the numerical Fog Index but also a qualitative classification to help writers calibrate their text for a specific audience.
+
+**Classification Levels:**
+
+*   **Unreadable:** (Score >= 22) - Likely incomprehensible to most readers.
+*   **Hard to Read:** (Score 18-21) - Requires significant effort, even for experts.
+*   **Professional Audiences:** (Score 13-17) - Best for readers with specialized knowledge.
+*   **General Audiences:** (Score 9-12) - Clear and accessible for most readers.
+*   **Simplistic:** (Score < 9) - May be perceived as childish or overly simple.
 
 ## Getting Started
 
@@ -28,7 +42,7 @@ This will create an executable file at `bin/speedgrapher`.
 
 ### Testing the server
 
-To test that the server is running correctly, you can send it a `ping` request. The server will respond with an empty JSON object if it is successful.
+To test that the server is running correctly, you can send it an `initialize` request, followed by an `initialized` notification and a `ping` request. The server will respond with its capabilities and an empty JSON object for the ping if it is successful.
 
 ```bash
 (
@@ -38,9 +52,23 @@ To test that the server is running correctly, you can send it a `ping` request. 
 ) | ./bin/speedgrapher
 ```
 
+### Using the `fog` tool
+
+To use the `fog` tool, you can send a `tools/call` request to the server with the text you want to analyze.
+
+```bash
+(
+    printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{},"implementation":{"name":"test-client","version":"0.0.1"}}}
+';
+    sleep 1;
+    TEXT="Your text to be analyzed here.";
+    printf '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"fog","arguments":{"text":"%s"}}}
+' "$TEXT";
+) | ./bin/speedgrapher
+```
+
 ## Resources
 
 *   **Model Context Protocol Specification:** [https://modelcontextprotocol.io/specification/2025-06-18](https://modelcontextprotocol.io/specification/2025-06-18)
 *   **Go SDK for MCP:** [https://github.com/modelcontextprotocol/go-sdk](https://github.com/modelcontextprotocol/go-sdk)
-*   **Reference MCP Server (godoctor):** [https://github.com/danicat/godoctor](https://github.com/danicat/godoctor)
 *   **How to build an MCP server with Gemini CLI and Go:** [https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/](https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/)
