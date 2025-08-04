@@ -32,7 +32,7 @@ You must follow these rules:
 func Localize() *mcp.Prompt {
 	return &mcp.Prompt{
 		Name:        "localize",
-		Description: "Translates an article into a target language.",
+		Description: "Translates the article currently being worked on into a target language.",
 		Arguments: []*mcp.PromptArgument{
 			{
 				Name:        "target_language",
@@ -49,10 +49,16 @@ func LocalizeHandler(ctx context.Context, session *mcp.ServerSession, params *mc
 		return nil, fmt.Errorf("target_language argument not provided")
 	}
 
-	prompt := fmt.Sprintf("The user wants to translate an article to %s. Here is the article:\n%s", targetLanguage, localizePrompt)
+	prompt := fmt.Sprintf("Translate the article we have been working on to %s. Adhere to the localization guidelines.", targetLanguage)
 
 	return &mcp.GetPromptResult{
 			Messages: []*mcp.PromptMessage{
+				{
+					Role: "assistant",
+					Content: &mcp.TextContent{
+						Text: localizePrompt,
+					},
+				},
 				{
 					Role: "user",
 					Content: &mcp.TextContent{

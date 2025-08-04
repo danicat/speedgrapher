@@ -34,8 +34,13 @@ type FogParams struct {
 
 // FogResult defines the structured output for the fog tool.
 type FogResult struct {
-	FogIndex       float64 `json:"fog_index"`
-	Classification string  `json:"classification"`
+	FogIndex                float64 `json:"fog_index"`
+	Classification          string  `json:"classification"`
+	TotalWords              int     `json:"total_words"`
+	TotalSentences          int     `json:"total_sentences"`
+	AverageSentenceLength   float64 `json:"average_sentence_length"`
+	PercentageComplexWords  float64 `json:"percentage_complex_words"`
+	ComplexWords            int     `json:"complex_words"`
 }
 
 func fogHandler(ctx context.Context, s *mcp.ServerSession, request *mcp.CallToolParamsFor[FogParams]) (*mcp.CallToolResult, error) {
@@ -44,15 +49,32 @@ func fogHandler(ctx context.Context, s *mcp.ServerSession, request *mcp.CallTool
 		return nil, newError("text cannot be empty")
 	}
 
-	index, err := CalculateFogIndex(text)
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate fog index: %w", err)
+	totalWords, complexWords := CountWords(text)
+	totalSentences := CountSentences(text)
+
+	if totalWords == 0 {
+		return nil, newError("text does not contain any words")
 	}
+	if totalSentences == 0 {
+		return nil, newError("text does not contain any sentences")
+	}
+
+	averageSentenceLength := float64(totalWords) / float64(totalSentences)
+	percentageComplexWords := 100 * (float64(complexWords) / float64(totalWords))
+
+	index := 0.4 * (averageSentenceLength + percentageComplexWords)
+	index = math.Round(index*100) / 100
+
 	classification := ClassifyFogIndex(index)
 
 	result := &FogResult{
-		FogIndex:       index,
-		Classification: classification,
+		FogIndex:                index,
+		Classification:          classification,
+		TotalWords:              totalWords,
+		TotalSentences:          totalSentences,
+		AverageSentenceLength:   math.Round(averageSentenceLength*100) / 100,
+		PercentageComplexWords:  math.Round(percentageComplexWords*100) / 100,
+		ComplexWords:            complexWords,
 	}
 
 	jsonResult, err := json.Marshal(result)

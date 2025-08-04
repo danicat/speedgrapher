@@ -47,17 +47,25 @@ The article must follow this narrative flow:
 func Review() *mcp.Prompt {
 	return &mcp.Prompt{
 		Name:        "review",
-		Description: "Reviews an article against the editorial guidelines.",
+		Description: "Reviews the article currently being worked on against the editorial guidelines.",
 	}
 }
 
 func ReviewHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+	prompt := "Please review the article we have been working on against the editorial guidelines."
+
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{
-				Role: "user",
+				Role: "assistant",
 				Content: &mcp.TextContent{
 					Text: reviewPrompt,
+				},
+			},
+			{
+				Role: "user",
+				Content: &mcp.TextContent{
+					Text: prompt,
 				},
 			},
 		},

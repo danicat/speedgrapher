@@ -6,8 +6,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const interviewPrompt = `
-You are an expert interviewer and writer for a technical blog.
+const interviewPrompt = `You are an expert interviewer and writer for a technical blog.
 Your mission is to interview an author to produce a compelling, personal, and technically accurate article that tells a story about a technical journey.
 
 Your process is to first understand the author's core idea, and then to create a baseline draft of the article.
@@ -65,6 +64,7 @@ You must follow this process to flesh out the details and create a draft that al
 **6. Final Review:**
    - Once the content is complete, perform a final review of the entire article with the author to ensure it meets all editorial guidelines and is ready for publication.
 `
+const interviewUserPrompt = "I would like to write an article with your support. Please ask me the first question to get started."
 
 func Interview() *mcp.Prompt {
 	return &mcp.Prompt{
@@ -77,9 +77,15 @@ func InterviewHandler(ctx context.Context, session *mcp.ServerSession, params *m
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{
-				Role: "user",
+				Role: "assistant",
 				Content: &mcp.TextContent{
 					Text: interviewPrompt,
+				},
+			},
+			{
+				Role: "user",
+				Content: &mcp.TextContent{
+					Text: interviewUserPrompt,
 				},
 			},
 		},

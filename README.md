@@ -42,13 +42,25 @@ This will create an executable file at `bin/speedgrapher`.
 
 ### Testing the server
 
-To test that the server is running correctly, you can send it an `initialize` request, followed by an `initialized` notification and a `ping` request. The server will respond with its capabilities and an empty JSON object for the ping if it is successful.
+To test that the server is running correctly, you can send it an `initialize` request, followed by an `initialized` notification and a `prompts/list` request. The server will respond with its capabilities and a list of available prompts if it is successful.
 
 ```bash
 (
   echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}';
   echo '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}';
-  echo '{"jsonrpc":"2.0","id":2,"method":"ping","params":{}}';
+  echo '{"jsonrpc":"2.0","id":2,"method":"prompts/list","params":{}}';
+) | ./bin/speedgrapher
+```
+
+### Using a prompt
+
+To use a prompt, you can send a `prompts/get` request to the server with the name of the prompt you want to use.
+
+```bash
+(
+  echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}';
+  echo '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}';
+  echo '{"jsonrpc":"2.0","id":2,"method":"prompts/get","params":{"name": "interview"}}';
 ) | ./bin/speedgrapher
 ```
 
@@ -61,10 +73,24 @@ To use the `fog` tool, you can send a `tools/call` request to the server with th
     printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{},"implementation":{"name":"test-client","version":"0.0.1"}}}
 ';
     sleep 1;
-    TEXT="Your text to be analyzed here.";
+    TEXT="Speedgrapher is a local MCP server written in Go, designed to assist writers by providing a suite of tools to streamline the writing process.";
     printf '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"fog","arguments":{"text":"%s"}}}
 ' "$TEXT";
 ) | ./bin/speedgrapher
+```
+
+The server will respond with a JSON object containing the Gunning Fog Index, the classification, and all the partial metrics.
+
+```json
+{
+  "fog_index": 16.27,
+  "classification": "Professional Audiences: Best for readers with specialized knowledge.",
+  "total_words": 24,
+  "total_sentences": 1,
+  "average_sentence_length": 24,
+  "percentage_complex_words": 16.67,
+  "complex_words": 4
+}
 ```
 
 ## Resources

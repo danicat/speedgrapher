@@ -242,3 +242,93 @@ func TestClassifyFogIndex(t *testing.T) {
 		})
 	}
 }
+
+func TestFogResult(t *testing.T) {
+	testCases := []struct {
+		name           string
+		text           string
+		expectedResult FogResult
+		expectError    bool
+	}{
+		{
+			name: "Simple case",
+			text: "This is a sentence. This is another sentence.",
+			expectedResult: FogResult{
+				FogIndex:               16.6,
+				Classification:         FogCategoryProfessional,
+				TotalWords:             8,
+				TotalSentences:         2,
+				AverageSentenceLength:  4.0,
+				PercentageComplexWords: 37.5,
+				ComplexWords:           3,
+			},
+			expectError: false,
+		},
+		{
+			name: "Wikipedia example",
+			text: "The quick brown fox jumps over the lazy dog.",
+			expectedResult: FogResult{
+				FogIndex:               3.6,
+				Classification:         FogCategorySimplistic,
+				TotalWords:             9,
+				TotalSentences:         1,
+				AverageSentenceLength:  9.0,
+				PercentageComplexWords: 0.0,
+				ComplexWords:           0,
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			totalWords, complexWords := CountWords(tc.text)
+			totalSentences := CountSentences(tc.text)
+
+			if totalWords == 0 || totalSentences == 0 {
+				if !tc.expectError {
+					t.Errorf("expected no error, but got one due to zero words or sentences")
+				}
+				return
+			}
+
+			averageSentenceLength := float64(totalWords) / float64(totalSentences)
+			percentageComplexWords := 100 * (float64(complexWords) / float64(totalWords))
+			index := 0.4 * (averageSentenceLength + percentageComplexWords)
+			index = math.Round(index*100) / 100
+			classification := ClassifyFogIndex(index)
+
+			result := FogResult{
+				FogIndex:               index,
+				Classification:         classification,
+				TotalWords:             totalWords,
+				TotalSentences:         totalSentences,
+				AverageSentenceLength:  math.Round(averageSentenceLength*100) / 100,
+				PercentageComplexWords: math.Round(percentageComplexWords*100) / 100,
+				ComplexWords:           complexWords,
+			}
+
+			if math.Abs(result.FogIndex-tc.expectedResult.FogIndex) > 1e-9 {
+				t.Errorf("expected FogIndex %f, got %f", tc.expectedResult.FogIndex, result.FogIndex)
+			}
+			if result.Classification != tc.expectedResult.Classification {
+				t.Errorf("expected Classification %q, got %q", tc.expectedResult.Classification, result.Classification)
+			}
+			if result.TotalWords != tc.expectedResult.TotalWords {
+				t.Errorf("expected TotalWords %d, got %d", tc.expectedResult.TotalWords, result.TotalWords)
+			}
+			if result.TotalSentences != tc.expectedResult.TotalSentences {
+				t.Errorf("expected TotalSentences %d, got %d", tc.expectedResult.TotalSentences, result.TotalSentences)
+			}
+			if math.Abs(result.AverageSentenceLength-tc.expectedResult.AverageSentenceLength) > 1e-9 {
+				t.Errorf("expected AverageSentenceLength %f, got %f", tc.expectedResult.AverageSentenceLength, result.AverageSentenceLength)
+			}
+			if math.Abs(result.PercentageComplexWords-tc.expectedResult.PercentageComplexWords) > 1e-9 {
+				t.Errorf("expected PercentageComplexWords %f, got %f", tc.expectedResult.PercentageComplexWords, result.PercentageComplexWords)
+			}
+			if result.ComplexWords != tc.expectedResult.ComplexWords {
+				t.Errorf("expected ComplexWords %d, got %d", tc.expectedResult.ComplexWords, result.ComplexWords)
+			}
+		})
+	}
+}
