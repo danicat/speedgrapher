@@ -2,6 +2,8 @@ package prompts
 
 import (
 	"context"
+	"errors"
+	"os"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -52,6 +54,16 @@ func Review() *mcp.Prompt {
 }
 
 func ReviewHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+	guidelines := reviewPrompt
+	customGuidelines, err := os.ReadFile("EDITORIAL.md")
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	} else {
+		guidelines = string(customGuidelines)
+	}
+
 	prompt := "Please review the article we have been working on against the editorial guidelines."
 
 	return &mcp.GetPromptResult{
@@ -59,7 +71,7 @@ func ReviewHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.
 			{
 				Role: "assistant",
 				Content: &mcp.TextContent{
-					Text: reviewPrompt,
+					Text: guidelines,
 				},
 			},
 			{

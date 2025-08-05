@@ -2,7 +2,9 @@ package prompts
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -49,23 +51,32 @@ func LocalizeHandler(ctx context.Context, session *mcp.ServerSession, params *mc
 		return nil, fmt.Errorf("target_language argument not provided")
 	}
 
+	guidelines := localizePrompt
+	customGuidelines, err := os.ReadFile("LOCALIZATION.md")
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	} else {
+		guidelines = string(customGuidelines)
+	}
+
 	prompt := fmt.Sprintf("Translate the article we have been working on to %s. Adhere to the localization guidelines.", targetLanguage)
 
 	return &mcp.GetPromptResult{
-			Messages: []*mcp.PromptMessage{
-				{
-					Role: "assistant",
-					Content: &mcp.TextContent{
-						Text: localizePrompt,
-					},
+		Messages: []*mcp.PromptMessage{
+			{
+				Role: "assistant",
+				Content: &mcp.TextContent{
+					Text: guidelines,
 				},
-				{
-					Role: "user",
-					Content: &mcp.TextContent{
-						Text: prompt,
-					},
+			},
+			{
+				Role: "user",
+				Content: &mcp.TextContent{
+					Text: prompt,
 				},
 			},
 		},
-		nil
+	}, nil
 }
