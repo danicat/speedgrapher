@@ -72,7 +72,6 @@ graph TD
     F --> G(Localize);
     G -->|/localize| H(Publish);
     H -->|/reflect| I(Reflect);
-end
 ```
 
 ## Getting Started
