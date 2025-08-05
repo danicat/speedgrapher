@@ -32,6 +32,8 @@ func run(ctx context.Context, args []string) error {
 	server.AddPrompt(prompts.Review(), prompts.ReviewHandler)
 	server.AddPrompt(prompts.Reflect(), prompts.ReflectHandler)
 	server.AddPrompt(prompts.Readability(), prompts.ReadabilityHandler)
+	server.AddPrompt(prompts.Context(), prompts.ContextHandler)
+	server.AddPrompt(prompts.Voice(), prompts.VoiceHandler)
 	fog.Register(server)
 	return server.Run(ctx, mcp.NewStdioTransport())
 }
