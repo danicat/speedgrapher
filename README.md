@@ -78,7 +78,6 @@ graph TD
     F -->|Approved| G(6. Final Article);
     G -->|/localize| H(7. Localization);
     H -->|/reflect| I(8. Session Reflection);
-end
 ```
 
 ## Getting Started
