@@ -59,19 +59,17 @@ The writing process is a cycle of ideation, drafting, and revision.
 ### The Flow in a Diagram
 
 ```mermaid
-graph TD
-    A[Idea] -->|/interview| B(Interview);
-    B -->|/voice| C(Voice);
-    C --> D(Writing Loop);
-    D -->|Draft is ready| E(Review);
-    E -->|/review| E;
-    E --o|Feedback| D;
-    E --> F(Readability);
-    F -->|/readability| F;
-    F --o|Feedback| D;
-    F --> G(Localize);
-    G -->|/localize| H(Publish);
-    H -->|/reflect| I(Reflect);
+flowchart TD
+    I(Ideation) -->|/interview| ID[Initial Draft]
+    ID -->|/voice| WL(Main Writing Loop:<br>Interact With the Model)
+    WL -->|/review| RV{Editorial<br>Review}
+    RV -->|needs improvement| WL
+    RV -->|review ok<br>check /readability| RD{Readability<br>Review}
+    RD -->|needs improvement| WL
+    RD -->|readability ok<br>/localize| L[Localized Article]
+    L -->|publish| P[Published Article]
+    P -->|/reflect| S[Model Self-Improvement Notes]
+    S --> E(End)
 ```
 
 ## Getting Started
