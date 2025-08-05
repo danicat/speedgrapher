@@ -43,47 +43,42 @@ Speedgrapher's functionality is exposed through a series of prompts, which can b
 
 ## Example Editorial Workflow
 
-Speedgrapher is designed to support a flexible and iterative writing process. Below is an example workflow that leverages the available prompts to take an idea from a brainstorming session to a polished, reviewed article.
+Speedgrapher is designed to support a flexible and iterative writing process. Below is a refined workflow that takes an idea from a brainstorming session to a polished, reviewed, and self-improving cycle.
 
 ### The Flow in Words
 
-1.  **Brainstorming and Initial Draft (`/interview`):** The journey begins with the `/interview` prompt. The model acts as a writing partner, asking you questions to understand your core idea and generating an initial, high-level draft based on your conversation.
+1.  **Ideation (`/interview`):** The journey begins with an idea. Use the `/interview` prompt to have a conversation with the model, which acts as a writing partner to help you flesh out your concept and generate a baseline draft.
 
-2.  **Aligning the Voice (`/voice`):** To ensure the article sounds like you, use the `/voice` prompt early in the process. You can provide a `hint` pointing to a file, a folder with your previous articles, or even a URL to your blog. This helps the model adopt your unique style for all subsequent text generation.
+2.  **Voice Alignment (`/voice`):** To ensure the article sounds like you, use the `/voice` prompt early in the process. Provide a `hint` pointing to your existing work, and the model will adopt your unique style for all subsequent text generation.
 
-3.  **Iterative Drafting and Refining (`/context`):** This is the core feedback loop of the writing process. As you write and edit, frequently use the `/context` command. This ensures the model always has the latest version of your article loaded and is ready for your next instruction, whether it's "expand on this section," "rewrite this paragraph for clarity," or "add a code example here."
+3.  **Iterative Refinement (`/context`):** This is the core writing loop. As you provide instructions and edits, use the `/context` command frequently. This ensures the model always has the latest version of your article loaded, ready for your next command.
 
-4.  **Editorial and Readability Review (`/review` & `/readability`):** Once you have a solid draft, it's time for a review.
-    *   Run the `/review` command to check the article against the project's editorial guidelines. The model will provide constructive feedback on structure, tone, and narrative.
-    *   Use the `/readability` command to check the Gunning Fog Index. This helps ensure your article is accessible to your target audience.
-    *   Based on the feedback from these two prompts, you can loop back to the refining step (3).
+4.  **Editorial Review (`/review`):** Once you have a solid draft, run the `/review` command to check the article against the project's editorial guidelines. This will provide constructive feedback on structure, tone, and narrative. If changes are needed, loop back to the refinement step.
 
-5.  **Finalization and Localization (`/localize`):** Once the article is polished and approved, you can use the `/localize` command to translate it into other languages.
+5.  **Readability Analysis (`/readability`):** After the editorial review is complete, use the `/readability` command to check the Gunning Fog Index. This helps ensure your article is accessible to your target audience. If the score is too high or too low, you can loop back to the refinement step.
 
-Throughout this process, you can use `/reflect` to analyze your session and improve your collaborative workflow, or `/haiku` for a quick creative break.
+6.  **Localization (`/localize`):** Once the article is polished and approved, you can use the `/localize` command to translate it into other languages.
+
+7.  **Session Reflection (`/reflect`):** This is the final and most crucial step. After your work is done, use the `/reflect` command to trigger a self-improvement analysis of the entire session. The model will identify key learnings and propose concrete improvements for future collaborations.
 
 ### The Flow in a Diagram
 
 ```mermaid
 graph TD
-    A[Start: Brainstorming] -->|/interview| B(Initial Draft Created);
-    B -->|/voice| C{Writing & Refining};
-    C -->|User provides edits and instructions| C;
-    C -->|/context ensures model has latest text| C;
-    C -->|Draft is ready| D[Review Stage];
-    D -->|/review| E{Editorial Guideline Check};
-    E -->|Feedback requires changes| C;
-    E -->|Guidelines met| F[Readability Analysis];
-    F -->|/readability| G{Gunning Fog Index Check};
-    G -->|Feedback requires changes| C;
-    G -->|Readability is good| H[Polished Article];
-    H -->|/localize| I[Translated Versions];
-
-    subgraph "Optional Tools"
-        direction LR
-        J["/haiku"]
-        K["/reflect"]
-    end
+    A[Start: Idea] -->|/interview| B(1. Baseline Draft);
+    B -->|/voice| C(2. Voice & Tone Alignment);
+    C --> D{3. Iterative Writing & Refining};
+    D -->|User edits & /context| D;
+    D -->|Ready for review| E(4. Editorial Review);
+    E -->|/review| E;
+    E -->|Changes needed| D;
+    E -->|Approved| F(5. Readability Analysis);
+    F -->|/readability| F;
+    F -->|Changes needed| D;
+    F -->|Approved| G(6. Final Article);
+    G -->|/localize| H(7. Localization);
+    H -->|/reflect| I(8. Session Reflection);
+end
 ```
 
 ## Getting Started
