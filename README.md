@@ -26,6 +26,67 @@ The tool returns not only the numerical Fog Index but also a qualitative classif
 *   **General Audiences:** (Score 9-12) - Clear and accessible for most readers.
 *   **Simplistic:** (Score < 9) - May be perceived as childish or overly simple.
 
+## Available Prompts
+
+Speedgrapher's functionality is exposed through a series of prompts, which can be used as slash commands in a compatible client.
+
+| Command | Description | Example |
+| --- | --- | --- |
+| `/context` | Loads the current work-in-progress article to context for further commands. | `/context` |
+| `/haiku` | Creates a haiku about a given topic. | `/haiku topic="Go programming"` |
+| `/interview` | Interviews an author to produce a technical blog post. | `/interview` |
+| `/localize` | Translates the article currently being worked on into a target language. | `/localize target_language="Brazilian Portuguese"` |
+| `/readability` | Analyzes the last generated text for readability using the Gunning Fog Index. | `/readability` |
+| `/reflect` | Analyzes the current session and proposes improvements to the development process. | `/reflect` |
+| `/review` | Reviews the article currently being worked on against the editorial guidelines. | `/review` |
+| `/voice` | Analyzes the voice and tone of the user's writing to replicate it in generated text. | `/voice hint="~/Documents/my-articles"` |
+
+## Example Editorial Workflow
+
+Speedgrapher is designed to support a flexible and iterative writing process. Below is an example workflow that leverages the available prompts to take an idea from a brainstorming session to a polished, reviewed article.
+
+### The Flow in Words
+
+1.  **Brainstorming and Initial Draft (`/interview`):** The journey begins with the `/interview` prompt. The model acts as a writing partner, asking you questions to understand your core idea and generating an initial, high-level draft based on your conversation.
+
+2.  **Aligning the Voice (`/voice`):** To ensure the article sounds like you, use the `/voice` prompt early in the process. You can provide a `hint` pointing to a file, a folder with your previous articles, or even a URL to your blog. This helps the model adopt your unique style for all subsequent text generation.
+
+3.  **Iterative Drafting and Refining (`/context`):** This is the core feedback loop of the writing process. As you write and edit, frequently use the `/context` command. This ensures the model always has the latest version of your article loaded and is ready for your next instruction, whether it's "expand on this section," "rewrite this paragraph for clarity," or "add a code example here."
+
+4.  **Editorial and Readability Review (`/review` & `/readability`):** Once you have a solid draft, it's time for a review.
+    *   Run the `/review` command to check the article against the project's editorial guidelines. The model will provide constructive feedback on structure, tone, and narrative.
+    *   Use the `/readability` command to check the Gunning Fog Index. This helps ensure your article is accessible to your target audience.
+    *   Based on the feedback from these two prompts, you can loop back to the refining step (3).
+
+5.  **Finalization and Localization (`/localize`):** Once the article is polished and approved, you can use the `/localize` command to translate it into other languages.
+
+Throughout this process, you can use `/reflect` to analyze your session and improve your collaborative workflow, or `/haiku` for a quick creative break.
+
+### The Flow in a Diagram
+
+```mermaid
+graph TD
+    A[Start: Brainstorming] -->|/interview| B(Initial Draft Created);
+    B -->|/voice| C{Writing & Refining};
+    C -->|User provides edits and instructions| C;
+    C -->|/context ensures model has latest text| C;
+    C -->|Draft is ready| D[Review Stage];
+    D -->|/review| E{Editorial Guideline Check};
+    E -->|Feedback requires changes| C;
+    E -->|Guidelines met| F[Readability Analysis];
+    F -->|/readability| G{Gunning Fog Index Check};
+    G -->|Feedback requires changes| C;
+    G -->|Readability is good| H[Polished Article];
+    H -->|/localize| I[Translated Versions];
+
+    subgraph "Optional Tools"
+        direction LR
+        J[/haiku]
+        K[/reflect]
+    end
+end
+```
+
 ## Getting Started
 
 To get started with Speedgrapher, you'll need to have Go installed on your system.
