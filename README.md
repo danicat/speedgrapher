@@ -81,8 +81,8 @@ graph TD
 
     subgraph "Optional Tools"
         direction LR
-        J[/haiku]
-        K[/reflect]
+        J["/haiku"]
+        K["/reflect"]
     end
 end
 ```
