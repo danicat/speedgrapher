@@ -53,33 +53,35 @@ func Review() *mcp.Prompt {
 	}
 }
 
-func ReviewHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
-	guidelines := reviewPrompt
-	customGuidelines, err := os.ReadFile("EDITORIAL.md")
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return nil, err
+func NewReviewHandler(guidelinePath string) mcp.PromptHandler {
+	return func(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+		guidelines := reviewPrompt
+		customGuidelines, err := os.ReadFile(guidelinePath)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return nil, err
+			}
+		} else {
+			guidelines = string(customGuidelines)
 		}
-	} else {
-		guidelines = string(customGuidelines)
+
+		prompt := "Please review the article we have been working on against the editorial guidelines."
+
+		return &mcp.GetPromptResult{
+			Messages: []*mcp.PromptMessage{
+				{
+					Role: "assistant",
+					Content: &mcp.TextContent{
+						Text: guidelines,
+					},
+				},
+				{
+					Role: "user",
+					Content: &mcp.TextContent{
+						Text: prompt,
+					},
+				},
+			},
+		}, nil
 	}
-
-	prompt := "Please review the article we have been working on against the editorial guidelines."
-
-	return &mcp.GetPromptResult{
-		Messages: []*mcp.PromptMessage{
-			{
-				Role: "assistant",
-				Content: &mcp.TextContent{
-					Text: guidelines,
-				},
-			},
-			{
-				Role: "user",
-				Content: &mcp.TextContent{
-					Text: prompt,
-				},
-			},
-		},
-	}, nil
 }

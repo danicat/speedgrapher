@@ -45,38 +45,40 @@ func Localize() *mcp.Prompt {
 	}
 }
 
-func LocalizeHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
-	targetLanguage, ok := params.Arguments["target_language"]
-	if !ok {
-		return nil, fmt.Errorf("target_language argument not provided")
-	}
-
-	guidelines := localizePrompt
-	customGuidelines, err := os.ReadFile("LOCALIZATION.md")
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return nil, err
+func NewLocalizeHandler(guidelinePath string) mcp.PromptHandler {
+	return func(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+		targetLanguage, ok := params.Arguments["target_language"]
+		if !ok {
+			return nil, fmt.Errorf("target_language argument not provided")
 		}
-	} else {
-		guidelines = string(customGuidelines)
+
+		guidelines := localizePrompt
+		customGuidelines, err := os.ReadFile(guidelinePath)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return nil, err
+			}
+		} else {
+			guidelines = string(customGuidelines)
+		}
+
+		prompt := fmt.Sprintf("Translate the article we have been working on to %s. Adhere to the localization guidelines.", targetLanguage)
+
+		return &mcp.GetPromptResult{
+			Messages: []*mcp.PromptMessage{
+				{
+					Role: "assistant",
+					Content: &mcp.TextContent{
+						Text: guidelines,
+					},
+				},
+				{
+					Role: "user",
+					Content: &mcp.TextContent{
+						Text: prompt,
+					},
+				},
+			},
+		}, nil
 	}
-
-	prompt := fmt.Sprintf("Translate the article we have been working on to %s. Adhere to the localization guidelines.", targetLanguage)
-
-	return &mcp.GetPromptResult{
-		Messages: []*mcp.PromptMessage{
-			{
-				Role: "assistant",
-				Content: &mcp.TextContent{
-					Text: guidelines,
-				},
-			},
-			{
-				Role: "user",
-				Content: &mcp.TextContent{
-					Text: prompt,
-				},
-			},
-		},
-	}, nil
 }

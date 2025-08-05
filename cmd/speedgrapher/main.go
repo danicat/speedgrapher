@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -13,23 +14,27 @@ import (
 )
 
 func main() {
+	editorialGuidelines := flag.String("editorial", "EDITORIAL.md", "Path to the editorial guidelines file.")
+	localizationGuidelines := flag.String("localization", "LOCALIZATION.md", "Path to the localization guidelines file.")
+	flag.Parse()
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, os.Args[1:]); err != nil {
+	if err := run(ctx, *editorialGuidelines, *localizationGuidelines); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, args []string) error {
+func run(ctx context.Context, editorialGuidelines, localizationGuidelines string) error {
 	server := mcp.NewServer(
 		&mcp.Implementation{Name: "speedgrapher"},
 		nil,
 	)
 	server.AddPrompt(prompts.Haiku(), prompts.HaikuHandler)
 	server.AddPrompt(prompts.Interview(), prompts.InterviewHandler)
-	server.AddPrompt(prompts.Localize(), prompts.LocalizeHandler)
-	server.AddPrompt(prompts.Review(), prompts.ReviewHandler)
+	server.AddPrompt(prompts.Localize(), prompts.NewLocalizeHandler(localizationGuidelines))
+	server.AddPrompt(prompts.Review(), prompts.NewReviewHandler(editorialGuidelines))
 	server.AddPrompt(prompts.Reflect(), prompts.ReflectHandler)
 	server.AddPrompt(prompts.Readability(), prompts.ReadabilityHandler)
 	server.AddPrompt(prompts.Context(), prompts.ContextHandler)
