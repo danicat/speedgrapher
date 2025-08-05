@@ -39,6 +39,8 @@ func run(ctx context.Context, editorialGuidelines, localizationGuidelines string
 	server.AddPrompt(prompts.Readability(), prompts.ReadabilityHandler)
 	server.AddPrompt(prompts.Context(), prompts.ContextHandler)
 	server.AddPrompt(prompts.Voice(), prompts.VoiceHandler)
+	server.AddPrompt(prompts.Outline(), prompts.OutlineHandler)
+	server.AddPrompt(prompts.Expand(), prompts.ExpandHandler)
 	fog.Register(server)
 	return server.Run(ctx, mcp.NewStdioTransport())
 }
