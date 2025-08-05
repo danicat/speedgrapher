@@ -49,12 +49,17 @@ Speedgrapher is designed to support a clear and iterative writing process. Below
 
 The writing process is a cycle of ideation, drafting, and revision.
 
-1.  **Idea & Interview:** Start with an idea and use the `/interview` prompt to brainstorm with the model and create an initial draft.
-2.  **Voice:** Use the `/voice` prompt to align the model with your unique writing style.
-3.  **Writing Loop:** This is the core creative phase where you work with the model to write and refine the article.
-4.  **Review & Readability:** Once you have a draft, use the `/review` and `/readability` prompts. Based on the feedback, you can loop back to the **Writing Loop** to make improvements. To ensure these tools have the most up-to-date content, you can optionally run `/context` before using them.
-5.  **Localize & Publish:** After the reviews are complete, use `/localize` to translate the article. The final step is to publish your work.
-6.  **Reflect:** At the end of the session, use the `/reflect` prompt to analyze the collaboration and identify areas for improvement in your process.
+1.  **Ideation & Initial Draft:** The process begins with an idea. Use the `/interview` prompt to brainstorm with the model, which will help you flesh out your concept and generate an initial draft.
+2.  **Voice Alignment:** Use the `/voice` prompt to align the model with your unique writing style, ensuring the generated text sounds authentic.
+3.  **Main Writing Loop:** This is the core creative phase. You will interact with the model to write, edit, and refine the article until you have a solid draft.
+4.  **Review & Revision:**
+    *   **Editorial Review:** Use the `/review` command to check the draft against editorial guidelines. If it needs improvement, the feedback will guide you as you loop back to the **Main Writing Loop**.
+    *   **Readability Review:** Once the editorial review is complete, use the `/readability` command to check its accessibility. If it needs improvement, you can loop back to the **Main Writing Loop**.
+    *   **Note on Context:** To ensure the review tools have the most up-to-date content, it is good practice to run `/context` before the `/review` and `/readability` commands.
+5.  **Finalization:**
+    *   **Localization:** Use the `/localize` command to translate the approved article into other languages.
+    *   **Publish:** The final step before reflection is to publish your work.
+6.  **Reflection:** At the end of the session, use the `/reflect` prompt to have the model analyze the collaboration and generate notes on how to improve the process for the next time.
 
 ### The Flow in a Diagram
 
