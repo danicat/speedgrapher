@@ -43,41 +43,36 @@ Speedgrapher's functionality is exposed through a series of prompts, which can b
 
 ## Example Editorial Workflow
 
-Speedgrapher is designed to support a flexible and iterative writing process. Below is a refined workflow that takes an idea from a brainstorming session to a polished, reviewed, and self-improving cycle.
+Speedgrapher is designed to support a clear and iterative writing process. Below is a simplified workflow that leverages the available prompts to take an idea from concept to a polished, published article.
 
 ### The Flow in Words
 
-1.  **Ideation (`/interview`):** The journey begins with an idea. Use the `/interview` prompt to have a conversation with the model, which acts as a writing partner to help you flesh out your concept and generate a baseline draft.
+The writing process is a cycle of ideation, drafting, and revision.
 
-2.  **Voice Alignment (`/voice`):** To ensure the article sounds like you, use the `/voice` prompt early in the process. Provide a `hint` pointing to your existing work, and the model will adopt your unique style for all subsequent text generation.
-
-3.  **Iterative Refinement (`/context`):** This is the core writing loop. As you provide instructions and edits, use the `/context` command frequently. This ensures the model always has the latest version of your article loaded, ready for your next command.
-
-4.  **Editorial Review (`/review`):** Once you have a solid draft, run the `/review` command to check the article against the project's editorial guidelines. This will provide constructive feedback on structure, tone, and narrative. If changes are needed, loop back to the refinement step.
-
-5.  **Readability Analysis (`/readability`):** After the editorial review is complete, use the `/readability` command to check the Gunning Fog Index. This helps ensure your article is accessible to your target audience. If the score is too high or too low, you can loop back to the refinement step.
-
-6.  **Localization (`/localize`):** Once the article is polished and approved, you can use the `/localize` command to translate it into other languages.
-
-7.  **Session Reflection (`/reflect`):** This is the final and most crucial step. After your work is done, use the `/reflect` command to trigger a self-improvement analysis of the entire session. The model will identify key learnings and propose concrete improvements for future collaborations.
+1.  **Idea & Interview:** Start with an idea and use the `/interview` prompt to brainstorm with the model and create an initial draft.
+2.  **Voice:** Use the `/voice` prompt to align the model with your unique writing style.
+3.  **Writing Loop:** This is the core creative phase where you work with the model to write and refine the article.
+4.  **Review & Readability:** Once you have a draft, use the `/review` and `/readability` prompts. Based on the feedback, you can loop back to the **Writing Loop** to make improvements. To ensure these tools have the most up-to-date content, you can optionally run `/context` before using them.
+5.  **Localize & Publish:** After the reviews are complete, use `/localize` to translate the article. The final step is to publish your work.
+6.  **Reflect:** At the end of the session, use the `/reflect` prompt to analyze the collaboration and identify areas for improvement in your process.
 
 ### The Flow in a Diagram
 
 ```mermaid
 graph TD
-    A[Start: Idea] -->|/interview| B(1. Baseline Draft);
-    B -->|/voice| C(2. Voice & Tone Alignment);
-    C --> D{3. Iterative Writing & Refining};
-    D -->|User edits & /context| D;
-    D -->|Ready for review| E(4. Editorial Review);
+    A[Idea] -->|/interview| B(Interview);
+    B -->|/voice| C(Voice);
+    C --> D(Writing Loop);
+    D -->|Draft is ready| E(Review);
     E -->|/review| E;
-    E -->|Changes needed| D;
-    E -->|Approved| F(5. Readability Analysis);
+    E --o|Feedback| D;
+    E --> F(Readability);
     F -->|/readability| F;
-    F -->|Changes needed| D;
-    F -->|Approved| G(6. Final Article);
-    G -->|/localize| H(7. Localization);
-    H -->|/reflect| I(8. Session Reflection);
+    F --o|Feedback| D;
+    F --> G(Localize);
+    G -->|/localize| H(Publish);
+    H -->|/reflect| I(Reflect);
+end
 ```
 
 ## Getting Started
