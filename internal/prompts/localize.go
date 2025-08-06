@@ -53,7 +53,7 @@ func Localize() *mcp.Prompt {
 			{
 				Name:        "target_language",
 				Description: "The language to translate the article into.",
-				Required:    true,
+				Required:    false,
 			},
 		},
 	}
@@ -62,8 +62,17 @@ func Localize() *mcp.Prompt {
 func NewLocalizeHandler(guidelinePath string) mcp.PromptHandler {
 	return func(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
 		targetLanguage, ok := params.Arguments["target_language"]
-		if !ok {
-			return nil, fmt.Errorf("target_language argument not provided")
+		if !ok || targetLanguage == "" {
+			return &mcp.GetPromptResult{
+				Messages: []*mcp.PromptMessage{
+					{
+						Role: "assistant",
+						Content: &mcp.TextContent{
+							Text: "What language should I translate the article to?",
+						},
+					},
+				},
+			}, nil
 		}
 
 		guidelines := localizePrompt
@@ -76,8 +85,6 @@ func NewLocalizeHandler(guidelinePath string) mcp.PromptHandler {
 			guidelines = string(customGuidelines)
 		}
 
-		prompt := fmt.Sprintf("Translate the article we have been working on to %s. Adhere to the localization guidelines.", targetLanguage)
-
 		return &mcp.GetPromptResult{
 			Messages: []*mcp.PromptMessage{
 				{
@@ -89,7 +96,7 @@ func NewLocalizeHandler(guidelinePath string) mcp.PromptHandler {
 				{
 					Role: "user",
 					Content: &mcp.TextContent{
-						Text: prompt,
+						Text: fmt.Sprintf("Translate the following article to %s. Adhere to the localization guidelines.", targetLanguage),
 					},
 				},
 			},
