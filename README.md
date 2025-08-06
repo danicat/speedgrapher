@@ -1,5 +1,7 @@
 # Speedgrapher
 
+> This is not an officially supported Google product.
+
 Speedgrapher is a local MCP server written in Go, designed to assist writers by providing a suite of tools to streamline the writing process.
 
 ## What is it?
