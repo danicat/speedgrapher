@@ -1,3 +1,5 @@
+![logo](logo.jpeg)
+
 # Speedgrapher
 
 > This is not an officially supported Google product.
