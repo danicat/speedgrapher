@@ -16,6 +16,7 @@ package prompts
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -36,7 +37,7 @@ If the author's voice and editorial guidelines are currently unknown, you must p
 Please analyze the provided text and generate the expanded version.
 `
 
-const expandUserPrompt = "Please expand the current text."
+const expandUserPrompt = "Please expand the work-in-progress article currently in your context."
 
 func Expand() *mcp.Prompt {
 	return &mcp.Prompt{
@@ -52,8 +53,11 @@ func Expand() *mcp.Prompt {
 }
 
 func ExpandHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
-	// This is a simplified handler. A real implementation would check for the
-	// hint and use it to guide the expansion.
+	prompt := expandUserPrompt
+	if hint, ok := params.Arguments["hint"]; ok && hint != "" {
+		prompt = fmt.Sprintf("Please expand the work-in-progress article currently in your context, focusing on the following hint: %s", hint)
+	}
+
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{
@@ -65,7 +69,7 @@ func ExpandHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.
 			{
 				Role: "user",
 				Content: &mcp.TextContent{
-					Text: expandUserPrompt,
+					Text: prompt,
 				},
 			},
 		},

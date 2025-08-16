@@ -22,7 +22,7 @@ import (
 
 const readabilityPrompt = `**Objective: Evaluate Readability**
 
-You are an expert editor. Your task is to analyze the most recent text you have generated in this session and assess its readability using the Gunning Fog Index.
+You are an expert editor. Your task is to analyze the work-in-progress article currently in your context and assess its readability using the Gunning Fog Index.
 
 **Analysis Steps:**
 

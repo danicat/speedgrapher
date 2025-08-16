@@ -79,7 +79,7 @@ func NewReviewHandler(guidelinePath string) mcp.PromptHandler {
 			guidelines = string(customGuidelines)
 		}
 
-		prompt := "Please review the article we have been working on against the editorial guidelines."
+		prompt := "Please review the work-in-progress article currently in your context against the provided editorial guidelines."
 
 		return &mcp.GetPromptResult{
 			Messages: []*mcp.PromptMessage{

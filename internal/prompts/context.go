@@ -24,7 +24,6 @@ func Context() *mcp.Prompt {
 	return &mcp.Prompt{
 		Name:        "context",
 		Description: "Loads the current work-in-progress article to context for further commands.",
-		Arguments:   []*mcp.PromptArgument{},
 	}
 }
 

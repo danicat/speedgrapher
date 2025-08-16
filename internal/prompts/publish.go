@@ -36,7 +36,7 @@ As a general guideline for tech blogs, the publishing process often involves:
 Please proceed with publishing the article.
 `
 
-const publishUserPrompt = "The current article is ready to be published."
+const publishUserPrompt = "The work-in-progress article currently in your context is ready to be published. Please initiate the publishing process."
 
 func Publish() *mcp.Prompt {
 	return &mcp.Prompt{

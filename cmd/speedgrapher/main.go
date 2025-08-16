@@ -27,10 +27,18 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+var version = "dev"
+
 func main() {
+	showVersion := flag.Bool("version", false, "Show the version and exit.")
 	editorialGuidelines := flag.String("editorial", "EDITORIAL.md", "Path to the editorial guidelines file.")
 	localizationGuidelines := flag.String("localization", "LOCALIZATION.md", "Path to the localization guidelines file.")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

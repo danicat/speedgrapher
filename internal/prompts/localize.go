@@ -76,7 +76,7 @@ func NewLocalizeHandler(guidelinePath string) mcp.PromptHandler {
 			guidelines = string(customGuidelines)
 		}
 
-		prompt := fmt.Sprintf("Translate the article we have been working on to %s. Adhere to the localization guidelines.", targetLanguage)
+		prompt := fmt.Sprintf("Translate the work-in-progress article currently in your context into %s. You must follow the localization guidelines provided.", targetLanguage)
 
 		return &mcp.GetPromptResult{
 			Messages: []*mcp.PromptMessage{

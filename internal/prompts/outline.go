@@ -27,7 +27,7 @@ The outline should contain a title, section titles, and bullet points covering a
 Please analyze the provided text and generate the outline.
 `
 
-const outlineUserPrompt = "Please generate an outline for the current text."
+const outlineUserPrompt = "Please generate a structured outline for the work-in-progress article currently in your context."
 
 func Outline() *mcp.Prompt {
 	return &mcp.Prompt{
