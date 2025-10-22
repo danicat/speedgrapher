@@ -52,9 +52,9 @@ func Expand() *mcp.Prompt {
 	}
 }
 
-func ExpandHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+func ExpandHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 	prompt := expandUserPrompt
-	if hint, ok := params.Arguments["hint"]; ok && hint != "" {
+	if hint, ok := req.Params.Arguments["hint"]; ok && hint != "" {
 		prompt = fmt.Sprintf("Please expand the work-in-progress article currently in your context, focusing on the following hint: %s", hint)
 	}
 

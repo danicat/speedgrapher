@@ -27,7 +27,7 @@ func Context() *mcp.Prompt {
 	}
 }
 
-func ContextHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+func ContextHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{

@@ -35,9 +35,9 @@ func Haiku() *mcp.Prompt {
 	}
 }
 
-func HaikuHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+func HaikuHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 	prompt := "Write a haiku about the main subject of our conversation."
-	if topic, ok := params.Arguments["topic"]; ok && topic != "" {
+	if topic, ok := req.Params.Arguments["topic"]; ok && topic != "" {
 		prompt = fmt.Sprintf("The user wants to have some fun and has requested a haiku about the following topic: %s", topic)
 	}
 

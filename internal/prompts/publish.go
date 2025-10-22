@@ -45,7 +45,7 @@ func Publish() *mcp.Prompt {
 	}
 }
 
-func PublishHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+func PublishHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{

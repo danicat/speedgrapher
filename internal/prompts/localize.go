@@ -60,8 +60,8 @@ func Localize() *mcp.Prompt {
 }
 
 func NewLocalizeHandler(guidelinePath string) mcp.PromptHandler {
-	return func(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
-		targetLanguage, ok := params.Arguments["target_language"]
+	return func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+		targetLanguage, ok := req.Params.Arguments["target_language"]
 		if !ok {
 			return nil, fmt.Errorf("target_language argument not provided")
 		}
@@ -81,15 +81,9 @@ func NewLocalizeHandler(guidelinePath string) mcp.PromptHandler {
 		return &mcp.GetPromptResult{
 			Messages: []*mcp.PromptMessage{
 				{
-					Role: "assistant",
-					Content: &mcp.TextContent{
-						Text: guidelines,
-					},
-				},
-				{
 					Role: "user",
 					Content: &mcp.TextContent{
-						Text: prompt,
+						Text: guidelines + "\n\n" + prompt,
 					},
 				},
 			},

@@ -68,7 +68,7 @@ func Review() *mcp.Prompt {
 }
 
 func NewReviewHandler(guidelinePath string) mcp.PromptHandler {
-	return func(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+	return func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		guidelines := reviewPrompt
 		customGuidelines, err := os.ReadFile(guidelinePath)
 		if err != nil {
@@ -84,15 +84,9 @@ func NewReviewHandler(guidelinePath string) mcp.PromptHandler {
 		return &mcp.GetPromptResult{
 			Messages: []*mcp.PromptMessage{
 				{
-					Role: "assistant",
-					Content: &mcp.TextContent{
-						Text: guidelines,
-					},
-				},
-				{
 					Role: "user",
 					Content: &mcp.TextContent{
-						Text: prompt,
+						Text: guidelines + "\n\n" + prompt,
 					},
 				},
 			},

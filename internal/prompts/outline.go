@@ -36,7 +36,7 @@ func Outline() *mcp.Prompt {
 	}
 }
 
-func OutlineHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+func OutlineHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{

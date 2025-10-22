@@ -67,7 +67,7 @@ func Reflect() *mcp.Prompt {
 	}
 }
 
-func ReflectHandler(ctx context.Context, s *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+func ReflectHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{

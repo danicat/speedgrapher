@@ -69,7 +69,7 @@ func Interview() *mcp.Prompt {
 	}
 }
 
-func InterviewHandler(ctx context.Context, session *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
+func InterviewHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{

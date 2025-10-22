@@ -16,7 +16,6 @@ package fog
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math"
 	"regexp"
@@ -57,20 +56,20 @@ type FogResult struct {
 	ComplexWords            int     `json:"complex_words"`
 }
 
-func fogHandler(ctx context.Context, s *mcp.ServerSession, request *mcp.CallToolParamsFor[FogParams]) (*mcp.CallToolResult, error) {
-	text := request.Arguments.Text
+func fogHandler(_ context.Context, _ *mcp.CallToolRequest, input FogParams) (*mcp.CallToolResult, *FogResult, error) {
+	text := input.Text
 	if text == "" {
-		return nil, newError("text cannot be empty")
+		return nil, nil, newError("text cannot be empty")
 	}
 
 	totalWords, complexWords := CountWords(text)
 	totalSentences := CountSentences(text)
 
 	if totalWords == 0 {
-		return nil, newError("text does not contain any words")
+		return nil, nil, newError("text does not contain any words")
 	}
 	if totalSentences == 0 {
-		return nil, newError("text does not contain any sentences")
+		return nil, nil, newError("text does not contain any sentences")
 	}
 
 	averageSentenceLength := float64(totalWords) / float64(totalSentences)
@@ -91,16 +90,7 @@ func fogHandler(ctx context.Context, s *mcp.ServerSession, request *mcp.CallTool
 		ComplexWords:            complexWords,
 	}
 
-	jsonResult, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal result: %w", err)
-	}
-
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(jsonResult)},
-		},
-	}, nil
+	return nil, result, nil
 }
 
 func newError(format string, a ...any) error {
