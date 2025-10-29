@@ -20,20 +20,16 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const publishPrompt = `You are an expert technical editor. Your mission is to publish the final version of an article.
+const publishPrompt = `You are an expert technical editor. Your mission is to facilitate the publishing of the final version of an article.
 
-The current version of the article is now considered final and accepted for publishing. You must now initiate the publishing process.
+The current version of the article is now considered final and accepted for publishing.
 
-To do this, you must first determine the correct publishing workflow for this project.
-1.  **Inspect the README:** Look for a "Publishing" or "Deployment" section in the project's README file for specific instructions.
-2.  **Ask the Author:** If the process is not documented in the README, you must ask the author for instructions on how to publish the article.
+**Your Task:**
+1.  **Determine Workflow:** Inspect the project's 'README.md' or other documentation to identify the established publishing or deployment workflow.
+2.  **Create a Plan:** Based on your findings, create a step-by-step plan to publish the article. This often involves git operations (add, commit, push).
+3.  **Seek Confirmation:** Present this plan to the user and ask for explicit confirmation before executing any of the steps, especially those that modify the remote repository.
 
-As a general guideline for tech blogs, the publishing process often involves:
-- Inspecting the project directory for changed files.
-- Preparing a commit with a descriptive message.
-- Pushing the commit to the remote repository.
-
-Please proceed with publishing the article.
+Please proceed with determining the workflow and creating the plan.
 `
 
 const publishUserPrompt = "The work-in-progress article currently in your context is ready to be published. Please initiate the publishing process."

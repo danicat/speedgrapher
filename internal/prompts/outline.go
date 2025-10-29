@@ -22,7 +22,10 @@ import (
 
 const outlinePrompt = `You are an expert technical writer. Your mission is to generate a structured outline of the current draft, concept, or interview report.
 
-The outline should contain a title, section titles, and bullet points covering all topics in each section. The bullet points should be concise, precise, and direct. The author's voice will be applied at a different step.
+The outline should contain a title, section titles, and bullet points covering all topics in each section.
+- **Depth:** Ensure main sections have at least two levels of depth (sub-bullets) where necessary to fully flesh out the ideas.
+- **Clarity:** The bullet points should be concise, precise, and direct.
+- **Voice:** Do not worry about the author's voice at this stage; focus purely on structure and logical flow.
 
 Please analyze the provided text and generate the outline.
 `

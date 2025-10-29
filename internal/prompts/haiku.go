@@ -36,9 +36,9 @@ func Haiku() *mcp.Prompt {
 }
 
 func HaikuHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-	prompt := "Write a haiku about the main subject of our conversation."
+	prompt := "Write a haiku (following the strict 5-7-5 syllable structure) about the main subject of our conversation."
 	if topic, ok := req.Params.Arguments["topic"]; ok && topic != "" {
-		prompt = fmt.Sprintf("The user wants to have some fun and has requested a haiku about the following topic: %s", topic)
+		prompt = fmt.Sprintf("The user wants to have some fun and has requested a haiku (following the strict 5-7-5 syllable structure) about the following topic: %s", topic)
 	}
 
 	return &mcp.GetPromptResult{

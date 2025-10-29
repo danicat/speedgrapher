@@ -31,33 +31,46 @@ Here are the detailed guidelines you must follow for the review:
 
 ## Editorial Guidelines
 
-### Core Philosophy
-- **Is it a personal story?** Every article must be a personal story about a technical journey. It's not just a tutorial; it's a narrative that shares the "why" and the "how," including the struggles, the "aha!" moments, and the hard-won lessons.
-- **Is it helpful?** The goal is to be cozy, helpful, and relatable.
+### 1. Core Philosophy & Audience
+- **Target Audience:** Assume the reader is a competent developer or engineer who is smart but currently lacks the specific context of this topic. They don't need basic concepts explained, but they do need clear explanations of new tools or patterns.
+- **Narrative Approach:** Articles should have a narrative thread. Avoid dry, purely functional tutorials without context. Valid formats include, but are not limited to:
+    - **Personal Experience Report:** A chronological journey of building, debugging, or learning something.
+    - **Interview:** A structured conversation with an expert, distilled into key insights.
+    - **Event Summary:** A report on a conference or meetup, focusing on key takeaways and atmosphere.
+    - **Deep-Dive Exploration:** A thorough examination of a specific technology or pattern.
+    - **Debugging Mystery:** A detective story about tracking down a difficult bug.
+- **Key Moments:** Share the "why" and the "how," including struggles, breakthroughs, and hard-won lessons.
+- **Cozy & Helpful:** The overall vibe should be "cozy web"—helpful, relatable, and human, rather than corporate or purely academic.
 
-### Tone of Voice
-- **Is it personal?** The article should start with a personal story or a relatable frustration to connect with the reader on a human level.
-- **Is it honest?** The article must not present a sanitized, perfect process. It must highlight the "pain and payoff" by talking about cryptic error messages, flawed initial prompts, and the hours of trial-and-error. These struggles contain the most valuable lessons.
-- **Is it professional?** The tone must be that of an experienced peer sharing knowledge. It must avoid overly simplistic or patronizing language.
-- **Does it empower the reader?** The article must present information objectively and avoid subjective judgments (e.g., calling a protocol "simple"). It should allow the reader to form their own opinions based on the facts and the story.
+### 2. Tone of Voice
+- **Honest (Pain and Payoff):** Do not present a sanitized, perfect process. Highlight cryptic error messages, flawed initial approaches, and hours of trial-and-error. These struggles contain the most valuable lessons.
+- **Professional Peer:** Speak as an experienced peer sharing knowledge. Avoid overly simplistic language ("simply," "just," "easy") which can be patronizing if the reader is struggling.
+- **Objective Empowerment:** Present facts objectively. Allow the reader to form their own opinions based on the evidence provided.
 
-### Article Structure
-The article must follow this narrative flow:
-1.  **Introduction:** Does it hook the reader with a personal story about a problem or frustration and set the stage for the journey?
-2.  **Context-Setting:** If the topic is complex, does it provide a clear, concise explanation with helpful analogies and links to official documentation?
-3.  **The Journey (Body):** Does it walk through the process chronologically? Each section should represent a phase of the journey, complete with the prompts used, the results (good and bad), and the lessons learned.
-4.  **Key Takeaways:** Does it conclude with a summary of the most important, high-level lessons learned from the entire experience?
-5.  **What's Next?:** Is there a brief, forward-looking section that discusses the future of the project and provides links to related official or community efforts?
-6.  **Resources and Links:** Is there a final, comprehensive list of all URLs mentioned in the article?
+### 3. Article Structure
+Standard elements are listed below. While a chronological flow is common, feel free to adapt the structure if it better serves the narrative.
+- **Introduction (The Hook):** Start with a relatable problem, frustration, or interesting premise that sets the stage.
+- **Context-Setting:** Briefly explain complex topics with helpful analogies and links to official documentation.
+- **The Narrative Body:** Walk through the process, exploration, or debugging session. Show the failures and the fixes.
+- **Key Takeaways:** Conclude with a summary of high-level lessons learned.
+- **What's Next?:** Briefly discuss future plans or related community efforts.
+- **Resources:** A comprehensive list of all URLs mentioned.
 
-### Titles and Headings
-- **Main Title:** Is the title a compelling hook? It can be a conversational question, a playful declaration, or a pop-culture reference, but it must be professional.
-- **Headings:** Are headings used as narrative signposts to guide the reader through the story? Clever or funny headings should be used very sparingly (1-2 per article, maximum) to emphasize key, surprising moments. The rest should be grounded, descriptive, and professional.
+### 4. Technical Elements
+- **Code Snippets:** Must be accurate, idiomatic, and ideally copy-paste runnable. Use realistic variable names (avoid 'foo'/'bar' unless absolutely necessary for abstraction). Explain *why* the code does what it does, not just *what* it does.
+- **Real-World Examples:** Use actual output from tools and commands. Authenticity builds trust.
+- **Visuals:** Encourage the use of diagrams (Mermaid.js or similar) or screenshots when complex concepts or UI elements are discussed.
+- **Citations:** Always link to official documentation, specifications, or SDKs when referenced.
 
-### Technical Accuracy
-- **Is it precise?** All technical details, especially protocol messages and code snippets, must be 100% accurate.
-- **Are sources cited?** The article must link to the official documentation, specifications, and SDKs it references.
-- **Does it use real-world examples?** Whenever possible, the article must use the *actual* output from tools and commands for authenticity. If a diagram is used, the source must be credited in a caption.
+### 5. Titles and Headings
+- **Title:** Needs a compelling hook. Can be conversational, playful, or a pop-culture reference, but must remain professional and relevant.
+- **Headings:** Use primarily as narrative signposts. Keep them grounded and descriptive. Use clever/funny headings very sparingly (max 1-2 per article) for emphasis.
+
+## Output Format
+Please structure your review as follows:
+1.  **Overall Impression:** A brief summary of your thoughts on the article.
+2.  **Detailed Feedback:** Go through the article section by section (or by guideline category) and provide specific, actionable feedback.
+3.  **Summary of Required Changes:** A bulleted list of the most critical changes the author needs to make to meet the guidelines.
 `
 
 func Review() *mcp.Prompt {

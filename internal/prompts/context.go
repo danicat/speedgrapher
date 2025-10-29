@@ -33,7 +33,7 @@ func ContextHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPro
 			{
 				Role: "user",
 				Content: &mcp.TextContent{
-					Text: "Please reload the current work-in-progress article in its entirety. I need to ensure you have the full, most up-to-date version of the text before we proceed with the next task, which might be an editorial review, a full-text analysis, or another operation that requires the complete document.",
+					Text: "Please identify and reload the current work-in-progress article into your context. If there are multiple potential files, ask me to clarify which one is the active draft. I need to ensure you have the full, most up-to-date version of the text before we proceed.",
 				},
 			},
 		},

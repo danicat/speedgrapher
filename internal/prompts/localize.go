@@ -30,7 +30,7 @@ You must follow these rules:
 
 **1. Do Not Translate Technical Terms:**
    - All technical computer science and software engineering terms must remain in English. This is not an exhaustive list; use your best judgment for similar jargon.
-   - Examples: ` + "`API`" + `, ` + "`backend`" + `, ` + "`CLI`" + `, ` + "`commit`" + `, ` + "`database`" + `, ` + "`frontend`" + `, ` + "`JSON`" + `, ` + "`LLM`" + `, ` + "`prompt`" + `.
+   - Examples: ` + "`API`" + `, ` + "`backend`" + `, ` + "`CLI`" + `, ` + "`commit`" + `, ` + "`database`" + `, ` + "`frontend`" + `, ` + "`JSON`" + `, ` + "`LLM`" + `, ` + "`prompt`" + `, ` + "`pull request`" + `, ` + "`repository`" + `, ` + "`SDK`" + `, ` + "`server`" + `, ` + "`SSH`" + `.
 
 **2. Do Not Translate Product & Brand Names:**
    - All product, company, and brand names must remain in their original form.
