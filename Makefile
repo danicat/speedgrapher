@@ -1,6 +1,6 @@
 # Makefile for speedgrapher
 
-VERSION ?= $(shell git describe --tags --always --dirty)
+VERSION := v0.4.0
 LDFLAGS = -ldflags "-X main.version=${VERSION}"
 
 .PHONY: build
