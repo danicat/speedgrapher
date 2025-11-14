@@ -20,19 +20,15 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const publishPrompt = `You are an expert technical editor. Your mission is to facilitate the publishing of the final version of an article.
-
-The current version of the article is now considered final and accepted for publishing.
+const publishPrompt = `Act as an expert technical editor. The work-in-progress article currently in your context is ready to be published. Please initiate the publishing process.
 
 **Your Task:**
 1.  **Determine Workflow:** Inspect the project's 'README.md' or other documentation to identify the established publishing or deployment workflow.
 2.  **Create a Plan:** Based on your findings, create a step-by-step plan to publish the article. This often involves git operations (add, commit, push).
-3.  **Seek Confirmation:** Present this plan to the user and ask for explicit confirmation before executing any of the steps, especially those that modify the remote repository.
+3.  **Seek Confirmation:** Present this plan to me and ask for explicit confirmation before executing any of the steps, especially those that modify the remote repository.
 
 Please proceed with determining the workflow and creating the plan.
 `
-
-const publishUserPrompt = "The work-in-progress article currently in your context is ready to be published. Please initiate the publishing process."
 
 func Publish() *mcp.Prompt {
 	return &mcp.Prompt{
@@ -45,15 +41,9 @@ func PublishHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPro
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{
-				Role: "assistant",
-				Content: &mcp.TextContent{
-					Text: publishPrompt,
-				},
-			},
-			{
 				Role: "user",
 				Content: &mcp.TextContent{
-					Text: publishUserPrompt,
+					Text: publishPrompt,
 				},
 			},
 		},

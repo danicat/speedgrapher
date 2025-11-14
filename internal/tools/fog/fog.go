@@ -36,13 +36,13 @@ const (
 func Register(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "fog",
-		Description: "Calculates the Gunning Fog Index for a given text.",
+		Description: "Calculates the Gunning Fog Index to estimate the readability of an English text. Lower scores indicate easier reading.",
 	}, fogHandler)
 }
 
 // FogParams defines the input parameters for the fog tool.
 type FogParams struct {
-	Text string `json:"text"`
+	Text string `json:"text" jsonschema:"The text to analyze for readability. Must contain at least one sentence."`
 }
 
 // FogResult defines the structured output for the fog tool.

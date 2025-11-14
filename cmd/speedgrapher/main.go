@@ -24,6 +24,7 @@ import (
 
 	"github.com/danicat/speedgrapher/internal/prompts"
 	"github.com/danicat/speedgrapher/internal/tools/fog"
+	"github.com/danicat/speedgrapher/internal/tools/seo"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -53,17 +54,8 @@ func run(ctx context.Context, editorialGuidelines, localizationGuidelines string
 		&mcp.Implementation{Name: "speedgrapher"},
 		nil,
 	)
-	server.AddPrompt(prompts.Haiku(), prompts.HaikuHandler)
-	server.AddPrompt(prompts.Interview(), prompts.InterviewHandler)
-	server.AddPrompt(prompts.Localize(), prompts.NewLocalizeHandler(localizationGuidelines))
-	server.AddPrompt(prompts.Review(), prompts.NewReviewHandler(editorialGuidelines))
-	server.AddPrompt(prompts.Reflect(), prompts.ReflectHandler)
-	server.AddPrompt(prompts.Readability(), prompts.ReadabilityHandler)
-	server.AddPrompt(prompts.Context(), prompts.ContextHandler)
-	server.AddPrompt(prompts.Voice(), prompts.VoiceHandler)
-	server.AddPrompt(prompts.Outline(), prompts.OutlineHandler)
-	server.AddPrompt(prompts.Expand(), prompts.ExpandHandler)
-	server.AddPrompt(prompts.Publish(), prompts.PublishHandler)
+	prompts.Register(server, editorialGuidelines, localizationGuidelines)
 	fog.Register(server)
+	seo.Register(server)
 	return server.Run(ctx, &mcp.StdioTransport{})
 }

@@ -21,7 +21,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const expandPrompt = `You are an expert technical writer. Your mission is to expand a working outline or draft into a comprehensive, helpful article that aligns with our "cozy web" editorial guidelines.
+const expandPrompt = `Act as an expert technical writer. I need you to expand the work-in-progress article currently in your context into a comprehensive, helpful article that aligns with our "cozy web" editorial guidelines.
 
 When expanding, your goal is to add depth, context, and utility without adding "fluff". Every new sentence must add value.
 
@@ -31,10 +31,8 @@ When expanding, your goal is to add depth, context, and utility without adding "
 3.  **Code & Examples:** Ensure every code snippet has a clear explanation of *why* it's doing what it's doing, not just a rote description of the syntax.
 4.  **Narrative Flow:** Ensure the transitions between expanded sections maintain the article's overall narrative thread (the "journey").
 
-If the author provides a specific hint, prioritize that area. Otherwise, use your expertise to identify which parts of the draft are too thin and need this deeper work.
+If I have provided a specific hint, prioritize that area. Otherwise, use your expertise to identify which parts of the draft are too thin and need this deeper work.
 `
-
-const expandUserPrompt = "Please expand the work-in-progress article currently in your context."
 
 func Expand() *mcp.Prompt {
 	return &mcp.Prompt{
@@ -50,19 +48,13 @@ func Expand() *mcp.Prompt {
 }
 
 func ExpandHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-	prompt := expandUserPrompt
+	prompt := expandPrompt
 	if hint, ok := req.Params.Arguments["hint"]; ok && hint != "" {
-		prompt = fmt.Sprintf("Please expand the work-in-progress article currently in your context, focusing on the following hint: %s", hint)
+		prompt += fmt.Sprintf("\n\n**Focus Hint:** %s", hint)
 	}
 
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
-			{
-				Role: "assistant",
-				Content: &mcp.TextContent{
-					Text: expandPrompt,
-				},
-			},
 			{
 				Role: "user",
 				Content: &mcp.TextContent{

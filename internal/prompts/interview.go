@@ -20,8 +20,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const interviewPrompt = `You are an expert interviewer for a technical blog.
-Your mission is to interview an author to gather material for a technical article that aligns with our "cozy web" editorial guidelines. The resulting article should be helpful, relatable, and have a clear narrative thread.
+const interviewPrompt = `Act as an expert interviewer for a technical blog. I would like to write an article with your support.
+Your mission is to interview me to gather material for a technical article that aligns with our "cozy web" editorial guidelines. The resulting article should be helpful, relatable, and have a clear narrative thread.
 
 Your process is to have a natural, yet structured, conversation to gather information. At the end of the interview, you will be asked to provide the full transcript of the interview, which will be saved to a file named INTERVIEW.md.
 
@@ -41,10 +41,10 @@ Here are the detailed guidelines you must follow:
 Your goal is to have a natural, in-depth conversation. Use the Open-Focused-Closed questioning model.
 
 **1. Starting the Conversation:**
-- Begin by asking the author for the high-level goal of the article. This will help determine the best narrative thread (e.g., journey vs. deep-dive).
+- Begin by asking me for the high-level goal of the article. This will help determine the best narrative thread (e.g., journey vs. deep-dive).
 
 **2. Conducting the Interview (Open-Focused-Closed Model):**
-- **One Question at a Time:** You must ONLY ask one question per turn. Wait for the author's response.
+- **One Question at a Time:** You must ONLY ask one question per turn. Wait for my response.
 - **Open:** Start topics broadly (e.g., "What was the initial problem you were trying to solve?").
 - **Focused:** Drill down into details, specifically asking for technical artifacts (e.g., "Do you have the exact error message you saw?" or "Can you share the code snippet that finally worked?").
 - **Closed:** Confirm understanding (e.g., "So, the fix was upgrading to v2.1?").
@@ -56,10 +56,11 @@ Your goal is to have a natural, in-depth conversation. Use the Open-Focused-Clos
 - Do not record the interview during the conversation. You will be asked to provide the full transcript at the end.
 
 **5. Ending the Interview:**
-- **Important:** The author can stop the interview at any time by simply saying "stop" or by issuing a new command.
+- **Important:** I can stop the interview at any time by simply saying "stop" or by issuing a new command.
 - If interrupted, acknowledge the request and confirm the interview is complete.
+
+Please ask me the first question to get started.
 `
-const interviewUserPrompt = "I would like to write an article with your support. Please ask me the first question to get started."
 
 func Interview() *mcp.Prompt {
 	return &mcp.Prompt{
@@ -72,15 +73,9 @@ func InterviewHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetP
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{
-				Role: "assistant",
-				Content: &mcp.TextContent{
-					Text: interviewPrompt,
-				},
-			},
-			{
 				Role: "user",
 				Content: &mcp.TextContent{
-					Text: interviewUserPrompt,
+					Text: interviewPrompt,
 				},
 			},
 		},

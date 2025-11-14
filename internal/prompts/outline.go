@@ -20,7 +20,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const outlinePrompt = `You are an expert technical writer. Your mission is to generate a structured outline of the current draft, concept, or interview report.
+const outlinePrompt = `Act as an expert technical writer. Please generate a structured outline for the work-in-progress article currently in your context.
 
 The outline should contain a title, section titles, and bullet points covering all topics in each section.
 - **Depth:** Ensure main sections have at least two levels of depth (sub-bullets) where necessary to fully flesh out the ideas.
@@ -29,8 +29,6 @@ The outline should contain a title, section titles, and bullet points covering a
 
 Please analyze the provided text and generate the outline.
 `
-
-const outlineUserPrompt = "Please generate a structured outline for the work-in-progress article currently in your context."
 
 func Outline() *mcp.Prompt {
 	return &mcp.Prompt{
@@ -43,15 +41,9 @@ func OutlineHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPro
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{
-				Role: "assistant",
-				Content: &mcp.TextContent{
-					Text: outlinePrompt,
-				},
-			},
-			{
 				Role: "user",
 				Content: &mcp.TextContent{
-					Text: outlineUserPrompt,
+					Text: outlinePrompt,
 				},
 			},
 		},
