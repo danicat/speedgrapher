@@ -14,11 +14,45 @@ Speedgrapher is an MCP server designed to assist professional writers, with a pa
 
 Speedgrapher is written in Go and implements the Model Context Protocol (MCP). It uses the [official Go SDK for MCP](https://github.com/modelcontextprotocol/go-sdk) and communicates over the `stdio` transport layer. This design choice makes it a lightweight and secure local server, with no need for network deployment.
 
+## Installation
+
+### Gemini CLI (Extension)
+
+Clone and install the extension:
+
+```sh
+git clone https://github.com/danicat/speedgrapher.git && cd speedgrapher
+make extension
+```
+
+### Gemini CLI (MCP Server)
+
+Clone and install the binary:
+
+```sh
+git clone https://github.com/danicat/speedgrapher.git && cd speedgrapher
+make build
+make install
+```
+
+Add this configuration to your `.gemini/settings.json`:
+
+```json
+{
+    "mcpServers": {
+        "speedgrapher": {
+            "command": "speedgrapher"
+        }
+    }
+}
+```
+
+
 ## Available Tools
 
 ### Gunning Fog Index
 
-The `fog` tool calculates the Gunning Fog Index for a given text. The Gunning Fog Index is a readability test that estimates the years of formal education a person needs to understand a text on the first reading.
+The `fog` tool calculates a readability score (adapted from the [Gunning Fog Index](https://en.wikipedia.org/wiki/Gunning_fog_index)) for a given text.
 
 The tool returns not only the numerical Fog Index but also a qualitative classification to help writers calibrate their text for a specific audience.
 
@@ -85,73 +119,6 @@ flowchart TD
     L -->|/publish| P[Published Article]
     P -->|/reflect| S[Model Self-Improvement Notes]
     S --> E(End)
-```
-
-## Getting Started
-
-To get started with Speedgrapher, you'll need to have Go installed on your system.
-
-### Building the server
-
-You can build the server by running the following command:
-
-```bash
-make build
-```
-
-This will create an executable file at `bin/speedgrapher`.
-
-### Testing the server
-
-To test that the server is running correctly, you can send it an `initialize` request, followed by an `initialized` notification and a `prompts/list` request. The server will respond with its capabilities and a list of available prompts if it is successful.
-
-```bash
-(
-  echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}';
-  echo '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}';
-  echo '{"jsonrpc":"2.0","id":2,"method":"prompts/list","params":{}}';
-) | ./bin/speedgrapher
-```
-
-### Using a prompt
-
-To use a prompt, you can send a `prompts/get` request to the server with the name of the prompt you want to use.
-
-```bash
-(
-  echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}';
-  echo '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}';
-  echo '{"jsonrpc":"2.0","id":2,"method":"prompts/get","params":{"name": "interview"}}';
-) | ./bin/speedgrapher
-```
-
-### Using the `fog` tool
-
-To use the `fog` tool, you can send a `tools/call` request to the server with the text you want to analyze.
-
-```bash
-(
-    printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{},"implementation":{"name":"test-client","version":"0.0.1"}}}
-';
-    sleep 1;
-    TEXT="Speedgrapher is a local MCP server written in Go, designed to assist writers by providing a suite of tools to streamline the writing process.";
-    printf '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"fog","arguments":{"text":"%s"}}}
-' "$TEXT";
-) | ./bin/speedgrapher
-```
-
-The server will respond with a JSON object containing the Gunning Fog Index, the classification, and all the partial metrics.
-
-```json
-{
-  "fog_index": 16.27,
-  "classification": "Professional Audiences: Best for readers with specialized knowledge.",
-  "total_words": 24,
-  "total_sentences": 1,
-  "average_sentence_length": 24,
-  "percentage_complex_words": 16.67,
-  "complex_words": 4
-}
 ```
 
 ## Resources

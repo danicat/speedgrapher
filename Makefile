@@ -19,6 +19,11 @@ clean:
 test:
 	go test ./...
 
+
+.PHONY: extension
+extension: build
+	gemini extensions install .
+
 .PHONY: tag
 tag:
 	@echo "Usage: git tag v<version>"
