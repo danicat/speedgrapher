@@ -35,13 +35,13 @@ make build
 make install
 ```
 
-Add this configuration to your `.gemini/settings.json`:
+Add this configuration to your `~/.gemini/settings.json`:
 
 ```json
 {
     "mcpServers": {
         "speedgrapher": {
-            "command": "speedgrapher"
+            "command": "$HOME/<path to your speedgrapher directory>/bin/speedgrapher"
         }
     }
 }
