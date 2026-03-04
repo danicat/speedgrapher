@@ -25,6 +25,7 @@ import (
 	"github.com/danicat/speedgrapher/internal/prompts"
 	"github.com/danicat/speedgrapher/internal/tools/fog"
 	"github.com/danicat/speedgrapher/internal/tools/seo"
+	"github.com/danicat/speedgrapher/internal/tools/vale"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -57,5 +58,6 @@ func run(ctx context.Context, editorialGuidelines, localizationGuidelines string
 	prompts.Register(server, editorialGuidelines, localizationGuidelines)
 	fog.Register(server)
 	seo.Register(server)
+	vale.Register(server)
 	return server.Run(ctx, &mcp.StdioTransport{})
 }
