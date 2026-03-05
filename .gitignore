@@ -1,2 +1,4 @@
 bin/
-.gemini
+.gemini/tmp/
+.gemini/settings.json
+.gemini/memory.json
