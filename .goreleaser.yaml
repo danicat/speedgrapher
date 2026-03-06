@@ -23,7 +23,7 @@ builds:
 archives:
   - format: tar.gz
     name_template: >-
-      {{ .ProjectName }}_{{ .Os }}_{{ .Arch }}
+      {{ if eq .Os "windows" }}win32{{ else }}{{ .Os }}{{ end }}.{{ if eq .Arch "amd64" }}x64{{ else if eq .Arch "386" }}ia32{{ else }}{{ .Arch }}{{ end }}.{{ .ProjectName }}
     # use zip for windows archives
     format_overrides:
       - goos: windows

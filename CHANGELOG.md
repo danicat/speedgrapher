@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.5.6] - 2026-03-06
+
+### Fixed
+- Updated `.goreleaser.yaml` to use the exact `platform.arch.name` naming pattern required by the Gemini CLI extension installer. This prevents the fallback behavior of downloading the full source code repository.
+
 ## [v0.5.5] - 2026-03-06
 
 ### Fixed
