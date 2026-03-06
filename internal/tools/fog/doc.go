@@ -32,16 +32,16 @@ The core of the Fog Index is the identification of "complex words," which are
 defined as words with three or more syllables. The syllable counting algorithm
 went through several iterations:
 
-1.  **Initial Approach:** A rule-based system that attempted to handle common
+ 1. **Initial Approach:** A rule-based system that attempted to handle common
     suffixes (e.g., -es, -ed, -ing) and silent 'e' endings. This proved to be
     brittle and difficult to maintain.
 
-2.  **Simplified Approach:** A version that simply counted vowel groups, where a
+ 2. **Simplified Approach:** A version that simply counted vowel groups, where a
     vowel group is any sequence of one or more consecutive vowels. This was more
     robust and predictable, but it tended to overestimate the complexity of some
     common words.
 
-3.  **Final Approach:** The current implementation uses the simplified vowel
+ 3. **Final Approach:** The current implementation uses the simplified vowel
     group counting method. This was chosen because it provides a consistent and
     reproducible heuristic, even if it is not perfectly aligned with linguistic
     syllabification. The goal is to provide a consistent measure, and this
@@ -79,10 +79,10 @@ Example:
 
 # External References
 
-*   **Gunning Fog Index (Wikipedia):**
+  - **Gunning Fog Index (Wikipedia):**
     https://en.wikipedia.org/wiki/Gunning_fog_index
 
-*   **How to Build an MCP Server with Gemini CLI and Go:**
+  - **How to Build an MCP Server with Gemini CLI and Go:**
     https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/
 */
 package fog

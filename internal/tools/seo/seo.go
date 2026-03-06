@@ -58,11 +58,11 @@ func seoHandler(_ context.Context, _ *mcp.CallToolRequest, input SEOParams) (*mc
 	var err error
 
 	if input.URL != "" {
-		resp, err := http.Get(input.URL)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to fetch URL: %w", err)
+		resp, fetchErr := http.Get(input.URL)
+		if fetchErr != nil {
+			return nil, nil, fmt.Errorf("failed to fetch URL: %w", fetchErr)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			return nil, nil, fmt.Errorf("failed to fetch URL, status code: %d", resp.StatusCode)
 		}
@@ -70,9 +70,9 @@ func seoHandler(_ context.Context, _ *mcp.CallToolRequest, input SEOParams) (*mc
 	} else if input.HTML != "" {
 		// Check if input is Hugo Markdown (starts with ---)
 		if strings.HasPrefix(strings.TrimSpace(input.HTML), "---") {
-			htmlContent, err := convertHugoMarkdownToHTML(input.HTML)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to convert Hugo Markdown: %w", err)
+			htmlContent, convErr := convertHugoMarkdownToHTML(input.HTML)
+			if convErr != nil {
+				return nil, nil, fmt.Errorf("failed to convert Hugo Markdown: %w", convErr)
 			}
 			doc, err = goquery.NewDocumentFromReader(strings.NewReader(htmlContent))
 		} else {

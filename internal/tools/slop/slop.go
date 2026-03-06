@@ -187,7 +187,8 @@ func Calculate(text string) SlopResult {
 			mean := sum / float64(len(lens))
 			varianceSum := 0.0
 			for _, l := range lens {
-				varianceSum += math.Pow(l-mean, 2)
+				diff := l - mean
+				varianceSum += diff * diff
 			}
 			stdDev := math.Sqrt(varianceSum / float64(len(lens)))
 			if mean > 0 {

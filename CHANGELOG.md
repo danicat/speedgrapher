@@ -1,6 +1,16 @@
 # Changelog
 
-## [v0.5.2] - 2026-03-06
+## [v0.5.4] - 2026-03-06
+
+### Added
+- Automated Vale Bootstrapper: Speedgrapher now automatically downloads, verifies (via SHA256), and executes a pinned version of `vale` (v3.13.1). This ensures a consistent and secure editorial baseline regardless of the user's system configuration.
+
+### Fixed
+- Improved linter compliance and resolved several code quality warnings in `seo` and `slop` tools.
+
+## [v0.5.3] - 2026-03-06
+
+
 
 ### Fixed
 - Add missing GitHub Action workflow for binary distribution via Goreleaser.

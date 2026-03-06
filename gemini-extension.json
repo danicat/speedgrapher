@@ -1,14 +1,7 @@
 {
   "name": "speedgrapher",
-  "version": "0.5.2",
+  "version": "0.5.4",
   "description": "A local MCP server for writers to streamline the writing process.",
-  "settings": [
-    {
-      "name": "vale_installed",
-      "description": "Speedgrapher requires 'vale' for static analysis. Please ensure it is installed (e.g., 'brew install vale'). Type 'yes' to acknowledge.",
-      "envVar": "SPEEDGRAPHER_VALE_ACKNOWLEDGED"
-    }
-  ],
   "mcpServers": {
     "speedgrapher": {
       "command": "${extensionPath}/bin/speedgrapher"

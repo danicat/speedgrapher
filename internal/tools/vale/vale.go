@@ -36,7 +36,7 @@ BasedOnStyles = Vale, Google, proselint, write-good
 
 // setupValeConfig ensures that a global Vale configuration exists for Speedgrapher
 // and that the required packages are downloaded.
-func setupValeConfig() (string, error) {
+func setupValeConfig(valePath string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("could not get home dir: %w", err)
@@ -55,12 +55,8 @@ func setupValeConfig() (string, error) {
 			return "", fmt.Errorf("could not write .vale.ini: %w", err)
 		}
 
-		cmd := exec.Command("vale", "sync", "--config", iniPath)
+		cmd := exec.Command(valePath, "sync", "--config", iniPath)
 		if out, err := cmd.CombinedOutput(); err != nil {
-			// If vale isn't installed, let the user know clearly
-			if strings.Contains(err.Error(), "executable file not found") {
-				return "", fmt.Errorf("vale is not installed or not in PATH. Please install vale (e.g. 'brew install vale')")
-			}
 			return "", fmt.Errorf("failed to run 'vale sync': %s (error: %w)", string(out), err)
 		}
 	}
@@ -92,15 +88,20 @@ func valeHandler(_ context.Context, _ *mcp.CallToolRequest, input ValeParams) (*
 		return nil, nil, fmt.Errorf("text cannot be empty")
 	}
 
-	iniPath, err := setupValeConfig()
+	valePath, err := bootstrapVale()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to bootstrap vale: %w", err)
+	}
+
+	iniPath, err := setupValeConfig(valePath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("vale config error: %w", err)
 	}
 
 	// Run vale via stdin so we don't need temporary files, ensuring it uses our managed config
-	cmd := exec.Command("vale", "--config", iniPath, "--ext", ".md", "--output=JSON")
+	cmd := exec.Command(valePath, "--config", iniPath, "--ext", ".md", "--output=JSON")
 	cmd.Stdin = strings.NewReader(text)
-	
+
 	// Vale returns non-zero for alerts, so we ignore the error and just capture the output
 	output, err := cmd.CombinedOutput()
 	if err != nil && len(output) == 0 {
