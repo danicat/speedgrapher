@@ -90,17 +90,15 @@ Add this configuration to your `.gemini/settings.json`, pointing the `command` t
 }
 ```
 
-### 3. Install the Skills
+### 3. Install the SkillTo enable the specialized editorial workflow, install the accompanying skills into your Gemini CLI. Navigate to the `skills/` directory and install them:
 
-To enable the specialized editorial workflow, install the accompanying skills into your Gemini CLI. Navigate to the `.gemini/skills` directory and install them:
-
-```sh
-gemini skills install .gemini/skills/tech-interviewer --scope user
-gemini skills install .gemini/skills/tech-writer --scope user
-gemini skills install .gemini/skills/tech-reviewer --scope user
-gemini skills install .gemini/skills/tech-publisher --scope user
+```bash
+gemini skills install skills/tech-interviewer --scope user
+gemini skills install skills/tech-writer --scope user
+gemini skills install skills/tech-reviewer --scope user
+gemini skills install skills/tech-publisher --scope user
 ```
-After installation, reload your skills in the interactive CLI: `/skills reload`.
+fter installation, reload your skills in the interactive CLI: `/skills reload`.
 
 ## Release & Distribution
 
