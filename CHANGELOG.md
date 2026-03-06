@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.5.8] - 2026-03-06
+
+### Fixed
+- Added `.vale.ini` and `SPEEDGRAPHER.md` to git tracking. These files were missing from the previous commit, causing Goreleaser to fail during the archive generation process.
+
 ## [v0.5.7] - 2026-03-06
 
 ### Added

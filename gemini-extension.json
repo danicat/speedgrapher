@@ -1,6 +1,6 @@
 {
   "name": "speedgrapher",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "A local MCP server for writers to streamline the writing process.",
   "mcpServers": {
     "speedgrapher": {
