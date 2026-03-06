@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/jdkato/prose/v2"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -115,6 +116,7 @@ type SlopResult struct {
 	FillerWords       CriteriaResult `json:"filler_words"`
 	StructuralCliches CriteriaResult `json:"structural_cliches"`
 	RhythmVariance    CriteriaResult `json:"rhythm_variance"`
+	SyntacticVoice    CriteriaResult `json:"syntactic_voice"`
 	OverallScore      float64        `json:"overall_slop_score"`
 }
 
@@ -197,14 +199,42 @@ func Calculate(text string) SlopResult {
 		}
 	}
 
+	// 4. Syntactic Voice
+	cleanText := regexp.MustCompile(`(?m)^---[\s\S]*?^---`).ReplaceAllString(text, "")
+	cleanText = regexp.MustCompile("(?s)```[\\s\\S]*?```").ReplaceAllString(cleanText, "")
+	cleanText = regexp.MustCompile(`\[([^\]]+)\]\([^\)]+\)`).ReplaceAllString(cleanText, "$1")
+
+	pni := 0.0
+	doc, err := prose.NewDocument(cleanText)
+	if err == nil {
+		tokens := doc.Tokens()
+		n := 0.0
+		p := 0.0
+		totalTokens := float64(len(tokens))
+		if totalTokens > 0 {
+			for _, tok := range tokens {
+				// Prose uses Penn Treebank tags
+				// Nouns: NN, NNP, NNPS, NNS
+				// Pronouns: PRP, PRP$
+				if strings.HasPrefix(tok.Tag, "NN") {
+					n++
+				} else if strings.HasPrefix(tok.Tag, "PRP") {
+					p++
+				}
+			}
+			pni = (n - p) / totalTokens
+		}
+	}
+
 	res := SlopResult{
 		LexicalSlop:       CriteriaResult{Score: normalizeSmooth(lexDensity, 1.0, 8.0), Raw: lexDensity},
 		FillerWords:       CriteriaResult{Score: normalizeSmooth(fillerRatio, 0.35, 0.55), Raw: fillerRatio},
 		StructuralCliches: CriteriaResult{Score: normalizeSmooth(structDensity, 0.5, 4.0), Raw: structDensity},
 		RhythmVariance:    CriteriaResult{Score: normalizeSmooth(cv, 0.75, 0.35), Raw: cv},
+		SyntacticVoice:    CriteriaResult{Score: normalizeSmooth(pni, 0.16, 0.28), Raw: pni},
 	}
 
-	res.OverallScore = math.Round((res.LexicalSlop.Score+res.FillerWords.Score+res.StructuralCliches.Score+res.RhythmVariance.Score)/4*100) / 100
+	res.OverallScore = math.Round((res.LexicalSlop.Score+res.FillerWords.Score+res.StructuralCliches.Score+res.RhythmVariance.Score+res.SyntacticVoice.Score)/5*100) / 100
 	return res
 }
 

@@ -1,6 +1,7 @@
 # Makefile for speedgrapher
 
-VERSION := v0.5.8
+VERSION := v0.5.9
+
 LDFLAGS = -ldflags "-X main.version=${VERSION}"
 
 .PHONY: build
