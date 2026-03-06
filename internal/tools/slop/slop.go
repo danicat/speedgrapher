@@ -242,7 +242,7 @@ func Calculate(text string) SlopResult {
 func Register(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "slop",
-		Description: "Calculates a 'slop score' (0-100) to estimate 'AI-ness' in text. Higher means more AI-like.",
+		Description: "Calculates an AI 'slop score' (0-100) using 5 metrics, including Lexical Density and Syntactic Voice (Noun-Pronoun Index). Calibrated for tech writing.",
 	}, slopHandler)
 }
 

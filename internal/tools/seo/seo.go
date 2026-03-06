@@ -1,23 +1,24 @@
 package seo
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/yuin/goldmark"
 	"gopkg.in/yaml.v3"
 )
 
-// Register registers the audit_seo tool with the server.
+// Register registers the analyze_seo tool with the server.
 func Register(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "audit_seo",
-		Description: "Audits a webpage URL or raw HTML content for technical SEO best practices, checking title, meta description, headings, and more.",
+		Name:        "analyze_seo",
+		Description: "Performs technical SEO audits on URLs or Hugo Markdown. Uses the Hugo CLI to accurately verify titles, descriptions, and H1 tags from frontmatter and templates.",
 	}, seoHandler)
 }
 
@@ -90,40 +91,102 @@ func seoHandler(_ context.Context, _ *mcp.CallToolRequest, input SEOParams) (*mc
 	return nil, result, nil
 }
 
+func findHugoRoot() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for {
+		for _, config := range []string{"hugo.toml", "hugo.yaml", "hugo.json", "config.toml", "config.yaml", "config.json"} {
+			if _, err := os.Stat(filepath.Join(cwd, config)); err == nil {
+				return cwd, nil
+			}
+		}
+		parent := filepath.Dir(cwd)
+		if parent == cwd {
+			break
+		}
+		cwd = parent
+	}
+	return "", fmt.Errorf("hugo root not found")
+}
+
 func convertHugoMarkdownToHTML(markdown string) (string, error) {
+	root, err := findHugoRoot()
+	if err != nil {
+		return "", fmt.Errorf("hugo root not found: %w", err)
+	}
+
+	// Create a unique temp file in content
+	tempFileName := "speedgrapher_seo_temp.md"
+	tempFilePath := filepath.Join(root, "content", tempFileName)
+	if err := os.WriteFile(tempFilePath, []byte(markdown), 0644); err != nil {
+		return "", fmt.Errorf("failed to write temp markdown: %w", err)
+	}
+	defer os.Remove(tempFilePath)
+
+	tempOut, err := os.MkdirTemp("", "speedgrapher_hugo_out")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp out dir: %w", err)
+	}
+	defer os.RemoveAll(tempOut)
+
+	// Run hugo
+	cmd := exec.Command("hugo", "--destination", tempOut, "--quiet")
+	cmd.Dir = root
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("hugo failed: %s (error: %w)", string(out), err)
+	}
+
+	// Try to find the rendered HTML.
+	// We check for the filename without extension, then look for index.html there.
+	targetSlug := "speedgrapher_seo_temp"
+
+	// Parse frontmatter to check for slug or url overrides which change the output path
 	parts := strings.SplitN(markdown, "---", 3)
-	if len(parts) < 3 {
-		return "", fmt.Errorf("invalid Hugo Markdown format: missing front matter delimiters")
+	if len(parts) >= 3 {
+		var fm map[string]interface{}
+		if err := yaml.Unmarshal([]byte(parts[1]), &fm); err == nil {
+			if url, ok := fm["url"].(string); ok {
+				targetSlug = strings.Trim(url, "/")
+			} else if slug, ok := fm["slug"].(string); ok {
+				targetSlug = slug
+			}
+		}
 	}
 
-	frontMatterRaw := parts[1]
-	bodyMarkdown := parts[2]
+	renderedPath := filepath.Join(tempOut, targetSlug, "index.html")
 
-	var fm FrontMatter
-	if err := yaml.Unmarshal([]byte(frontMatterRaw), &fm); err != nil {
-		return "", fmt.Errorf("failed to parse Front Matter: %w", err)
+	// If the expected path doesn't exist, search for any index.html as a fallback
+	if _, err := os.Stat(renderedPath); os.IsNotExist(err) {
+		found := ""
+		_ = filepath.Walk(tempOut, func(path string, info os.FileInfo, err error) error {
+			if err == nil && !info.IsDir() && strings.HasSuffix(path, "index.html") {
+				// We prefer a path that contains our slug
+				if strings.Contains(path, targetSlug) {
+					found = path
+					return fmt.Errorf("found")
+				}
+				// Otherwise, keep the first one we find
+				if found == "" {
+					found = path
+				}
+			}
+			return nil
+		})
+		renderedPath = found
 	}
 
-	var buf bytes.Buffer
-	if err := goldmark.Convert([]byte(bodyMarkdown), &buf); err != nil {
-		return "", fmt.Errorf("failed to convert Markdown body: %w", err)
+	if renderedPath == "" {
+		return "", fmt.Errorf("could not find rendered HTML in %s", tempOut)
 	}
 
-	// Synthesize HTML with Front Matter data injected into head
-	html := fmt.Sprintf(`
-		<html>
-			<head>
-				<title>%s</title>
-				<meta name="description" content="%s">
-				<link rel="canonical" href="%s">
-			</head>
-			<body>
-				%s
-			</body>
-		</html>
-	`, fm.Title, fm.Description, fm.Canonical, buf.String())
+	htmlBytes, err := os.ReadFile(renderedPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read rendered HTML: %w", err)
+	}
 
-	return html, nil
+	return string(htmlBytes), nil
 }
 
 func analyzeSEO(doc *goquery.Document, keyword string) *SEOResult {

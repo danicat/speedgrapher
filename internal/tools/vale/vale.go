@@ -25,9 +25,25 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// setupValeConfig ensures that a global Vale configuration exists for Speedgrapher
-// and that the required packages are downloaded.
+// setupValeConfig ensures that a Vale configuration exists for Speedgrapher.
+// It prioritizes a local .vale.ini in the current working directory.
+// If none exists, it falls back to the bundled configuration.
 func setupValeConfig(valePath string) (string, error) {
+	// First check current working directory
+	cwd, err := os.Getwd()
+	if err == nil {
+		localIni := filepath.Join(cwd, ".vale.ini")
+		if _, err := os.Stat(localIni); err == nil {
+			// Found local config, ensure packages are synced
+			cmd := exec.Command(valePath, "sync", "--config", localIni)
+			if out, syncErr := cmd.CombinedOutput(); syncErr != nil {
+				return "", fmt.Errorf("failed to run 'vale sync' for local config: %s (error: %w)", string(out), syncErr)
+			}
+			return localIni, nil
+		}
+	}
+
+	// Fallback to bundled config
 	exePath, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("could not get executable path: %w", err)
@@ -57,7 +73,7 @@ func setupValeConfig(valePath string) (string, error) {
 func Register(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "vale",
-		Description: "Runs vale static analysis on the provided text to check for style and grammar issues.",
+		Description: "Executes Vale static analysis for style and grammar. Prioritizes project-specific .vale.ini if present in the workspace.",
 	}, valeHandler)
 }
 
