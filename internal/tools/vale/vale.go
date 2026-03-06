@@ -25,36 +25,25 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const defaultValeIni = `StylesPath = styles
-MinAlertLevel = suggestion
-
-Packages = Google, proselint, write-good
-
-[*.md]
-BasedOnStyles = Vale, Google, proselint, write-good
-`
-
 // setupValeConfig ensures that a global Vale configuration exists for Speedgrapher
 // and that the required packages are downloaded.
 func setupValeConfig(valePath string) (string, error) {
-	home, err := os.UserHomeDir()
+	exePath, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("could not get home dir: %w", err)
+		return "", fmt.Errorf("could not get executable path: %w", err)
 	}
+	exeDir := filepath.Dir(exePath)
 
-	configDir := filepath.Join(home, ".config", "speedgrapher", "vale")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return "", fmt.Errorf("could not create config dir: %w", err)
-	}
+	iniPath := filepath.Join(exeDir, ".vale.ini")
+	stylesPath := filepath.Join(exeDir, "styles")
 
-	iniPath := filepath.Join(configDir, ".vale.ini")
-
-	// If the config doesn't exist, create it and run vale sync
+	// Verify the ini file exists
 	if _, err := os.Stat(iniPath); os.IsNotExist(err) {
-		if err := os.WriteFile(iniPath, []byte(defaultValeIni), 0644); err != nil {
-			return "", fmt.Errorf("could not write .vale.ini: %w", err)
-		}
+		return "", fmt.Errorf(".vale.ini is missing, it must be bundled with the extension")
+	}
 
+	// If the styles dir doesn't exist, run vale sync
+	if _, err := os.Stat(stylesPath); os.IsNotExist(err) {
 		cmd := exec.Command(valePath, "sync", "--config", iniPath)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("failed to run 'vale sync': %s (error: %w)", string(out), err)

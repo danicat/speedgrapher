@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.5.7] - 2026-03-06
+
+### Added
+- Automated Vale Bootstrapper: Speedgrapher now automatically downloads and verifies a pinned version of `vale` (v3.13.1).
+- Added `SPEEDGRAPHER.md` to provide the LLM with focused context on how to use the MCP tools.
+
+### Fixed
+- Re-architected release packaging:
+    - Fixed `.goreleaser.yaml` to use the exact `platform.arch.name` naming pattern required by the Gemini CLI.
+    - Included `gemini-extension.json`, `SPEEDGRAPHER.md`, `.vale.ini`, and `skills/` in release archives.
+    - Moved the `speedgrapher` binary to the root of the archive and updated paths accordingly.
+- Made `vale` configuration fully self-contained within the extension directory, avoiding any use of the user's home directory.
+- Updated `README.md` with streamlined installation instructions and corrected build paths.
+
 ## [v0.5.6] - 2026-03-06
 
 ### Fixed
