@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.5.5] - 2026-03-06
+
+### Fixed
+- Reverted custom `name_template` in `.goreleaser.yaml` to ensure GitHub release assets use standard OS and Architecture naming conventions (e.g. `darwin_amd64` instead of `Darwin_x86_64`). This fixes the Gemini CLI installer failing to match the pre-compiled binary and falling back to a source-code installation.
+
 ## [v0.5.4] - 2026-03-06
 
 ### Added
