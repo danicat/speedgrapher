@@ -1,6 +1,12 @@
 # Changelog
 
+## [v0.5.1] - 2026-03-06
+
+### Fixed
+- Add missing GitHub Action workflow for binary distribution via Goreleaser.
+
 ## [v0.5.0] - 2026-03-05
+
 
 ### Added
 - Binary distribution configuration via Goreleaser.
