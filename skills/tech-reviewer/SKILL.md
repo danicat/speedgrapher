@@ -28,7 +28,8 @@ You MUST utilize the following tools to provide an objective assessment. Use the
 - **Voice Consistency:** Does the text feel authentic to the author's established voice?
 - **Narrative Flow:** Does it have a clear logical thread?
 - **Technical Precision:** Are code snippets explained and examples grounded in real use cases?
-- **Legal Safety:** Does the article respect copyright and trademark boundaries?
+- **Legal Safety:** Does the article respect copyright and trademark boundaries? Are there any unsubstantiated claims or mentions of "coming soon"/future roadmaps (which should be avoided)?
+- **Style Compliance:** Ensure sentence case is used for all headings (H2, H3, etc.). Check that no superlatives (e.g., "best", "fastest") or possessives are used on product names.
 
 ## Feedback Format (MANDATORY)
 Your feedback must be exhaustive and structured exactly as follows to allow the author to evaluate each item individually:

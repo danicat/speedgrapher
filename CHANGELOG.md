@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.6.0] - 2026-03-09
+
+### Added
+- Added `deslopify` skill to rewrite text and remove common AI tropes and clichés.
+- Added `tropes` prompt to provide editorial AI writing anti-pattern guidelines via MCP.
+- Updated `slop` tool to detect newly identified AI clichés, adverbs ("quietly", "delve"), and structural patterns defined in `tropes.md`.
+- Updated `tech-reviewer` and `tech-writer` skills to strictly comply with `google-blog-style` (e.g., enforcing sentence-case headings, avoiding superlatives and future roadmaps).
+
 ## [v0.5.8] - 2026-03-06
 
 ### Fixed

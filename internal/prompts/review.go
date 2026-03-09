@@ -15,11 +15,11 @@
 package prompts
 
 import (
-	"context"
-	"errors"
-	"os"
+        "context"
+        "errors"
+        "os"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+        "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const reviewPrompt = `
@@ -101,13 +101,12 @@ func NewReviewHandler(guidelinePath string) mcp.PromptHandler {
 
 		return &mcp.GetPromptResult{
 			Messages: []*mcp.PromptMessage{
-				{
-					Role: "user",
-					Content: &mcp.TextContent{
-						Text: guidelines + "\n\n" + prompt,
-					},
-				},
-			},
-		}, nil
+			        {
+			                Role: "user",
+			                Content: &mcp.TextContent{
+			                        Text: guidelines + "\n\n" + tropesGuidelines + "\n\n" + prompt,
+			                },
+			        },
+			},		}, nil
 	}
 }

@@ -9,4 +9,5 @@ func Register(server *mcp.Server, editorialGuidelines, localizationGuidelines st
 	server.AddPrompt(Interview(), InterviewHandler)
 	server.AddPrompt(Review(), NewReviewHandler(editorialGuidelines))
 	server.AddPrompt(Readability(), ReadabilityHandler)
+	server.AddPrompt(Tropes(), TropesHandler)
 }

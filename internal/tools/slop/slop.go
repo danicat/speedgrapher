@@ -38,6 +38,8 @@ var (
 		"proactive", "accelerator", "bleeding edge", "invaluable", "scarce",
 		"boilerplate", "wired up", "strategic", "real-world", "capabilities",
 		"specialised", "procedural", "deterministic", "rigorous", "relentless",
+		"quietly", "deeply", "fundamentally", "remarkably", "arguably",
+		"certainly", "utilize", "streamline", "harness", "ecosystem", "framework",
 	}
 
 	clichePatterns = []string{
@@ -49,10 +51,28 @@ var (
 		`(?i)\bthe[ \t]+(?:[a-z0-9\-]+[ \t]+){0,4}[a-z0-9\-]+[ \t]*:[ \t]*(?:the[ \t]+)?(?:[a-z0-9\-]+[ \t]+){0,4}[a-z0-9\-]+\b`,
 		`(?i)\b(?:[a-z0-9\-]+[ \t]+){1,5}\(the[ \t]+(?:[a-z0-9\-]+[ \t]+){0,4}[a-z0-9\-]+\)`,
 		`(?i)\b[a-z0-9]+[\s]*[—-][\s]*[a-z0-9]+[\s]*[—-][\s]*[a-z0-9]+\b`,
+		`(?i)serves as`, `(?i)stands as`, `(?i)marks a pivotal moment`, `(?i)represents a`,
+		`(?i)it'?s not .*,? it'?s`, `(?i)not because .*,? but because`,
+		`(?i)not .*\.? not .*\.? just`, `(?i)not a .*\.? not a .*\.? a`,
+		`(?i)the result\?`, `(?i)the worst part\?`, `(?i)the scary part\?`,
+		`(?i)it'?s worth noting`, `(?i)it bears mentioning`, `(?i)importantly,`, `(?i)interestingly,`, `(?i)notably,`,
+		`(?i)highlighting its importance`, `(?i)reflecting broader trends`, `(?i)contributing to the development of`,
+		`(?i)from .* to .* to .*`,
+		`(?i)here'?s the kicker`, `(?i)here'?s the thing`, `(?i)here'?s where it gets interesting`, `(?i)here'?s what most people miss`,
+		`(?i)imagine a world where`, `(?i)in that world`,
+		`(?i)and yes, since we'?re being honest`, `(?i)this is not a rant`,
+		`(?i)the reality is simpler`, `(?i)history is unambiguous`, `(?i)history is clear`, `(?i)the truth is simple`,
+		`(?i)fundamentally reshape`, `(?i)define the next era`,
+		`(?i)let'?s break this down`, `(?i)let'?s unpack`, `(?i)let'?s explore`,
+		`(?i)experts argue`, `(?i)industry reports suggest`, `(?i)observers have cited`,
+		`(?i)supervision paradox`, `(?i)acceleration trap`, `(?i)workload creep`,
+		`(?i)despite its .* challenges`, `(?i)despite these challenges`, `(?i)despite their promising`,
+		`(?i)in conclusion,`, `(?i)to sum up,`, `(?i)in summary,`,
 	}
 
 	analogyBridges = []string{
 		`(?i)think of .* as`, `(?i)akin to`, `(?i)similar to`, `(?i)like a`, `(?i)imagine a`,
+		`(?i)think of it like`, `(?i)it'?s like a`,
 	}
 
 	analogyTargets = []string{
