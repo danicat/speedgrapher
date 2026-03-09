@@ -18,7 +18,7 @@ Speedgrapher is designed to work with specialized AI skills that encapsulate the
 ## Available Tools
 
 *   **Gunning Fog Index (`fog`)**: Calculates a readability score. Aim for "General" or "Professional" audience levels.
-*   **Slop Score (`slop`)**: Calculates a score (0-100) to detect common AI clichés (like "delve", "tapestry"). Lower scores indicate more natural writing.
+*   **Slop Score (`slop`)**: Calculates a score (0-100) to detect common AI clichés (like "delve", "tapestry"). Lower scores indicate more natural writing. Cliché patterns are based on the excellent work at [tropes.fyi](https://tropes.fyi/).
 *   **Vale Static Analysis (`vale`)**: Runs `vale` to check for style and grammar issues. **Note:** Speedgrapher automatically downloads and manages a secure, pinned version of `vale` (v3.13.1) upon first use.
 
 ## Available Prompts (Slash Commands)

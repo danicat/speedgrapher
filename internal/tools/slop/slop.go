@@ -50,14 +50,14 @@ var (
 		`(?i)feel free to reach out`, `(?i)a crucial aspect`,
 		`(?i)\bthe[ \t]+(?:[a-z0-9\-]+[ \t]+){0,4}[a-z0-9\-]+[ \t]*:[ \t]*(?:the[ \t]+)?(?:[a-z0-9\-]+[ \t]+){0,4}[a-z0-9\-]+\b`,
 		`(?i)\b(?:[a-z0-9\-]+[ \t]+){1,5}\(the[ \t]+(?:[a-z0-9\-]+[ \t]+){0,4}[a-z0-9\-]+\)`,
-		`(?i)\b[a-z0-9]+[\s]*[—-][\s]*[a-z0-9]+[\s]*[—-][\s]*[a-z0-9]+\b`,
+		`(?i)\b[a-z]+[\s]*[—-][\s]*[a-z]+[\s]*[—-][\s]*[a-z]+\b`,
 		`(?i)serves as`, `(?i)stands as`, `(?i)marks a pivotal moment`, `(?i)represents a`,
 		`(?i)it'?s not .*,? it'?s`, `(?i)not because .*,? but because`,
 		`(?i)not .*\.? not .*\.? just`, `(?i)not a .*\.? not a .*\.? a`,
 		`(?i)the result\?`, `(?i)the worst part\?`, `(?i)the scary part\?`,
 		`(?i)it'?s worth noting`, `(?i)it bears mentioning`, `(?i)importantly,`, `(?i)interestingly,`, `(?i)notably,`,
 		`(?i)highlighting its importance`, `(?i)reflecting broader trends`, `(?i)contributing to the development of`,
-		`(?i)from .* to .* to .*`,
+		`(?i)from [^.?!]+ to [^.?!]+ to [^.?!]+`,
 		`(?i)here'?s the kicker`, `(?i)here'?s the thing`, `(?i)here'?s where it gets interesting`, `(?i)here'?s what most people miss`,
 		`(?i)imagine a world where`, `(?i)in that world`,
 		`(?i)and yes, since we'?re being honest`, `(?i)this is not a rant`,
@@ -141,6 +141,16 @@ type SlopResult struct {
 }
 
 func Calculate(text string) SlopResult {
+	// Strip frontmatter, code blocks, and markdown links
+	text = regexp.MustCompile(`(?m)^---[\s\S]*?^---`).ReplaceAllString(text, "")
+	text = regexp.MustCompile("(?s)```[\\s\\S]*?```").ReplaceAllString(text, "")
+	text = regexp.MustCompile(`\[([^\]]+)\]\([^\)]+\)`).ReplaceAllString(text, "$1")
+	// Strip inline code
+	text = regexp.MustCompile("`([^`]+)`").ReplaceAllString(text, "$1")
+	// Strip HTML tags and Hugo shortcodes
+	text = regexp.MustCompile(`(?s)<[^>]*>`).ReplaceAllString(text, "")
+	text = regexp.MustCompile(`(?s)\{\{[^}]*\}\}`).ReplaceAllString(text, "")
+
 	words := strings.Fields(regexp.MustCompile(`(?i)[^a-z0-9\s]`).ReplaceAllString(text, ""))
 	totalW := float64(len(words))
 	if totalW == 0 {
@@ -220,9 +230,7 @@ func Calculate(text string) SlopResult {
 	}
 
 	// 4. Syntactic Voice
-	cleanText := regexp.MustCompile(`(?m)^---[\s\S]*?^---`).ReplaceAllString(text, "")
-	cleanText = regexp.MustCompile("(?s)```[\\s\\S]*?```").ReplaceAllString(cleanText, "")
-	cleanText = regexp.MustCompile(`\[([^\]]+)\]\([^\)]+\)`).ReplaceAllString(cleanText, "$1")
+	cleanText := text
 
 	pni := 0.0
 	doc, err := prose.NewDocument(cleanText)
