@@ -262,7 +262,14 @@ func Calculate(text string) SlopResult {
 		SyntacticVoice:    CriteriaResult{Score: normalizeSmooth(pni, 0.16, 0.28), Raw: pni},
 	}
 
-	res.OverallScore = math.Round((res.LexicalSlop.Score+res.FillerWords.Score+res.StructuralCliches.Score+res.RhythmVariance.Score+res.SyntacticVoice.Score)/5*100) / 100
+	// Weighted Overall Score: 40% Cliches, 25% Lexical, 15% Filler, 15% Rhythm, 5% Voice
+	weightedScore := (res.StructuralCliches.Score * 0.40) +
+		(res.LexicalSlop.Score * 0.25) +
+		(res.FillerWords.Score * 0.15) +
+		(res.RhythmVariance.Score * 0.15) +
+		(res.SyntacticVoice.Score * 0.05)
+
+	res.OverallScore = math.Round(weightedScore*100) / 100
 	return res
 }
 
@@ -270,7 +277,7 @@ func Calculate(text string) SlopResult {
 func Register(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "slop",
-		Description: "Calculates an AI 'slop score' (0-100) using 5 metrics, including Lexical Density and Syntactic Voice (Noun-Pronoun Index). Calibrated for tech writing.",
+		Description: "Calculates an AI 'slop score' (0-100) using 5 weighted metrics. Calibrated for tech writing.",
 	}, slopHandler)
 }
 
