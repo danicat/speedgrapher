@@ -55,15 +55,15 @@ make install
 ```
 
 #### B. Configure MCP Server
-Add the following to your `~/.gemini/settings.json`:
+Add this configuration to your `~/.gemini/settings.json`:
 
 ```json
 {
-  "mcpServers": {
-    "speedgrapher": {
-      "command": "speedgrapher"
+    "mcpServers": {
+        "speedgrapher": {
+            "command": "$HOME/<path to your speedgrapher directory>/bin/speedgrapher"
+        }
     }
-  }
 }
 ```
 
@@ -104,5 +104,10 @@ The project uses a `Makefile` to manage common development tasks.
     ```
 
 ## License
-
 This project is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+
+## References
+*   **Model Context Protocol Specification:** [https://modelcontextprotocol.io/specification/2025-06-18](https://modelcontextprotocol.io/specification/2025-06-18)
+*   **Go SDK for MCP:** [https://github.com/modelcontextprotocol/go-sdk](https://github.com/modelcontextprotocol/go-sdk)
+*   **How to build an MCP server with Gemini CLI and Go:** [https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/](https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/)
+
