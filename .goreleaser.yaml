@@ -1,0 +1,44 @@
+# This is an example .goreleaser.yml file with some sensible defaults.
+# Make sure to check the documentation at https://goreleaser.com
+
+# The lines below are called `modelines`. See `<https://nomad.macpine.com/vim/modelines.html>` for more info.
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    main: ./cmd/speedgrapher
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ if eq .Os "windows" }}win32{{ else }}{{ .Os }}{{ end }}.{{ if eq .Arch "amd64" }}x64{{ else if eq .Arch "386" }}ia32{{ else }}{{ .Arch }}{{ end }}.{{ .ProjectName }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - gemini-extension.json
+      - SPEEDGRAPHER.md
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+      - .vale.ini
+      - skills/**/*
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

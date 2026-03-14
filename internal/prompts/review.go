@@ -15,17 +15,22 @@
 package prompts
 
 import (
-	"context"
-	"errors"
-	"os"
+        "context"
+        "errors"
+        "os"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+        "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const reviewPrompt = `
 You are a professional editor for a technical blog.
 Your task is to review an article and ensure it meets our editorial guidelines.
 You must provide constructive feedback to the author on how to improve it.
+
+In your review, you MUST use the following tools to provide an objective assessment:
+1.  **fog**: Calculate the Gunning Fog Index for readability.
+2.  **slop**: Detect AI-generated clichés and buzzwords.
+3.  **vale**: Run static analysis for style and grammar.
 
 Here are the detailed guidelines you must follow for the review:
 
@@ -96,13 +101,12 @@ func NewReviewHandler(guidelinePath string) mcp.PromptHandler {
 
 		return &mcp.GetPromptResult{
 			Messages: []*mcp.PromptMessage{
-				{
-					Role: "user",
-					Content: &mcp.TextContent{
-						Text: guidelines + "\n\n" + prompt,
-					},
-				},
-			},
-		}, nil
+			        {
+			                Role: "user",
+			                Content: &mcp.TextContent{
+			                        Text: guidelines + "\n\n" + tropesGuidelines + "\n\n" + prompt,
+			                },
+			        },
+			},		}, nil
 	}
 }

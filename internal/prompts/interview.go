@@ -16,9 +16,13 @@ package prompts
 
 import (
 	"context"
+	_ "embed"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+//go:embed tropes.md
+var tropesGuidelines string
 
 const interviewPrompt = `Act as an expert interviewer for a technical blog. I would like to write an article with your support.
 Your mission is to interview me to gather material for a technical article that aligns with our "cozy web" editorial guidelines. The resulting article should be helpful, relatable, and have a clear narrative thread.
@@ -75,7 +79,7 @@ func InterviewHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetP
 			{
 				Role: "user",
 				Content: &mcp.TextContent{
-					Text: interviewPrompt,
+					Text: interviewPrompt + "\n\n" + tropesGuidelines,
 				},
 			},
 		},

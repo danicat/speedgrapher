@@ -20,20 +20,20 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func Context() *mcp.Prompt {
+func Tropes() *mcp.Prompt {
 	return &mcp.Prompt{
-		Name:        "context",
-		Description: "Loads the current work-in-progress article to context for further commands.",
+		Name:        "tropes",
+		Description: "A set of guidelines to help an AI avoid common AI writing tropes.",
 	}
 }
 
-func ContextHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+func TropesHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
 			{
 				Role: "user",
 				Content: &mcp.TextContent{
-					Text: "Please identify and reload the current work-in-progress article into your context. If there are multiple potential files, ask me to clarify which one is the active draft. I need to ensure you have the full, most up-to-date version of the text before we proceed.",
+					Text: tropesGuidelines,
 				},
 			},
 		},

@@ -11,17 +11,17 @@ Speedgrapher is a local MCP (Model Context Protocol) server written in Go. It's 
 The project uses a `Makefile` to manage common development tasks.
 
 *   **Building the project:** To build the server, run the following command:
-    ```bash
+        ```bash
     make build
     ```
-    This will create an executable at `bin/speedgrapher`.
+    This will create an executable at `speedgrapher`.
 
 *   **Running tests:** To run the project's tests, use the following command:
     ```bash
     make test
     ```
 
-*   **Cleaning the project:** To remove the `bin` directory and its contents, run:
+*   **Cleaning the project:** To remove the executable, run:
     ```bash
     make clean
     ```

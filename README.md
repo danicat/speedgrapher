@@ -4,37 +4,57 @@
 
 > This is not an officially supported Google product.
 
-Speedgrapher is a local MCP server written in Go, designed to assist writers by providing a suite of tools to streamline the writing process.
+Speedgrapher is a local MCP server written in Go, designed to assist writers by providing a suite of tools to streamline the writing process. It features automated editorial reviews, brainstorming tools, and style analysis.
 
-## What is it?
+## Modernized Workflow with Editorial Skills
 
-Speedgrapher is an MCP server designed to assist professional writers, with a particular focus on those in the tech industry. It provides a suite of tools and resources to streamline the writing process, from research and drafting to editing and publishing. The server is designed to be used as a local companion, running on the writer's own machine.
+Speedgrapher is designed to work with specialized AI skills that encapsulate the editorial process. When installed as a Gemini CLI extension, you get four expert personas:
 
-## How it works
+*   **`tech-interviewer`**: Your brainstorming partner. Use it to flesh out ideas, collect data, and generate structured outlines.
+*   **`tech-writer`**: Your drafting companion. It focuses on style, voice alignment, and narrative flow following the "cozy web" principles.
+*   **`tech-reviewer`**: Your quality gate. It uses analytical tools (`fog`, `slop`, `vale`) to ensure your article is readable, authentic, and professional.
+*   **`tech-publisher`**: Your final checklist expert. It handles SEO audits, localization, and prepares a publication plan.
 
-Speedgrapher is written in Go and implements the Model Context Protocol (MCP). It uses the [official Go SDK for MCP](https://github.com/modelcontextprotocol/go-sdk) and communicates over the `stdio` transport layer. This design choice makes it a lightweight and secure local server, with no need for network deployment.
+## Available Tools
 
-## Installation
+*   **Gunning Fog Index (`fog`)**: Calculates a readability score. Aim for "General" or "Professional" audience levels.
+*   **Slop Score (`slop`)**: Calculates a score (0-100) to detect common AI clichés (like "delve", "tapestry"). Lower scores indicate more natural writing. Cliché patterns are based on the excellent work at [tropes.fyi](https://tropes.fyi/).
+*   **Vale Static Analysis (`vale`)**: Runs `vale` to check for style and grammar issues. **Note:** Speedgrapher automatically downloads and manages a secure, pinned version of `vale` (v3.13.1) upon first use.
 
-### Gemini CLI (Extension)
+## Available Prompts (Slash Commands)
 
-Clone and install the extension:
+The following essential commands are available for direct action:
 
-```sh
-git clone https://github.com/danicat/speedgrapher.git && cd speedgrapher
-make extension
+| Command | Description |
+| --- | --- |
+| `/interview` | Starts a structured interview to gather material for a post. |
+| `/review` | Performs a comprehensive review using `fog`, `slop`, and `vale`. |
+| `/readability` | Quick check of the Fog Index for the last generated text. |
+
+## Installation & Setup
+
+The recommended way to install Speedgrapher is as a **Gemini CLI extension**. This automatically handles the binary installation, MCP server configuration, and editorial skills.
+
+### 1. Recommended: Install as an Extension
+
+Run the following command in your terminal:
+
+```bash
+gemini extensions install https://github.com/danicat/speedgrapher
 ```
 
-### Gemini CLI (MCP Server)
+### 2. Manual Installation (Alternative)
 
-Clone and install the binary:
+If you are developing locally or prefer manual control:
 
-```sh
-git clone https://github.com/danicat/speedgrapher.git && cd speedgrapher
-make build
+#### A. Install the Binary
+Build and install the `speedgrapher` binary to your `$GOPATH/bin`:
+
+```bash
 make install
 ```
 
+#### B. Configure MCP Server
 Add this configuration to your `~/.gemini/settings.json`:
 
 ```json
@@ -47,82 +67,47 @@ Add this configuration to your `~/.gemini/settings.json`:
 }
 ```
 
+#### C. Install Editorial Skills
+Install the skills from the `skills/` directory:
 
-## Available Tools
-
-### Gunning Fog Index
-
-The `fog` tool calculates a readability score (adapted from the [Gunning Fog Index](https://en.wikipedia.org/wiki/Gunning_fog_index)) for a given text.
-
-The tool returns not only the numerical Fog Index but also a qualitative classification to help writers calibrate their text for a specific audience.
-
-**Classification Levels:**
-
-*   **Unreadable:** (Score >= 22) - Likely incomprehensible to most readers.
-*   **Hard to Read:** (Score 18-21) - Requires significant effort, even for experts.
-*   **Professional Audiences:** (Score 13-17) - Best for readers with specialized knowledge.
-*   **General Audiences:** (Score 9-12) - Clear and accessible for most readers.
-*   **Simplistic:** (Score < 9) - May be perceived as childish or overly simple.
-
-## Available Prompts
-
-Speedgrapher's functionality is exposed through a series of prompts, which can be used as slash commands in a compatible client.
-
-| Command | Description | Example |
-| --- | --- | --- |
-| `/context` | Loads the current work-in-progress article to context for further commands. | `/context` |
-| `/expand` | Expands a working outline or draft into a more detailed article. | `/expand hint="add a section on error handling"` |
-| `/haiku` | Creates a haiku about a given topic. | `/haiku topic="Go programming"` |
-| `/interview` | Interviews an author to gather material for an article. The interview is saved to `INTERVIEW.md`. | `/interview` |
-| `/localize` | Translates the article currently being worked on into a target language. | `/localize target_language="Brazilian Portuguese"` |
-| `/outline` | Generates a structured outline of the current draft, concept or interview report. | `/outline` |
-| `/publish` | Publishes the final version of the article. | `/publish` |
-| `/readability` | Analyzes the last generated text for readability using the Gunning Fog Index. | `/readability` |
-| `/reflect` | Analyzes the current session and proposes improvements to the development process. | `/reflect` |
-| `/review` | Reviews the article currently being worked on against the editorial guidelines. | `/review` |
-| `/voice` | Analyzes the voice and tone of the user's writing to replicate it in generated text. | `/voice hint="~/Documents/my-articles"` |
-
-## Example Editorial Workflow
-
-Speedgrapher is designed to support a clear and iterative writing process. Below is a simplified workflow that leverages the available prompts to take an idea from concept to a polished, published article.
-
-### The Flow in Words
-
-The writing process is a cycle of ideation, drafting, and revision.
-
-1.  **Ideation & Interview:** The process begins with an idea. Use the `/interview` prompt to brainstorm with the model, which will help you flesh out your concept by asking relevant questions. The full interview will be saved to `INTERVIEW.md`.
-2.  **Outline:** Use the `/outline` prompt to generate a structured outline from the interview or your own notes.
-3.  **Voice Alignment:** Use the `/voice` prompt to align the model with your unique writing style, ensuring the generated text sounds authentic.
-4.  **Main Writing Loop:** This is the core creative phase. Use the `/expand` prompt to turn your outline or initial draft into a more detailed article. You can interact with the model to write, edit, and refine the article until you have a solid draft.
-5.  **Review & Revision:**
-    *   **Editorial Review:** Use the `/review` command to check the draft against editorial guidelines. If it needs improvement, the feedback will guide you as you loop back to the **Main Writing Loop**.
-    *   **Readability Review:** Once the editorial review is complete, use the `/readability` command to check its accessibility. If it needs improvement, you can loop back to the **Main Writing Loop**.
-    *   **Note on Context:** To ensure the review tools have the most up-to-date content, it is good practice to run `/context` before the `/review` and `/readability` commands.
-6.  **Finalization:**
-    *   **Localization:** Use the `/localize` command to translate the approved article into other languages.
-    *   **Publish:** Use the `/publish` command to initiate the publishing process for your work.
-7.  **Reflection:** At the end of the session, use the `/reflect` prompt to have the model analyze the collaboration and generate notes on how to improve the process for the next time.
-
-### The Flow in a Diagram
-
-```mermaid
-flowchart TD
-    I(Ideation) -->|/interview| IT[Interview Transcript]
-    IT -->|/outline| O[Outline]
-    O -->|/voice| V[Voice Alignment]
-    V -->|/expand| WL(Main Writing Loop:<br>Interact With the Model)
-    WL -->|/review| RV{Editorial<br>Review}
-    RV -->|needs improvement| WL
-    RV -->|review ok<br>check /readability| RD{Readability<br>Review}
-    RD -->|needs improvement| WL
-    RD -->|readability ok<br>/localize| L[Localized Article]
-    L -->|/publish| P[Published Article]
-    P -->|/reflect| S[Model Self-Improvement Notes]
-    S --> E(End)
+```bash
+gemini skills install skills/tech-interviewer --scope user
+gemini skills install skills/tech-writer --scope user
+gemini skills install skills/tech-reviewer --scope user
+gemini skills install skills/tech-publisher --scope user
 ```
+After installation, reload your skills in the interactive CLI with `/skills reload`.
 
-## Resources
 
+## Development
+
+### Prerequisites
+
+*   [Go](https://go.dev/doc/install) 1.24 or later
+*   [Goreleaser](https://goreleaser.com/install/) (for building distributions)
+
+### Building and Testing
+
+The project uses a `Makefile` to manage common development tasks.
+
+*   **Build:** Creates an executable named `speedgrapher` in the root.
+    ```bash
+    make build
+    ```
+*   **Test:** Runs the Go test suite.
+    ```bash
+    make test
+    ```
+*   **Clean:** Removes the executable and `dist` directories.
+    ```bash
+    make clean
+    ```
+
+## License
+This project is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+
+## References
 *   **Model Context Protocol Specification:** [https://modelcontextprotocol.io/specification/2025-06-18](https://modelcontextprotocol.io/specification/2025-06-18)
 *   **Go SDK for MCP:** [https://github.com/modelcontextprotocol/go-sdk](https://github.com/modelcontextprotocol/go-sdk)
 *   **How to build an MCP server with Gemini CLI and Go:** [https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/](https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/)
+

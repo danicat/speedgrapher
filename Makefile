@@ -1,11 +1,12 @@
 # Makefile for speedgrapher
 
-VERSION := v0.4.0
+VERSION := v0.6.2
+
 LDFLAGS = -ldflags "-X main.version=${VERSION}"
 
 .PHONY: build
 build:
-	go build ${LDFLAGS} -o bin/speedgrapher ./cmd/speedgrapher
+	go build ${LDFLAGS} -o speedgrapher ./cmd/speedgrapher
 
 .PHONY: install
 install:
@@ -13,11 +14,19 @@ install:
 
 .PHONY: clean
 clean:
-	rm -rf bin
+	rm -f speedgrapher
 
 .PHONY: test
 test:
 	go test ./...
+
+.PHONY: snapshot
+snapshot:
+	goreleaser release --snapshot --clean
+
+.PHONY: release
+release:
+	goreleaser release --clean
 
 
 .PHONY: extension

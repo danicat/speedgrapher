@@ -47,13 +47,13 @@ type FogParams struct {
 
 // FogResult defines the structured output for the fog tool.
 type FogResult struct {
-	FogIndex                float64 `json:"fog_index"`
-	Classification          string  `json:"classification"`
-	TotalWords              int     `json:"total_words"`
-	TotalSentences          int     `json:"total_sentences"`
-	AverageSentenceLength   float64 `json:"average_sentence_length"`
-	PercentageComplexWords  float64 `json:"percentage_complex_words"`
-	ComplexWords            int     `json:"complex_words"`
+	FogIndex               float64 `json:"fog_index"`
+	Classification         string  `json:"classification"`
+	TotalWords             int     `json:"total_words"`
+	TotalSentences         int     `json:"total_sentences"`
+	AverageSentenceLength  float64 `json:"average_sentence_length"`
+	PercentageComplexWords float64 `json:"percentage_complex_words"`
+	ComplexWords           int     `json:"complex_words"`
 }
 
 func fogHandler(_ context.Context, _ *mcp.CallToolRequest, input FogParams) (*mcp.CallToolResult, *FogResult, error) {
@@ -81,13 +81,13 @@ func fogHandler(_ context.Context, _ *mcp.CallToolRequest, input FogParams) (*mc
 	classification := ClassifyFogIndex(index)
 
 	result := &FogResult{
-		FogIndex:                index,
-		Classification:          classification,
-		TotalWords:              totalWords,
-		TotalSentences:          totalSentences,
-		AverageSentenceLength:   math.Round(averageSentenceLength*100) / 100,
-		PercentageComplexWords:  math.Round(percentageComplexWords*100) / 100,
-		ComplexWords:            complexWords,
+		FogIndex:               index,
+		Classification:         classification,
+		TotalWords:             totalWords,
+		TotalSentences:         totalSentences,
+		AverageSentenceLength:  math.Round(averageSentenceLength*100) / 100,
+		PercentageComplexWords: math.Round(percentageComplexWords*100) / 100,
+		ComplexWords:           complexWords,
 	}
 
 	return nil, result, nil
