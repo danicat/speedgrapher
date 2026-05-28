@@ -2,9 +2,10 @@
   "name": "speedgrapher",
   "version": "0.7.0",
   "description": "A local MCP server for writers to streamline the writing process.",
+  "contextFileName": "SPEEDGRAPHER.md",
   "mcpServers": {
     "speedgrapher": {
-      "command": "${extensionPath}/speedgrapher"
+      "command": "${extensionPath}/bin/speedgrapher"
     }
   }
 }

@@ -20,6 +20,9 @@ builds:
       - windows
       - darwin
     main: ./cmd/speedgrapher
+    binary: bin/speedgrapher
+    ldflags:
+      - -s -w -X main.version={{.Version}}
 
 archives:
   - format: tar.gz

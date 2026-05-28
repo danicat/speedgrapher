@@ -1,23 +1,44 @@
 # Speedgrapher Extension Context
 
-You are equipped with the **Speedgrapher** MCP server, which provides a suite of specialized tools for editorial review and technical writing. 
+The **Speedgrapher** Model Context Protocol (MCP) server provides tools and prompts for editorial review and technical writing.
 
-## Available Tools
+## Tools
 
-When assisting the user with writing, drafting, or reviewing content, utilize the following tools:
+### `fog` — Gunning Fog Index
+Calculates the readability score of a text. Use it to verify the reading level matches the target audience. Aim for "General" (≤12) or "Professional" (≤16) levels.
 
-1. **`fog` (Gunning Fog Index):**
-   - **Purpose:** Calculates the readability score of a given text.
-   - **Usage:** Run this on drafts to ensure the reading level is appropriate for the target audience (aim for "General" or "Professional" levels).
+### `slop` — Slop Score
+Detects common AI-generated clichés and overused phrases (e.g., "delve", "tapestry", "in conclusion"). Scores text from 0 to 100. Lower is better. Use the matched tropes list to rewrite flagged passages.
 
-2. **`slop` (Slop Score):**
-   - **Purpose:** Detects common AI-generated clichés, overused words, and buzzwords (e.g., "delve", "tapestry", "in conclusion").
-   - **Usage:** Run this on generated or edited text. A lower score indicates more natural, human-sounding writing. Use the feedback to rewrite and remove detected "slop".
+### `vale` — Static Analysis
+Runs style, grammar, and branding checks using Google, proselint, and write-good rule sets. Speedgrapher automatically downloads and verifies a pinned version of `vale` (v3.13.1) on first execution. Treat warnings and errors as mandatory fixes.
 
-3. **`vale` (Static Analysis):**
-   - **Purpose:** Runs a comprehensive static analysis for style, grammar, and branding consistency (using Google, proselint, and write-good styles).
-   - **Usage:** Use this for the final quality gate. Address any warnings or errors returned by the tool to ensure professional-grade output.
+### `analyze_seo` — Search Engine Optimization (SEO) Audit
+Performs technical SEO analysis on a URL or raw HTML (including Hugo Markdown with front matter). Checks title tags, meta descriptions, H1 structure, image alt text, links, content length, and canonical tags. Returns a score out of 100 with actionable findings.
+
+## Prompts
+
+### `/interview`
+Starts a structured interview to extract raw technical details, error logs, and lessons learned for a blog post. Produces a content outline.
+
+### `/review`
+Audits the current draft against editorial guidelines using `fog`, `slop`, and `vale`. Returns a consolidated report with scores and rewrite suggestions.
+
+### `/readability`
+Displays a quick Fog Index readability report for the last generated text.
+
+### `/tropes`
+Scans text for AI tropes and clichés. Returns matched patterns and a slop score.
 
 ## Editorial Workflow
 
-The user may ask you to act in specific editorial roles (e.g., interviewer, writer, reviewer, publisher) or invoke corresponding slash commands (`/interview`, `/review`, `/readability`). When performing reviews, combine the insights from `fog`, `slop`, and `vale` to provide actionable, objective feedback and autonomously improve the draft.
+The user may ask you to work in specific editorial personas via installed skills:
+
+* **`tech-interviewer`** — Brainstorms and collects raw material through targeted questions.
+* **`tech-writer`** — Drafts content with a conversational, author-aligned voice.
+* **`tech-reviewer`** — Quality gate: audits readability, slop, and style compliance.
+* **`tech-publisher`** — Handles SEO audits, localization, and final pre-publication checks.
+* **`deslopify`** — Rewrites text to remove AI tropes and recognizable large language model (LLM) patterns.
+* **`inverted-pyramid`** — Restructures documentation using the inverted pyramid layout (lead → body → tail).
+
+When performing reviews, combine insights from `fog`, `slop`, `vale`, and `analyze_seo` to provide actionable feedback and autonomously improve the draft.

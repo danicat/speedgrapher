@@ -1,44 +1,52 @@
 # Makefile for speedgrapher
 
-VERSION ?= $(shell grep '"version":' gemini-extension.json | cut -d'"' -f4)
+# Version derived dynamically from Git tags
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//')
+ifeq ($(VERSION),)
+  VERSION := dev
+endif
+LDFLAGS=-ldflags "-X main.version=$(VERSION)"
 
-LDFLAGS = -ldflags "-X main.version=${VERSION}"
+BINARY_DIR=bin
+BINARY_NAME=speedgrapher
+BINARY=$(BINARY_DIR)/$(BINARY_NAME)
 
-.PHONY: build
+
 build:
-	go build ${LDFLAGS} -o speedgrapher ./cmd/speedgrapher
+	@mkdir -p $(BINARY_DIR)
+	go build $(LDFLAGS) -o $(BINARY) ./cmd/speedgrapher
 
-.PHONY: install
 install:
-	go install ${LDFLAGS} ./cmd/speedgrapher/...
+	go install $(LDFLAGS) ./cmd/speedgrapher/...
 
-.PHONY: clean
 clean:
-	rm -f speedgrapher
+	@rm -rf $(BINARY_DIR)
 
-.PHONY: test
 test:
-	go test ./...
+	go test -v ./...
 
-.PHONY: snapshot
+test-cov:
+	go test -v -coverprofile=coverage.out ./...
+	@echo "to view the coverage report, run: go tool cover -html=coverage.out"
+
 snapshot:
 	goreleaser release --snapshot --clean
 
-.PHONY: release
 release:
 	goreleaser release --clean
 
-
-.PHONY: extension
 extension: build
 	gemini extensions install .
 
-.PHONY: tag
-tag:
-	@echo "Usage: git tag v<version>"
-	@echo "Example: git tag v0.1.0"
+# Usage: make bump-version VERSION=0.7.0
+bump-version:
+	@if [ "$(origin VERSION)" != "command line" ]; then \
+		echo "Error: VERSION must be explicitly specified on the command line. Usage: make bump-version VERSION=0.7.0"; \
+		exit 1; \
+	fi
+	@python3 -c "import re; f = 'gemini-extension.json'; content = open(f).read(); new_content = re.sub(r'\"version\":\s*\"[^\"]+\"', '\"version\": \"$(VERSION)\"', content); open(f, 'w').write(new_content);"
+	@echo "Successfully bumped version to $(VERSION) in gemini-extension.json"
 
-.PHONY: verify-version
 verify-version:
 	@MANIFEST_VERSION=$$(grep '"version":' gemini-extension.json | cut -d'"' -f4); \
 	GIT_TAG=$$(git describe --tags --exact-match 2>/dev/null | sed 's/^v//' || echo ""); \
@@ -53,3 +61,4 @@ verify-version:
 		echo "Success: Versions are aligned."; \
 	fi
 
+.PHONY: build install clean test test-cov snapshot release extension bump-version verify-version
