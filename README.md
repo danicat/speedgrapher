@@ -4,57 +4,57 @@
 
 > This is not an officially supported Google product.
 
-Speedgrapher is a local MCP server written in Go, designed to assist writers by providing a suite of tools to streamline the writing process. It features automated editorial reviews, brainstorming tools, and style analysis.
+Speedgrapher is a local MCP server that helps you write better technical articles. It runs style checks, readability tests, and automated editorial reviews right from your terminal.
 
-## Modernized Workflow with Editorial Skills
+## Editorial Personas
 
-Speedgrapher is designed to work with specialized AI skills that encapsulate the editorial process. When installed as a Gemini CLI extension, you get four expert personas:
+When you install Speedgrapher as a Gemini CLI extension, it registers four expert personas to guide you through drafting and polishing:
 
-*   **`tech-interviewer`**: Your brainstorming partner. Use it to flesh out ideas, collect data, and generate structured outlines.
-*   **`tech-writer`**: Your drafting companion. It focuses on style, voice alignment, and narrative flow following the "cozy web" principles.
-*   **`tech-reviewer`**: Your quality gate. It uses analytical tools (`fog`, `slop`, `vale`) to ensure your article is readable, authentic, and professional.
-*   **`tech-publisher`**: Your final checklist expert. It handles SEO audits, localization, and prepares a publication plan.
+* **`tech-interviewer`**: Interviews you about your technical topic to extract raw logs, error messages, and core lessons, drafting a solid structural outline.
+* **`tech-writer`**: Drafts the article with you, focusing on a clear, conversational narrative voice that follows cozy web principles.
+* **`tech-reviewer`**: Audits the draft against editorial guidelines using analytical tools to flag style issues, readability scores, and AI slop patterns.
+* **`tech-publisher`**: Audits page SEO, manages article localization, and runs final checks before publication.
 
-## Available Tools
+## Built-in Tools
 
-*   **Gunning Fog Index (`fog`)**: Calculates a readability score. Aim for "General" or "Professional" audience levels.
-*   **Slop Score (`slop`)**: Calculates a score (0-100) to detect common AI clichés (like "delve", "tapestry"). Lower scores indicate more natural writing. Cliché patterns are based on the excellent work at [tropes.fyi](https://tropes.fyi/).
-*   **Vale Static Analysis (`vale`)**: Runs `vale` to check for style and grammar issues. **Note:** Speedgrapher automatically downloads and manages a secure, pinned version of `vale` (v3.13.1) upon first use.
+* **Gunning Fog Index (`fog`)**: Evaluates text readability to ensure the content matches general or professional readers.
+* **Slop Score (`slop`)**: Grades text from 0 to 100 by counting overused LLM clichés (e.g., "delve", "tapestry"). Lower scores mean more natural, human writing. Clichés are matched against [tropes.fyi](https://tropes.fyi/).
+* **Vale Static Analysis (`vale`)**: Analyzes style guidelines and grammar. Speedgrapher automatically downloads and verifies a secure, pinned version of `vale` (v3.13.1) during its first execution.
 
-## Available Prompts (Slash Commands)
+## Interactive Prompts (Slash Commands)
 
-The following essential commands are available for direct action:
+Run these commands in the terminal to execute workflows:
 
 | Command | Description |
 | --- | --- |
-| `/interview` | Starts a structured interview to gather material for a post. |
-| `/review` | Performs a comprehensive review using `fog`, `slop`, and `vale`. |
-| `/readability` | Quick check of the Fog Index for the last generated text. |
+| `/interview` | Starts an interview to extract raw details for your post. |
+| `/review` | Audits the current article draft using `fog`, `slop`, and `vale`. |
+| `/readability` | Displays a quick Fog Index readability report for the last generated text. |
 
 ## Installation & Setup
 
-The recommended way to install Speedgrapher is as a **Gemini CLI extension**. This automatically handles the binary installation, MCP server configuration, and editorial skills.
+The easiest way to use Speedgrapher is as a **Gemini CLI extension**. This automatically installs the compiled binary, registers the MCP server, and configures the editorial skills.
 
-### 1. Recommended: Install as an Extension
+### 1. Install as an Extension
 
-Run the following command in your terminal:
+Run this command in your terminal:
 
 ```bash
 gemini extensions install https://github.com/danicat/speedgrapher
 ```
 
-### 2. Manual Installation (Alternative)
+### 2. Local Manual Installation
 
 If you are developing locally or prefer manual control:
 
-#### A. Install the Binary
-Build and install the `speedgrapher` binary to your `$GOPATH/bin`:
+#### A. Compile and Install the Binary
+Install the `speedgrapher` binary to your `$GOPATH/bin`:
 
 ```bash
 make install
 ```
 
-#### B. Configure MCP Server
+#### B. Register MCP Server
 Add this configuration to your `~/.gemini/settings.json`:
 
 ```json
@@ -67,8 +67,8 @@ Add this configuration to your `~/.gemini/settings.json`:
 }
 ```
 
-#### C. Install Editorial Skills
-Install the skills from the `skills/` directory:
+#### C. Register Editorial Skills
+Install each skill from the `skills/` directory:
 
 ```bash
 gemini skills install skills/tech-interviewer --scope user
@@ -76,32 +76,31 @@ gemini skills install skills/tech-writer --scope user
 gemini skills install skills/tech-reviewer --scope user
 gemini skills install skills/tech-publisher --scope user
 ```
-After installation, reload your skills in the interactive CLI with `/skills reload`.
-
+After registering, reload the active session with `/skills reload`.
 
 ## Development
 
 ### Prerequisites
 
-*   [Go](https://go.dev/doc/install) 1.24 or later
-*   [Goreleaser](https://goreleaser.com/install/) (for building distributions)
+* [Go](https://go.dev/doc/install) 1.24 or later
+* [Goreleaser](https://goreleaser.com/install/) (for release distribution packaging)
 
-### Building and Testing
+### Build Commands
 
-The project uses a `Makefile` to manage common development tasks.
+The project uses a `Makefile` to handle common tasks:
 
-*   **Build:** Creates an executable named `speedgrapher` in the root.
-    ```bash
-    make build
-    ```
-*   **Test:** Runs the Go test suite.
-    ```bash
-    make test
-    ```
-*   **Clean:** Removes the executable and `dist` directories.
-    ```bash
-    make clean
-    ```
+* **Build executable**: Compiles a local `speedgrapher` executable in the root directory.
+  ```bash
+  make build
+  ```
+* **Run tests**: Runs the entire Go test suite.
+  ```bash
+  make test
+  ```
+* **Clean workspace**: Removes local binaries and temporary build directories.
+  ```bash
+  make clean
+  ```
 
 ## License
 This project is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
