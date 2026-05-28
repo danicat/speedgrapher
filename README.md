@@ -1,12 +1,10 @@
-![logo](logo.jpeg)
-
 # Speedgrapher
 
 > This is not an officially supported Google product.
 
-Speedgrapher is a Model Context Protocol (MCP) server that helps you write better technical articles. It runs style checks, readability tests, and automated editorial reviews right from your terminal.
+Speedgrapher is a Model Context Protocol (MCP) server that helps you write better technical articles. It runs style checks, readability tests, and automated editorial reviews from your terminal.
 
-## User Instructions
+## User instructions
 
 ### Installation
 
@@ -38,11 +36,11 @@ agy plugin import gemini
    claude mcp add --transport stdio --scope user speedgrapher -- speedgrapher
    ```
 
-### Usage Instructions
+### Usage instructions
 
-Speedgrapher runs automatically in the background of your agent-compatible client. The client agent discovers and calls the exposed tools during writing and editing tasks.
+Speedgrapher runs in the background of your agent-compatible client. The client agent discovers and calls the exposed tools during writing and editing tasks.
 
-#### Configuration (Command-line Flags)
+#### Configuration (command-line flags)
 
 | Flag | Description | Default |
 | :--- | :--- | :--- |
@@ -50,38 +48,38 @@ Speedgrapher runs automatically in the background of your agent-compatible clien
 | `--localization` | Path to the localization guidelines file. | `LOCALIZATION.md` |
 | `--version` | Prints the version and exits. | `false` |
 
-### Features and Tools
+### Features and tools
 
-* **Gunning Fog Index (`fog`)**: Evaluates text readability to ensure the content matches general or professional readers.
-* **Slop Score (`slop`)**: Grades text from 0 to 100 by counting overused LLM clichés (for example, "delve" or "tapestry"). Lower scores mean more natural, human writing. The slop score matches clichés against the database at [tropes.fyi](https://tropes.fyi/).
-* **Vale Static Analysis (`vale`)**: Analyzes style guidelines and grammar. Speedgrapher automatically downloads and verifies a secure, pinned version of `vale` (v3.13.1) during its first execution.
-* **SEO Audit (`analyze_seo`)**: Performs technical SEO analysis on a URL or raw HTML (including Hugo Markdown with front matter). Checks title tags, meta descriptions, H1 structure, image alt text, links, content length, and canonical tags.
+* **Gunning Fog Index (`fog`)**: evaluates text readability to ensure the content matches general or professional readers.
+* **Slop score (`slop`)**: grades text from 0 to 100 by counting overused LLM clichés (for example, "delve" or "tapestry"). Lower scores mean more natural, human writing. The slop score matches clichés against the database at [tropes.fyi](https://tropes.fyi/).
+* **Vale static analysis (`vale`)**: analyzes style guidelines and grammar. Speedgrapher automatically downloads and verifies a secure, pinned version of `vale` (v3.13.1) during its first execution.
+* **SEO audit (`analyze_seo`)**: performs technical SEO analysis on a URL or raw HTML (including Hugo Markdown with front matter). Checks title tags, meta descriptions, H1 structure, image alt text, links, content length, and canonical tags.
 
-### Editorial Personas
+### Editorial personas
 
 When you install Speedgrapher as a Gemini CLI extension, it registers four expert personas to guide you through drafting and polishing:
 
-* **`tech-interviewer`**: Interviews you about your technical topic to extract raw logs, error messages, and core lessons. It then drafts a solid structural outline.
-* **`tech-writer`**: Drafts the article with you, focusing on a clear, conversational narrative voice that follows cozy web principles.
-* **`tech-reviewer`**: Audits the draft against editorial guidelines using analytical tools to flag style issues, readability scores, and AI slop patterns.
-* **`tech-publisher`**: Audits page SEO, manages article localization, and runs final checks before publication.
+* **`tech-interviewer`**: interviews you about your technical topic to extract raw logs, error messages, and core lessons. It then drafts a structural outline.
+* **`tech-writer`**: drafts the article with you, focusing on a clear, conversational narrative voice that follows cozy web principles.
+* **`tech-reviewer`**: audits the draft against editorial guidelines using analytical tools to flag style issues, readability scores, and AI slop patterns.
+* **`tech-publisher`**: audits page SEO, manages article localization, and runs final checks before publication.
 
-### Interactive Prompts (Slash Commands)
+### Interactive prompts (slash commands)
 
 Run these commands in the terminal to execute workflows:
 
 | Command | Description |
 | --- | --- |
 | `/interview` | Starts an interview to extract raw details for your post. |
-| `/review` | Audits the current article draft using `fog`, `slop`, and `vale`. |
+| `/review` | Audits the article draft using `fog`, `slop`, and `vale`. |
 | `/readability` | Displays a quick Fog Index readability report for the last generated text. |
 
-## Developer Instructions
+## Developer instructions
 
 ### Prerequisites
 
 * [Go](https://go.dev/doc/install) 1.24 or later
-* [GoReleaser](https://goreleaser.com/install/) (for release distribution packaging)
+* [GoReleaser](https://goreleaser.com/install/) for release distribution packaging
 
 ### Building
 
@@ -110,7 +108,7 @@ To run tests and generate a coverage report:
 make test-cov
 ```
 
-### Running Locally
+### Running locally
 
 Run the compiled binary directly to test behavior:
 ```bash
@@ -130,43 +128,44 @@ To release a new version:
 
 1. Update the version string in `gemini-extension.json`:
    ```bash
-   make bump-version VERSION=0.7.0
+   make bump-version VERSION=0.8.0
    ```
 
 2. Commit the manifest changes:
    ```bash
    git add gemini-extension.json
-   git commit -m "chore: bump version to 0.7.0"
+   git commit -m "chore: bump version to 0.8.0"
    ```
 
 3. Create and push a new Git tag:
    ```bash
-   git tag v0.7.0
-   git push origin v0.7.0
+   git tag v0.8.0
+   git push origin v0.8.0
    ```
 
-The release pipeline will automatically run GoReleaser when a new tag is pushed.
+The release pipeline automatically runs GoReleaser when you push a new tag.
 
 To test the GoReleaser configuration locally, generate a snapshot release:
 ```bash
 make snapshot
 ```
 
-## Development Architecture
+## Development architecture
 
 Key technical choices are recorded using the Architecture Decision Record (ADR) framework under the `/design/adr` directory:
 
-1. **[ADR-0001: Record Architecture Decisions](design/adr/0001-record-architecture-decisions.md)**: Establishes the ADR system and retires the manual changelog.
-2. **[ADR-0002: Automated Vale Bootstrapping](design/adr/0002-automated-vale-bootstrapping.md)**: Details the runtime dynamic downloader and SHA256 verification gate for the `vale` binary.
-3. **[ADR-0003: Stdio Model Context Protocol Transport](design/adr/0003-stdio-model-context-protocol-transport.md)**: Records the security and isolation choices for using standard streams over network sockets.
-4. **[ADR-0004: Replace Changelog with Evolutionary Documentation](design/adr/0004-replace-changelog-with-evolutionary-documentation.md)**: Solidifies the transition from manual files to git tag records and ADR histories.
-5. **[ADR-0005: Enforce Version Alignment to Git Tags and Extension Manifest](design/adr/0005-source-of-truth-for-versions-is-git-tags.md)**: Details the three-tiered verification gate (Makefile, GoReleaser hooks, and CI/CD steps) that blocks version drift during release cycles.
+1. **[ADR-0001: Record architecture decisions](design/adr/0001-record-architecture-decisions.md)**: establishes the ADR system and retires the manual changelog.
+2. **[ADR-0002: Automated Vale bootstrapping](design/adr/0002-automated-vale-bootstrapping.md)**: details the runtime dynamic downloader and SHA256 verification gate for the `vale` binary.
+3. **[ADR-0003: Stdio model context protocol transport](design/adr/0003-stdio-model-context-protocol-transport.md)**: records the security and isolation choices for using standard streams over network sockets.
+4. **[ADR-0004: Replace changelog with evolutionary documentation](design/adr/0004-replace-changelog-with-evolutionary-documentation.md)**: solidifies the transition from manual files to git tag records and ADR histories.
+5. **[ADR-0005: Enforce version alignment to git tags and extension manifest](design/adr/0005-source-of-truth-for-versions-is-git-tags.md)**: details the three-tiered verification gate that blocks version drift during release cycles.
+6. **[ADR-0006: Project-wide deslopification standards](design/adr/0006-project-wide-deslopification-standards.md)**: establishes professional writing standards and the use of internal tools to eliminate AI slop.
 
 ## License
 
 This project is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
 ## References
-*   **Model Context Protocol Specification:** [https://modelcontextprotocol.io/specification/2025-06-18](https://modelcontextprotocol.io/specification/2025-06-18)
+*   **Model Context Protocol specification:** [https://modelcontextprotocol.io/specification/2025-06-18](https://modelcontextprotocol.io/specification/2025-06-18)
 *   **Go SDK for MCP:** [https://github.com/modelcontextprotocol/go-sdk](https://github.com/modelcontextprotocol/go-sdk)
 *   **How to build an MCP server with Gemini CLI and Go:** [https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/](https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/)

@@ -20,16 +20,16 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const readabilityPrompt = `**Objective: Evaluate Readability**
+const readabilityPrompt = `**Objective: Evaluate readability**
 
-You are an expert editor. Your task is to analyze the work-in-progress article currently in your context and assess its readability using the Gunning Fog Index.
+You are an expert editor. Your task is to analyze the work-in-progress article in your context and assess its readability using the Gunning Fog Index.
 
-**Analysis Steps:**
+**Analysis steps:**
 
-1.  **Identify the Text:** Use the most recent, complete text block you generated in this session as the source material.
-2.  **Assess Current Readability:** Use the ` + "`fog`" + ` tool to calculate the current Gunning Fog Index and classification for the text.
+1.  **Identify the text:** Use the most recent, complete text block you generated in this session as the source material.
+2.  **Assess current readability:** Use the ` + "`fog`" + ` tool to calculate the current Gunning Fog Index and classification for the text.
 
-**Your Task:**
+**Your task:**
 
 Now, execute the plan. First, call the ` + "`fog`" + ` tool on the text you just wrote. Then, provide your analysis.`
 
