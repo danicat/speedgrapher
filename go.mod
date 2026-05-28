@@ -6,7 +6,6 @@ require (
 	github.com/PuerkitoBio/goquery v1.10.3
 	github.com/jdkato/prose/v2 v2.0.0
 	github.com/modelcontextprotocol/go-sdk v1.1.0
-	github.com/yuin/goldmark v1.7.13
 	gopkg.in/yaml.v3 v3.0.1
 )
 

@@ -123,7 +123,7 @@ func TestConvertHugoMarkdownToHTML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Create a dummy hugo.toml
 	if err := os.WriteFile(filepath.Join(tempDir, "hugo.toml"), []byte(`baseURL = "http://example.org/"`), 0644); err != nil {
@@ -163,7 +163,7 @@ func TestConvertHugoMarkdownToHTML(t *testing.T) {
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("Failed to change directory: %v", err)
 	}
-	defer os.Chdir(oldCwd)
+	defer func() { _ = os.Chdir(oldCwd) }()
 
 	markdown := `---
 title: "My Hugo Post Title"

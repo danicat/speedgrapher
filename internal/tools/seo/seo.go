@@ -123,13 +123,13 @@ func convertHugoMarkdownToHTML(markdown string) (string, error) {
 	if err := os.WriteFile(tempFilePath, []byte(markdown), 0644); err != nil {
 		return "", fmt.Errorf("failed to write temp markdown: %w", err)
 	}
-	defer os.Remove(tempFilePath)
+	defer func() { _ = os.Remove(tempFilePath) }()
 
 	tempOut, err := os.MkdirTemp("", "speedgrapher_hugo_out")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp out dir: %w", err)
 	}
-	defer os.RemoveAll(tempOut)
+	defer func() { _ = os.RemoveAll(tempOut) }()
 
 	// Run hugo
 	cmd := exec.Command("hugo", "--destination", tempOut, "--quiet")

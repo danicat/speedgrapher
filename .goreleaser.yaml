@@ -10,6 +10,7 @@ before:
   hooks:
     - go mod tidy
     - go generate ./...
+    - make verify-version
 
 builds:
   - env:
@@ -32,7 +33,6 @@ archives:
       - SPEEDGRAPHER.md
       - README.md
       - LICENSE
-      - CHANGELOG.md
       - .vale.ini
       - skills/**/*
 
