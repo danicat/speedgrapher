@@ -37,6 +37,7 @@ archives:
       - README.md
       - LICENSE
       - .vale.ini
+      - styles/**/*
       - skills/**/*
 
 changelog:

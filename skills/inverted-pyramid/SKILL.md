@@ -1,6 +1,6 @@
 ---
 name: inverted-pyramid
-description: Structuring style to prioritize highest value information (actions, summaries) at the beginning, followed by usage, developer instructions, and finishing with implementation details and legal/compliance.
+description: Structuring style to prioritize highest value information (actions, summaries) at the beginning, followed by usage, developer instructions, and finishing with implementation details and legal/compliance. Activate this skill when you: audit, write or modify any document.
 ---
 
 # Inverted pyramid documentation model
@@ -9,16 +9,7 @@ This skill provides editorial guidelines for structuring technical articles, REA
 
 ---
 
-## 1. Trigger conditions
-
-Activate this skill when you:
-- Structure, refactor, or write project `README.md` files.
-- Draft technical user guides, API manuals, or tool instructions.
-- Audit existing documentation for scannability and reading efficiency.
-
----
-
-## 2. Core philosophy: Information cascading
+## 1. Core philosophy: Information cascading
 
 The **inverted pyramid** structure places the most critical, high-impact, or actionable information at the top. Secondary user details, operational steps, and low-impact implementation details follow:
 
@@ -31,7 +22,7 @@ graph TD
 
 ---
 
-## 3. README structural sequence
+## 2. README structural sequence
 
 For `README.md` and user-facing project guides, documents **must** follow this exact sequence:
 
@@ -44,7 +35,7 @@ For `README.md` and user-facing project guides, documents **must** follow this e
 
 ---
 
-## 4. Writing principles
+## 3. Writing principles
 
 - **Lead with action**: don't hide installation instructions behind paragraphs of architectural theory. Let the user run the tool first.
 - **Vary reading depth**: Ensure the document caters to three reading styles:
