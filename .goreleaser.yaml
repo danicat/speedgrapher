@@ -32,8 +32,9 @@ archives:
       - goos: windows
         format: zip
     files:
-      - gemini-extension.json
-      - SPEEDGRAPHER.md
+      - plugin.json
+      - mcp_config.json
+      - rules/**/*
       - README.md
       - LICENSE
       - .vale.ini

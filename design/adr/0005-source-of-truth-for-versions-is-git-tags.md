@@ -1,6 +1,6 @@
 # ADR-0005: Enforce Version Alignment to Git Tags and Extension Manifest
 
-- **Status:** Approved
+- **Status:** Superseded by ADR-0007
 - **Date:** 2026-05-28
 - **Author(s):** Antigravity
 - **Deciders:** USER, Antigravity

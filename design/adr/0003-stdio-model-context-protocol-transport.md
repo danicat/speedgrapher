@@ -6,7 +6,7 @@
 - **Deciders:** USER, Antigravity
 
 ## 1. Context
-Speedgrapher is an assistant server designed to integrate directly with LLM clients (like the Gemini CLI/desktop app or other Model Context Protocol clients). We need a fast, reliable, and secure communication layer to pass tools, prompts, and resources.
+Speedgrapher is an assistant server designed to integrate directly with LLM clients (like the desktop app or other Model Context Protocol clients). We need a fast, reliable, and secure communication layer to pass tools, prompts, and resources.
 
 ## 2. Decision
 We build Speedgrapher as a standard Model Context Protocol (MCP) server using the official Go SDK (`github.com/modelcontextprotocol/go-sdk`), communicating over the standard input/output (`stdio`) transport layer.

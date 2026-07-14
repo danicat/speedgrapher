@@ -81,8 +81,5 @@ Example:
 
   - **Gunning Fog Index (Wikipedia):**
     https://en.wikipedia.org/wiki/Gunning_fog_index
-
-  - **How to Build an MCP Server with Gemini CLI and Go:**
-    https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/
 */
 package fog

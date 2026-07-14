@@ -35,20 +35,17 @@ snapshot:
 release:
 	goreleaser release --clean
 
-extension: build
-	gemini extensions install .
-
 # Usage: make bump-version VERSION=0.7.0
 bump-version:
 	@if [ "$(origin VERSION)" != "command line" ]; then \
 		echo "Error: VERSION must be explicitly specified on the command line. Usage: make bump-version VERSION=0.7.0"; \
 		exit 1; \
 	fi
-	@python3 -c "import re; f = 'gemini-extension.json'; content = open(f).read(); new_content = re.sub(r'\"version\":\s*\"[^\"]+\"', '\"version\": \"$(VERSION)\"', content); open(f, 'w').write(new_content);"
-	@echo "Successfully bumped version to $(VERSION) in gemini-extension.json"
+	@python3 -c "import re; f = 'plugin.json'; content = open(f).read(); new_content = re.sub(r'\"version\":\s*\"[^\"]+\"', '\"version\": \"$(VERSION)\"', content); open(f, 'w').write(new_content);"
+	@echo "Successfully bumped version to $(VERSION) in plugin.json"
 
 verify-version:
-	@MANIFEST_VERSION=$$(grep '"version":' gemini-extension.json | cut -d'"' -f4); \
+	@MANIFEST_VERSION=$$(grep '"version":' plugin.json | cut -d'"' -f4); \
 	GIT_TAG=$$(git describe --tags --exact-match 2>/dev/null | sed 's/^v//' || echo ""); \
 	if [ -z "$$GIT_TAG" ]; then \
 		echo "Warning: No exact git tag match found for current commit. Verification skipped."; \
@@ -61,4 +58,4 @@ verify-version:
 		echo "Success: Versions are aligned."; \
 	fi
 
-.PHONY: build install clean test test-cov snapshot release extension bump-version verify-version
+.PHONY: build install clean test test-cov snapshot release bump-version verify-version

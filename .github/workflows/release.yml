@@ -28,11 +28,11 @@ jobs:
       - name: Validate version alignment
         run: |
           TAG_VERSION=${GITHUB_REF#refs/tags/v}
-          MANIFEST_VERSION=$(grep '"version":' gemini-extension.json | cut -d'"' -f4)
+          MANIFEST_VERSION=$(grep '"version":' plugin.json | cut -d'"' -f4)
           echo "Pushed tag version: $TAG_VERSION"
           echo "Manifest version: $MANIFEST_VERSION"
           if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
-            echo "::error::Version mismatch! Git tag version ($TAG_VERSION) does not match gemini-extension.json version ($MANIFEST_VERSION)."
+            echo "::error::Version mismatch! Git tag version ($TAG_VERSION) does not match plugin.json version ($MANIFEST_VERSION)."
             exit 1
           fi
           echo "Versions are aligned. Proceeding with release."

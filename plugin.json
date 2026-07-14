@@ -1,0 +1,6 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "speedgrapher",
+  "version": "0.9.0",
+  "description": "A high-performance Antigravity MCP server for technical writers. Provides real-time SEO analysis, readability scoring, and AI slop detection to streamline the publication process."
+}

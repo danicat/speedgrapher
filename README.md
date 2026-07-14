@@ -8,22 +8,11 @@ Speedgrapher is a Model Context Protocol (MCP) server that helps you write bette
 
 ### Installation
 
-#### Gemini CLI
-Install Speedgrapher as a Gemini CLI extension to automatically compile the binary, configure the MCP server, and register all editorial personas:
-
-```bash
-gemini extensions install https://github.com/danicat/speedgrapher
-```
-
 #### Antigravity CLI
-Install the Gemini CLI extension, then import into `agy`:
+Install Speedgrapher as an Antigravity plugin to automatically compile the binary, configure the MCP server, and register all editorial personas:
 
 ```bash
-# Step 1: install the extension
-gemini extensions install https://github.com/danicat/speedgrapher
-
-# Step 2: import into Antigravity CLI
-agy plugin import gemini
+agy plugin install https://github.com/danicat/speedgrapher
 ```
 
 #### Claude Code
@@ -57,7 +46,7 @@ Speedgrapher runs in the background of your agent-compatible client. The client 
 
 ### Editorial personas
 
-When you install Speedgrapher as a Gemini CLI extension, it registers four expert personas to guide you through drafting and polishing:
+When you install Speedgrapher as an Antigravity plugin, it registers four expert personas to guide you through drafting and polishing:
 
 * **`tech-interviewer`**: interviews you about your technical topic to extract raw logs, error messages, and core lessons. It then drafts a structural outline.
 * **`tech-writer`**: drafts the article with you, focusing on a clear, conversational narrative voice that follows cozy web principles.
@@ -126,14 +115,14 @@ Speedgrapher relies on Git tags for versioning. Build versions are dynamically i
 
 To release a new version:
 
-1. Update the version string in `gemini-extension.json`:
+1. Update the version string in `plugin.json`:
    ```bash
    make bump-version VERSION=0.8.0
    ```
 
 2. Commit the manifest changes:
    ```bash
-   git add gemini-extension.json
+   git add plugin.json
    git commit -m "chore: bump version to 0.8.0"
    ```
 
@@ -158,8 +147,8 @@ Key technical choices are recorded using the Architecture Decision Record (ADR) 
 2. **[ADR-0002: Automated Vale bootstrapping](design/adr/0002-automated-vale-bootstrapping.md)**: details the runtime dynamic downloader and SHA256 verification gate for the `vale` binary.
 3. **[ADR-0003: Stdio model context protocol transport](design/adr/0003-stdio-model-context-protocol-transport.md)**: records the security and isolation choices for using standard streams over network sockets.
 4. **[ADR-0004: Replace changelog with evolutionary documentation](design/adr/0004-replace-changelog-with-evolutionary-documentation.md)**: solidifies the transition from manual files to git tag records and ADR histories.
-5. **[ADR-0005: Enforce version alignment to git tags and extension manifest](design/adr/0005-source-of-truth-for-versions-is-git-tags.md)**: details the three-tiered verification gate that blocks version drift during release cycles.
-6. **[ADR-0006: Project-wide deslopification standards](design/adr/0006-project-wide-deslopification-standards.md)**: establishes professional writing standards and the use of internal tools to eliminate AI slop.
+5. **[ADR-0005: Enforce version alignment to git tags and extension manifest](design/adr/0005-source-of-truth-for-versions-is-git-tags.md)**: details the three-tiered verification gate that blocks version drift during release cycles. (Superseded by ADR-0007)
+6. **[ADR-0007: Plugin manifest version alignment](design/adr/0007-plugin-manifest-version-alignment.md)**: enforces version alignment with `plugin.json` instead of the deprecated `gemini-extension.json`.
 
 ## License
 
@@ -168,4 +157,3 @@ This project is licensed under the Apache License, Version 2.0. See [LICENSE](LI
 ## References
 *   **Model Context Protocol specification:** [https://modelcontextprotocol.io/specification/2025-06-18](https://modelcontextprotocol.io/specification/2025-06-18)
 *   **Go SDK for MCP:** [https://github.com/modelcontextprotocol/go-sdk](https://github.com/modelcontextprotocol/go-sdk)
-*   **How to build an MCP server with Gemini CLI and Go:** [https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/](https://danicat.dev/posts/20250729-how-to-build-an-mcp-server-with-gemini-cli-and-go/)
