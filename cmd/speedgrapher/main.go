@@ -21,23 +21,12 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"runtime/debug"
 	"syscall"
 
 	"github.com/danicat/speedgrapher/internal/cli"
 )
 
 var version = "dev"
-
-func resolveVersion() string {
-	if version != "dev" && version != "" {
-		return version
-	}
-	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
-		return info.Main.Version
-	}
-	return "dev"
-}
 
 func main() {
 	os.Exit(runMain())
@@ -56,5 +45,5 @@ func runMain() int {
 }
 
 func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	return cli.Run(ctx, resolveVersion(), args, stdin, stdout, stderr)
+	return cli.Run(ctx, version, args, stdin, stdout, stderr)
 }
