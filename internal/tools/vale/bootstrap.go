@@ -66,18 +66,49 @@ func getValeAssetInfo() (string, string, error) {
 }
 
 // bootstrapVale ensures the pinned version of vale is available and returns its path.
-func bootstrapVale() (string, error) {
+// If customBinPath is provided, it verifies the binary exists and is executable.
+// Otherwise, it determines the executable directory and downloads/caches the pinned vale binary.
+func bootstrapVale(customBinPath string) (string, error) {
+	if customBinPath != "" {
+		absPath, err := filepath.Abs(customBinPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve custom vale binary path %q: %w", customBinPath, err)
+		}
+		info, err := os.Stat(absPath)
+		if err != nil {
+			return "", fmt.Errorf("vale binary not found at %q: %w", absPath, err)
+		}
+		if info.IsDir() {
+			return "", fmt.Errorf("vale binary path is a directory: %q", absPath)
+		}
+		if runtime.GOOS != "windows" {
+			if info.Mode().Perm()&0111 == 0 {
+				return "", fmt.Errorf("vale binary at %q is not executable", absPath)
+			}
+		}
+		return absPath, nil
+	}
+
 	exePath, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("could not determine executable path: %w", err)
 	}
-	exeDir := filepath.Dir(exePath)
+	absExePath, err := filepath.Abs(exePath)
+	if err != nil {
+		return "", fmt.Errorf("could not get absolute executable path: %w", err)
+	}
+	exeDir := filepath.Dir(absExePath)
 
 	valeBinName := "vale"
 	if runtime.GOOS == "windows" {
 		valeBinName = "vale.exe"
 	}
 	valePath := filepath.Join(exeDir, valeBinName)
+	absValePath, err := filepath.Abs(valePath)
+	if err != nil {
+		return "", fmt.Errorf("could not get absolute path for vale binary: %w", err)
+	}
+	valePath = absValePath
 
 	// Check if already installed and correct version
 	if _, err := os.Stat(valePath); err == nil {

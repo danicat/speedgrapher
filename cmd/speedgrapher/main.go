@@ -12,54 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package main is the entry point for the speedgrapher CLI and MCP server.
 package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/danicat/speedgrapher/internal/prompts"
-	"github.com/danicat/speedgrapher/internal/tools/fog"
-	"github.com/danicat/speedgrapher/internal/tools/seo"
-	"github.com/danicat/speedgrapher/internal/tools/slop"
-	"github.com/danicat/speedgrapher/internal/tools/vale"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/danicat/speedgrapher/internal/cli"
 )
 
 var version = "dev"
 
 func main() {
-	showVersion := flag.Bool("version", false, "Show the version and exit.")
-	editorialGuidelines := flag.String("editorial", "EDITORIAL.md", "Path to the editorial guidelines file.")
-	localizationGuidelines := flag.String("localization", "LOCALIZATION.md", "Path to the localization guidelines file.")
-	flag.Parse()
+	os.Exit(runMain())
+}
 
-	if *showVersion {
-		fmt.Println(version)
-		return
-	}
-
+func runMain() int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, *editorialGuidelines, *localizationGuidelines); err != nil {
+
+	err := run(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
-func run(ctx context.Context, editorialGuidelines, localizationGuidelines string) error {
-	server := mcp.NewServer(
-		&mcp.Implementation{Name: "speedgrapher"},
-		nil,
-	)
-	prompts.Register(server, editorialGuidelines, localizationGuidelines)
-	fog.Register(server)
-	seo.Register(server)
-	slop.Register(server)
-	vale.Register(server)
-	return server.Run(ctx, &mcp.StdioTransport{})
+func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	return cli.Run(ctx, version, args, stdin, stdout, stderr)
 }
+

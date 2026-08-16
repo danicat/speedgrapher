@@ -1,3 +1,17 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package seo
 
 import (
@@ -14,18 +28,45 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Register registers the analyze_seo tool with the server.
-func Register(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "analyze_seo",
-		Description: "Performs technical SEO audits on URLs or Hugo Markdown. Uses the Hugo CLI to accurately verify titles, descriptions, and H1 tags from frontmatter and templates.",
-	}, seoHandler)
+// Config holds configuration options for the SEO tool.
+type Config struct {
+	WorkspaceDir string
 }
 
-// SEOParams defines the input parameters for the seo_audit tool.
+// Register registers the analyze_seo tool with the server.
+func Register(server *mcp.Server, cfg ...Config) {
+	c := resolveConfig(cfg...)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "analyze_seo",
+		Description: "Performs technical SEO audits on URLs, HTML, or Hugo Markdown. Uses the Hugo CLI to accurately verify titles, descriptions, and H1 tags from frontmatter and templates.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input SEOParams) (*mcp.CallToolResult, *SEOResult, error) {
+		return seoHandler(ctx, req, input, c)
+	})
+}
+
+func resolveConfig(cfg ...Config) Config {
+	var c Config
+	if len(cfg) > 0 {
+		c = cfg[0]
+	}
+	if c.WorkspaceDir == "" {
+		if cwd, err := os.Getwd(); err == nil {
+			c.WorkspaceDir = cwd
+		} else {
+			c.WorkspaceDir = "."
+		}
+	}
+	if absDir, err := filepath.Abs(c.WorkspaceDir); err == nil {
+		c.WorkspaceDir = absDir
+	}
+	return c
+}
+
+// SEOParams defines the input parameters for the analyze_seo tool.
 type SEOParams struct {
-	URL     string `json:"url,omitempty" jsonschema:"The full URL of the webpage to audit. Either 'url' or 'html' must be provided."`
+	URL     string `json:"url,omitempty" jsonschema:"The full URL of the webpage to audit."`
 	HTML    string `json:"html,omitempty" jsonschema:"The raw HTML content to audit. Use this if the content is not yet published. Supports Hugo Markdown with Front Matter."`
+	Path    string `json:"path,omitempty" jsonschema:"Optional absolute path to an HTML or Hugo Markdown file to audit."`
 	Keyword string `json:"keyword,omitempty" jsonschema:"The target keyword to check for optimization in the title, description, and headings."`
 }
 
@@ -37,7 +78,7 @@ type SEOCheck struct {
 	ScoreImpact int    `json:"score_impact"`
 }
 
-// SEOResult defines the structured output for the seo_audit tool.
+// SEOResult defines the structured output for the analyze_seo tool.
 type SEOResult struct {
 	Score       int        `json:"score"`
 	Title       string     `json:"title"`
@@ -54,7 +95,13 @@ type FrontMatter struct {
 	Canonical   string `yaml:"canonical"`
 }
 
-func seoHandler(_ context.Context, _ *mcp.CallToolRequest, input SEOParams) (*mcp.CallToolResult, *SEOResult, error) {
+// Handler executes the seo tool logic.
+func Handler(ctx context.Context, req *mcp.CallToolRequest, input SEOParams, cfg ...Config) (*mcp.CallToolResult, *SEOResult, error) {
+	return seoHandler(ctx, req, input, cfg...)
+}
+
+func seoHandler(_ context.Context, _ *mcp.CallToolRequest, input SEOParams, cfg ...Config) (*mcp.CallToolResult, *SEOResult, error) {
+	c := resolveConfig(cfg...)
 	var doc *goquery.Document
 	var err error
 
@@ -71,7 +118,7 @@ func seoHandler(_ context.Context, _ *mcp.CallToolRequest, input SEOParams) (*mc
 	} else if input.HTML != "" {
 		// Check if input is Hugo Markdown (starts with ---)
 		if strings.HasPrefix(strings.TrimSpace(input.HTML), "---") {
-			htmlContent, convErr := convertHugoMarkdownToHTML(input.HTML)
+			htmlContent, convErr := convertHugoMarkdownToHTML(input.HTML, c.WorkspaceDir)
 			if convErr != nil {
 				return nil, nil, fmt.Errorf("failed to convert Hugo Markdown: %w", convErr)
 			}
@@ -79,8 +126,34 @@ func seoHandler(_ context.Context, _ *mcp.CallToolRequest, input SEOParams) (*mc
 		} else {
 			doc, err = goquery.NewDocumentFromReader(strings.NewReader(input.HTML))
 		}
+	} else if input.Path != "" {
+		filePath := input.Path
+		if !filepath.IsAbs(filePath) {
+			filePath = filepath.Join(c.WorkspaceDir, filePath)
+		}
+		absPath, absErr := filepath.Abs(filePath)
+		if absErr != nil {
+			return nil, nil, fmt.Errorf("failed to resolve path %s: %w", input.Path, absErr)
+		}
+		filePath = absPath
+
+		data, readErr := os.ReadFile(filePath)
+		if readErr != nil {
+			return nil, nil, fmt.Errorf("failed to read file %s: %w", filePath, readErr)
+		}
+
+		content := string(data)
+		if strings.HasPrefix(strings.TrimSpace(content), "---") || strings.HasSuffix(strings.ToLower(filePath), ".md") || strings.HasSuffix(strings.ToLower(filePath), ".markdown") {
+			htmlContent, convErr := convertHugoMarkdownToHTML(content, c.WorkspaceDir)
+			if convErr != nil {
+				return nil, nil, fmt.Errorf("failed to convert Hugo Markdown from %s: %w", filePath, convErr)
+			}
+			doc, err = goquery.NewDocumentFromReader(strings.NewReader(htmlContent))
+		} else {
+			doc, err = goquery.NewDocumentFromReader(strings.NewReader(content))
+		}
 	} else {
-		return nil, nil, fmt.Errorf("either url or html must be provided")
+		return nil, nil, fmt.Errorf("either url, html, or path must be provided")
 	}
 
 	if err != nil {
@@ -91,35 +164,48 @@ func seoHandler(_ context.Context, _ *mcp.CallToolRequest, input SEOParams) (*mc
 	return nil, result, nil
 }
 
-func findHugoRoot() (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", err
+func findHugoRoot(startDir string) (string, error) {
+	if startDir == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		startDir = cwd
 	}
+	absDir, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve absolute path for %s: %w", startDir, err)
+	}
+	curr := absDir
 	for {
 		for _, config := range []string{"hugo.toml", "hugo.yaml", "hugo.json", "config.toml", "config.yaml", "config.json"} {
-			if _, err := os.Stat(filepath.Join(cwd, config)); err == nil {
-				return cwd, nil
+			if _, err := os.Stat(filepath.Join(curr, config)); err == nil {
+				return curr, nil
 			}
 		}
-		parent := filepath.Dir(cwd)
-		if parent == cwd {
+		parent := filepath.Dir(curr)
+		if parent == curr {
 			break
 		}
-		cwd = parent
+		curr = parent
 	}
 	return "", fmt.Errorf("hugo root not found")
 }
 
-func convertHugoMarkdownToHTML(markdown string) (string, error) {
-	root, err := findHugoRoot()
+func convertHugoMarkdownToHTML(markdown string, workspaceDir string) (string, error) {
+	root, err := findHugoRoot(workspaceDir)
 	if err != nil {
 		return "", fmt.Errorf("hugo root not found: %w", err)
 	}
 
+	contentDir := filepath.Join(root, "content")
+	if err := os.MkdirAll(contentDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create content dir: %w", err)
+	}
+
 	// Create a unique temp file in content
 	tempFileName := "speedgrapher_seo_temp.md"
-	tempFilePath := filepath.Join(root, "content", tempFileName)
+	tempFilePath := filepath.Join(contentDir, tempFileName)
 	if err := os.WriteFile(tempFilePath, []byte(markdown), 0644); err != nil {
 		return "", fmt.Errorf("failed to write temp markdown: %w", err)
 	}
@@ -130,6 +216,11 @@ func convertHugoMarkdownToHTML(markdown string) (string, error) {
 		return "", fmt.Errorf("failed to create temp out dir: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(tempOut) }()
+
+	tempOutAbs, err := filepath.Abs(tempOut)
+	if err == nil {
+		tempOut = tempOutAbs
+	}
 
 	// Run hugo
 	cmd := exec.Command("hugo", "--destination", tempOut, "--quiet")

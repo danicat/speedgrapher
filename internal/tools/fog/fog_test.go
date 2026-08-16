@@ -15,8 +15,13 @@
 package fog
 
 import (
+	"context"
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestCountWords(t *testing.T) {
@@ -345,4 +350,207 @@ func TestFogResult(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleFog(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Valid Text input", func(t *testing.T) {
+		cfg := Config{}
+		params := FogParams{Text: "This is a simple sentence. Here is another sentence."}
+		_, res, err := handleFog(cfg, params)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if res.TotalWords != 9 {
+			t.Errorf("expected 9 words, got %d", res.TotalWords)
+		}
+		if res.TotalSentences != 2 {
+			t.Errorf("expected 2 sentences, got %d", res.TotalSentences)
+		}
+		if res.FogIndex <= 0 {
+			t.Errorf("expected positive FogIndex, got %f", res.FogIndex)
+		}
+		if res.Classification == "" {
+			t.Errorf("expected non-empty classification")
+		}
+	})
+
+	t.Run("Valid Path input with absolute path", func(t *testing.T) {
+		tempDir := t.TempDir()
+		filePath := filepath.Join(tempDir, "sample.txt")
+		content := "The quick brown fox jumps over the lazy dog."
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to write temp file: %v", err)
+		}
+
+		cfg := Config{}
+		params := FogParams{Path: filePath}
+		_, res, err := handleFog(cfg, params)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if res.TotalWords != 9 {
+			t.Errorf("expected 9 words, got %d", res.TotalWords)
+		}
+		if res.TotalSentences != 1 {
+			t.Errorf("expected 1 sentence, got %d", res.TotalSentences)
+		}
+	})
+
+	t.Run("Valid Path input with relative path and WorkspaceDir", func(t *testing.T) {
+		tempDir := t.TempDir()
+		subDir := filepath.Join(tempDir, "sub")
+		if err := os.MkdirAll(subDir, 0755); err != nil {
+			t.Fatalf("failed to create sub dir: %v", err)
+		}
+		filePath := filepath.Join(subDir, "doc.md")
+		content := "Automated testing is a cornerstone of modern software development."
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to write temp file: %v", err)
+		}
+
+		cfg := Config{WorkspaceDir: tempDir}
+		params := FogParams{Path: "sub/doc.md"}
+		_, res, err := handleFog(cfg, params)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if res.TotalWords != 9 {
+			t.Errorf("expected 9 words, got %d", res.TotalWords)
+		}
+	})
+
+	t.Run("Valid Path input with relative path and empty WorkspaceDir", func(t *testing.T) {
+		tempDir := t.TempDir()
+		filePath := filepath.Join(tempDir, "rel_test.txt")
+		content := "This is a test sentence in a file."
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to write temp file: %v", err)
+		}
+
+		// Use relative path from current directory
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("failed to get cwd: %v", err)
+		}
+		relPath, err := filepath.Rel(cwd, filePath)
+		if err != nil {
+			t.Fatalf("failed to get rel path: %v", err)
+		}
+
+		cfg := Config{}
+		params := FogParams{Path: relPath}
+		_, res, err := handleFog(cfg, params)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if res.TotalWords != 8 {
+			t.Errorf("expected 8 words, got %d", res.TotalWords)
+		}
+	})
+
+	t.Run("Text takes precedence over Path when both provided", func(t *testing.T) {
+		tempDir := t.TempDir()
+		filePath := filepath.Join(tempDir, "unused.txt")
+		if err := os.WriteFile(filePath, []byte("Ignored file content."), 0644); err != nil {
+			t.Fatalf("failed to write temp file: %v", err)
+		}
+
+		cfg := Config{}
+		params := FogParams{
+			Text: "Direct text is prioritized over file path.",
+			Path: filePath,
+		}
+		_, res, err := handleFog(cfg, params)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res.TotalWords != 7 {
+			t.Errorf("expected 7 words from direct text, got %d", res.TotalWords)
+		}
+	})
+
+	t.Run("Missing text and path", func(t *testing.T) {
+		cfg := Config{}
+		params := FogParams{}
+		_, _, err := handleFog(cfg, params)
+		if err == nil {
+			t.Error("expected error for empty text and path, got nil")
+		}
+	})
+
+	t.Run("Nonexistent file path", func(t *testing.T) {
+		cfg := Config{}
+		params := FogParams{Path: "/nonexistent/path/does_not_exist.txt"}
+		_, _, err := handleFog(cfg, params)
+		if err == nil {
+			t.Error("expected error for nonexistent file path, got nil")
+		}
+	})
+
+	t.Run("Empty file", func(t *testing.T) {
+		tempDir := t.TempDir()
+		filePath := filepath.Join(tempDir, "empty.txt")
+		if err := os.WriteFile(filePath, []byte(""), 0644); err != nil {
+			t.Fatalf("failed to write temp file: %v", err)
+		}
+
+		cfg := Config{}
+		params := FogParams{Path: filePath}
+		_, _, err := handleFog(cfg, params)
+		if err == nil {
+			t.Error("expected error for empty file, got nil")
+		}
+	})
+
+	t.Run("File with no sentences", func(t *testing.T) {
+		tempDir := t.TempDir()
+		filePath := filepath.Join(tempDir, "no_sentences.txt")
+		if err := os.WriteFile(filePath, []byte("just some words without punctuation"), 0644); err != nil {
+			t.Fatalf("failed to write temp file: %v", err)
+		}
+
+		cfg := Config{}
+		params := FogParams{Path: filePath}
+		_, _, err := handleFog(cfg, params)
+		if err == nil {
+			t.Error("expected error for text without sentences, got nil")
+		}
+	})
+
+	t.Run("makeFogHandler closure", func(t *testing.T) {
+		handler := makeFogHandler(Config{})
+		_, res, err := handler(ctx, nil, FogParams{Text: "Testing the handler closure with a valid sentence."})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res == nil {
+			t.Fatal("expected non-nil result")
+		}
+	})
+}
+
+func TestRegister(t *testing.T) {
+	t.Run("Register without cfg", func(t *testing.T) {
+		server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
+		Register(server)
+	})
+
+	t.Run("Register with cfg", func(t *testing.T) {
+		server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
+		Register(server, Config{WorkspaceDir: "/tmp/test"})
+	})
 }

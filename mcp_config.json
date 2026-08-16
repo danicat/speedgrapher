@@ -1,7 +1,0 @@
-{
-  "mcpServers": {
-    "speedgrapher": {
-      "command": "bin/speedgrapher"
-    }
-  }
-}

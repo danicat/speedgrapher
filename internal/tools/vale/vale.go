@@ -25,38 +25,79 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// Config holds configuration options for the Vale tool.
+type Config struct {
+	WorkspaceDir string
+	ValeBinPath  string // Optional custom path to vale binary
+}
+
 // setupValeConfig ensures that a Vale configuration exists for Speedgrapher.
-// It prioritizes a local .vale.ini in the current working directory.
-// If none exists, it falls back to the bundled configuration.
-func setupValeConfig(valePath string) (string, error) {
-	// First check current working directory
-	cwd, err := os.Getwd()
-	if err == nil {
-		localIni := filepath.Join(cwd, ".vale.ini")
-		if _, err := os.Stat(localIni); err == nil {
-			// Found local config, ensure packages are synced
-			cmd := exec.Command(valePath, "sync", "--config", localIni)
-			if out, syncErr := cmd.CombinedOutput(); syncErr != nil {
-				return "", fmt.Errorf("failed to run 'vale sync' for local config: %s (error: %w)", string(out), syncErr)
+// It prioritizes a local .vale.ini in Config.WorkspaceDir if provided.
+// If none exists, it checks the current working directory.
+// If still none exists, it falls back to the bundled configuration.
+func setupValeConfig(valePath string, workspaceDir string) (string, error) {
+	absValePath, err := filepath.Abs(valePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve absolute vale path: %w", err)
+	}
+	valePath = absValePath
+
+	var iniPath string
+
+	// 1. Check Config.WorkspaceDir if provided
+	if workspaceDir != "" {
+		absWorkspace, err := filepath.Abs(workspaceDir)
+		if err == nil {
+			candidate := filepath.Join(absWorkspace, ".vale.ini")
+			if _, err := os.Stat(candidate); err == nil {
+				iniPath = candidate
 			}
-			return localIni, nil
 		}
 	}
 
-	// Fallback to bundled config
-	exePath, err := os.Executable()
+	// 2. If not found in WorkspaceDir, check current working directory
+	if iniPath == "" {
+		if cwd, err := os.Getwd(); err == nil {
+			if absCwd, err := filepath.Abs(cwd); err == nil {
+				candidate := filepath.Join(absCwd, ".vale.ini")
+				if _, err := os.Stat(candidate); err == nil {
+					iniPath = candidate
+				}
+			}
+		}
+	}
+
+	// 3. Fallback to bundled config walking up from executable directory
+	if iniPath == "" {
+		exePath, err := os.Executable()
+		if err != nil {
+			return "", fmt.Errorf("could not get executable path: %w", err)
+		}
+		absExePath, err := filepath.Abs(exePath)
+		if err != nil {
+			return "", fmt.Errorf("could not resolve absolute executable path: %w", err)
+		}
+		exeDir := filepath.Dir(absExePath)
+
+		bundledIni, err := findBundledValeConfig(exeDir)
+		if err != nil {
+			return "", err
+		}
+		iniPath = bundledIni
+	}
+
+	absIniPath, err := filepath.Abs(iniPath)
 	if err != nil {
-		return "", fmt.Errorf("could not get executable path: %w", err)
+		return "", fmt.Errorf("could not resolve absolute path for .vale.ini: %w", err)
 	}
-	exeDir := filepath.Dir(exePath)
+	iniPath = absIniPath
 
-	iniPath := filepath.Join(exeDir, ".vale.ini")
-	stylesPath := filepath.Join(exeDir, "styles")
-
-	// Verify the ini file exists
-	if _, err := os.Stat(iniPath); os.IsNotExist(err) {
-		return "", fmt.Errorf(".vale.ini is missing, it must be bundled with the extension")
+	stylesPath := filepath.Join(filepath.Dir(iniPath), "styles")
+	absStylesPath, err := filepath.Abs(stylesPath)
+	if err != nil {
+		return "", fmt.Errorf("could not resolve absolute styles path: %w", err)
 	}
+	stylesPath = absStylesPath
 
 	// If the styles dir doesn't exist, run vale sync
 	if _, err := os.Stat(stylesPath); os.IsNotExist(err) {
@@ -69,17 +110,45 @@ func setupValeConfig(valePath string) (string, error) {
 	return iniPath, nil
 }
 
+// findBundledValeConfig searches for .vale.ini starting from exeDir and walking up parent directories.
+func findBundledValeConfig(exeDir string) (string, error) {
+	absDir, err := filepath.Abs(exeDir)
+	if err != nil {
+		return "", fmt.Errorf("could not resolve absolute path for %q: %w", exeDir, err)
+	}
+	currDir := absDir
+	for {
+		candidate := filepath.Join(currDir, ".vale.ini")
+		if _, err := os.Stat(candidate); err == nil {
+			return filepath.Abs(candidate)
+		}
+		parent := filepath.Dir(currDir)
+		if parent == currDir {
+			break
+		}
+		currDir = parent
+	}
+	return "", fmt.Errorf(".vale.ini is missing, it must be bundled with the extension")
+}
+
 // Register registers the vale tool with the server.
-func Register(server *mcp.Server) {
+func Register(server *mcp.Server, cfg ...Config) {
+	var c Config
+	if len(cfg) > 0 {
+		c = cfg[0]
+	}
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "vale",
 		Description: "Executes Vale static analysis for style and grammar. Prioritizes project-specific .vale.ini if present in the workspace.",
-	}, valeHandler)
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input ValeParams) (*mcp.CallToolResult, *ValeResult, error) {
+		return valeHandler(ctx, req, input, c)
+	})
 }
 
 // ValeParams defines the input parameters for the vale tool.
 type ValeParams struct {
-	Text string `json:"text" jsonschema:"The text to analyze."`
+	Text string `json:"text,omitempty" jsonschema:"The text to analyze."`
+	Path string `json:"path,omitempty" jsonschema:"Optional absolute path to a file to analyze. If provided and text is empty, the file content will be read."`
 }
 
 // ValeResult defines the structured output for the vale tool.
@@ -87,27 +156,66 @@ type ValeResult struct {
 	Output string `json:"output"`
 }
 
-func valeHandler(_ context.Context, _ *mcp.CallToolRequest, input ValeParams) (*mcp.CallToolResult, *ValeResult, error) {
+// Handler executes the vale tool logic.
+func Handler(ctx context.Context, req *mcp.CallToolRequest, input ValeParams, cfg ...Config) (*mcp.CallToolResult, *ValeResult, error) {
+	var c Config
+	if len(cfg) > 0 {
+		c = cfg[0]
+	}
+	return valeHandler(ctx, req, input, c)
+}
+
+func valeHandler(ctx context.Context, _ *mcp.CallToolRequest, input ValeParams, cfg Config) (*mcp.CallToolResult, *ValeResult, error) {
 	text := input.Text
 	if text == "" {
-		return nil, nil, fmt.Errorf("text cannot be empty")
+		if input.Path == "" {
+			return nil, nil, fmt.Errorf("either text or path must be provided")
+		}
+		filePath := input.Path
+		if !filepath.IsAbs(filePath) {
+			if cfg.WorkspaceDir != "" {
+				absWorkspace, err := filepath.Abs(cfg.WorkspaceDir)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to resolve workspace directory: %w", err)
+				}
+				filePath = filepath.Join(absWorkspace, filePath)
+			} else {
+				absPath, err := filepath.Abs(filePath)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to resolve file path: %w", err)
+				}
+				filePath = absPath
+			}
+		}
+		filePath = filepath.Clean(filePath)
+		absFilePath, err := filepath.Abs(filePath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get absolute file path: %w", err)
+		}
+		filePath = absFilePath
+
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to read file %q: %w", filePath, err)
+		}
+		text = string(data)
 	}
 
-	valePath, err := bootstrapVale()
+	valePath, err := bootstrapVale(cfg.ValeBinPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to bootstrap vale: %w", err)
 	}
 
-	iniPath, err := setupValeConfig(valePath)
+	iniPath, err := setupValeConfig(valePath, cfg.WorkspaceDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("vale config error: %w", err)
 	}
 
 	// Run vale via stdin so we don't need temporary files, ensuring it uses our managed config
-	cmd := exec.Command(valePath, "--config", iniPath, "--ext", ".md", "--output=JSON")
+	cmd := exec.CommandContext(ctx, valePath, "--config", iniPath, "--ext", ".md", "--output=JSON")
 	cmd.Stdin = strings.NewReader(text)
 
-	// Vale returns non-zero for alerts, so we ignore the error and just capture the output
+	// Vale returns non-zero for alerts, so we ignore the error and capture the output
 	output, err := cmd.CombinedOutput()
 	if err != nil && len(output) == 0 {
 		return nil, nil, fmt.Errorf("failed to execute vale: %w", err)

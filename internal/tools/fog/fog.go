@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -33,16 +35,26 @@ const (
 )
 
 // Register registers the fog tool with the server.
-func Register(server *mcp.Server) {
+func Register(server *mcp.Server, cfg ...Config) {
+	var c Config
+	if len(cfg) > 0 {
+		c = cfg[0]
+	}
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "fog",
 		Description: "Calculates the Gunning Fog Index to estimate the readability of an English text. Lower scores indicate easier reading.",
-	}, fogHandler)
+	}, makeFogHandler(c))
+}
+
+// Config holds configuration options for the fog tool.
+type Config struct {
+	WorkspaceDir string
 }
 
 // FogParams defines the input parameters for the fog tool.
 type FogParams struct {
-	Text string `json:"text" jsonschema:"The text to analyze for readability. Must contain at least one sentence."`
+	Text string `json:"text,omitempty" jsonschema:"The text to analyze for readability. Must contain at least one sentence."`
+	Path string `json:"path,omitempty" jsonschema:"Optional absolute path to a file to analyze. If provided and text is empty, the file content will be read."`
 }
 
 // FogResult defines the structured output for the fog tool.
@@ -56,8 +68,26 @@ type FogResult struct {
 	ComplexWords           int     `json:"complex_words"`
 }
 
-func fogHandler(_ context.Context, _ *mcp.CallToolRequest, input FogParams) (*mcp.CallToolResult, *FogResult, error) {
-	text := input.Text
+// Handler executes the fog tool logic.
+func Handler(ctx context.Context, req *mcp.CallToolRequest, input FogParams, cfg ...Config) (*mcp.CallToolResult, *FogResult, error) {
+	var c Config
+	if len(cfg) > 0 {
+		c = cfg[0]
+	}
+	return handleFog(c, input)
+}
+
+func makeFogHandler(cfg Config) func(context.Context, *mcp.CallToolRequest, FogParams) (*mcp.CallToolResult, *FogResult, error) {
+	return func(_ context.Context, _ *mcp.CallToolRequest, input FogParams) (*mcp.CallToolResult, *FogResult, error) {
+		return handleFog(cfg, input)
+	}
+}
+
+func handleFog(cfg Config, input FogParams) (*mcp.CallToolResult, *FogResult, error) {
+	text, err := resolveContent(cfg, input.Text, input.Path)
+	if err != nil {
+		return nil, nil, err
+	}
 	if text == "" {
 		return nil, nil, newError("text cannot be empty")
 	}
@@ -91,6 +121,36 @@ func fogHandler(_ context.Context, _ *mcp.CallToolRequest, input FogParams) (*mc
 	}
 
 	return nil, result, nil
+}
+
+func resolveContent(cfg Config, text, path string) (string, error) {
+	if text != "" {
+		return text, nil
+	}
+	if path == "" {
+		return "", newError("either text or path must be provided")
+	}
+
+	targetPath := path
+	if !filepath.IsAbs(targetPath) {
+		if cfg.WorkspaceDir != "" {
+			targetPath = filepath.Join(cfg.WorkspaceDir, targetPath)
+		} else {
+			absPath, err := filepath.Abs(targetPath)
+			if err != nil {
+				return "", fmt.Errorf("failed to resolve path %s: %w", path, err)
+			}
+			targetPath = absPath
+		}
+	}
+	targetPath = filepath.Clean(targetPath)
+
+	data, err := os.ReadFile(targetPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file %s: %w", path, err)
+	}
+
+	return string(data), nil
 }
 
 func newError(format string, a ...any) error {

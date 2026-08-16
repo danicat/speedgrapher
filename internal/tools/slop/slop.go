@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -273,25 +275,83 @@ func Calculate(text string) SlopResult {
 	return res
 }
 
+// Config holds configuration options for the slop tool.
+type Config struct {
+	WorkspaceDir string
+}
+
 // Register registers the slop tool with the server.
-func Register(server *mcp.Server) {
+func Register(server *mcp.Server, cfg ...Config) {
+	var c Config
+	if len(cfg) > 0 {
+		c = cfg[0]
+	}
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "slop",
 		Description: "Calculates an AI 'slop score' (0-100) using 5 weighted metrics. Calibrated for tech writing.",
-	}, slopHandler)
+	}, makeSlopHandler(c))
 }
 
 // SlopParams defines the input parameters for the slop tool.
 type SlopParams struct {
-	Text string `json:"text" jsonschema:"The text to analyze for AI slop."`
+	Text string `json:"text,omitempty" jsonschema:"The text to analyze for AI slop."`
+	Path string `json:"path,omitempty" jsonschema:"Optional absolute path to a file to analyze. If provided and text is empty, the file content will be read."`
 }
 
-func slopHandler(_ context.Context, _ *mcp.CallToolRequest, input SlopParams) (*mcp.CallToolResult, *SlopResult, error) {
-	text := input.Text
+// Handler executes the slop tool logic.
+func Handler(ctx context.Context, req *mcp.CallToolRequest, input SlopParams, cfg ...Config) (*mcp.CallToolResult, *SlopResult, error) {
+	var c Config
+	if len(cfg) > 0 {
+		c = cfg[0]
+	}
+	return handleSlop(c, input)
+}
+
+func makeSlopHandler(cfg Config) func(context.Context, *mcp.CallToolRequest, SlopParams) (*mcp.CallToolResult, *SlopResult, error) {
+	return func(_ context.Context, _ *mcp.CallToolRequest, input SlopParams) (*mcp.CallToolResult, *SlopResult, error) {
+		return handleSlop(cfg, input)
+	}
+}
+
+func handleSlop(cfg Config, input SlopParams) (*mcp.CallToolResult, *SlopResult, error) {
+	text, err := resolveContent(cfg, input.Text, input.Path)
+	if err != nil {
+		return nil, nil, err
+	}
 	if text == "" {
 		return nil, nil, fmt.Errorf("text cannot be empty")
 	}
 
 	res := Calculate(text)
 	return nil, &res, nil
+}
+
+func resolveContent(cfg Config, text, path string) (string, error) {
+	if text != "" {
+		return text, nil
+	}
+	if path == "" {
+		return "", fmt.Errorf("either text or path must be provided")
+	}
+
+	targetPath := path
+	if !filepath.IsAbs(targetPath) {
+		if cfg.WorkspaceDir != "" {
+			targetPath = filepath.Join(cfg.WorkspaceDir, targetPath)
+		} else {
+			absPath, err := filepath.Abs(targetPath)
+			if err != nil {
+				return "", fmt.Errorf("failed to resolve path %s: %w", path, err)
+			}
+			targetPath = absPath
+		}
+	}
+	targetPath = filepath.Clean(targetPath)
+
+	data, err := os.ReadFile(targetPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file %s: %w", path, err)
+	}
+
+	return string(data), nil
 }

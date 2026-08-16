@@ -1,16 +1,10 @@
-# This is an example .goreleaser.yml file with some sensible defaults.
-# Make sure to check the documentation at https://goreleaser.com
-
-# The lines below are called `modelines`. See `<https://nomad.macpine.com/vim/modelines.html>` for more info.
-# vim: set ts=2 sw=2 tw=0 fo=cnqoj
-
+# .goreleaser.yaml
 version: 2
 
 before:
   hooks:
     - go mod tidy
     - go generate ./...
-    - make verify-version
 
 builds:
   - env:
@@ -25,20 +19,18 @@ builds:
       - -s -w -X main.version={{.Version}}
 
 archives:
-  - format: tar.gz
+  - formats:
+      - tar.gz
     name_template: >-
       {{ if eq .Os "windows" }}win32{{ else }}{{ .Os }}{{ end }}.{{ if eq .Arch "amd64" }}x64{{ else if eq .Arch "386" }}ia32{{ else }}{{ .Arch }}{{ end }}.{{ .ProjectName }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
     files:
-      - plugin.json
-      - mcp_config.json
-      - rules/**/*
       - README.md
       - LICENSE
-      - .vale.ini
-      - styles/**/*
+      - install.sh
       - skills/**/*
 
 changelog:
