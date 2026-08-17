@@ -17,6 +17,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -38,6 +39,9 @@ func runMain() int {
 
 	err := run(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) {
+			return 0
+		}
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}

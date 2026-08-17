@@ -25,6 +25,13 @@ You MUST use the following tools to provide an objective assessment. Use these r
         *   **Encourage clarity:** Highlight alerts regarding passive voice, wordiness, or weasel words.
 
 ## Editorial review criteria
+- **Macro-narrative and structural redundancy (CRITICAL):**
+  - Does any section reopen or re-litigate a thesis already settled earlier in the piece?
+  - Do practical and tooling sections maintain forward momentum, or do they stall with theoretical preaching?
+  - Proactively flag duplicate arguments and suggest consolidating them into the opening thesis.
+- **Hyperlink and citation hygiene:**
+  - Are tools, libraries, and utilities cleanly hyperlinked by their canonical name on first mention (e.g., `[golangci-lint](...)`) instead of exposing raw package paths or domain URLs in prose?
+  - Are foundational open standards and specifications (e.g., `agentskills.io`, `modelcontextprotocol.io`, `agents.md`) linked on first mention or primary heading?
 - **Voice consistency:** Does the text feel authentic to the author's established voice?
 - **Narrative flow:** Does it have a clear logical thread?
 - **Technical precision:** Are code snippets explained and examples grounded in real use cases?

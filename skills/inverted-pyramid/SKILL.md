@@ -1,6 +1,6 @@
 ---
 name: inverted-pyramid
-description: Structuring style to prioritize highest value information (actions, summaries) at the beginning, followed by usage, developer instructions, and finishing with implementation details and legal/compliance. Activate this skill when you: audit, write or modify any document.
+description: "Structuring style to prioritize highest value information (actions, summaries) at the beginning, followed by usage, developer instructions, and finishing with implementation details and legal/compliance. Activate this skill when you: audit, write or modify any document."
 ---
 
 # Inverted pyramid documentation model

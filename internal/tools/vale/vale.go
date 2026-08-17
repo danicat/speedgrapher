@@ -31,10 +31,19 @@ type Config struct {
 	ValeBinPath  string // Optional custom path to vale binary
 }
 
+const defaultValeIni = `StylesPath = styles
+MinAlertLevel = suggestion
+
+Packages = Google, proselint, write-good
+
+[*.md]
+BasedOnStyles = Vale, Google, proselint, write-good
+`
+
 // setupValeConfig ensures that a Vale configuration exists for Speedgrapher.
 // It prioritizes a local .vale.ini in Config.WorkspaceDir if provided.
 // If none exists, it checks the current working directory.
-// If still none exists, it falls back to the bundled configuration.
+// If still none exists, it falls back to the bundled or user configuration directory.
 func setupValeConfig(valePath string, workspaceDir string) (string, error) {
 	absValePath, err := filepath.Abs(valePath)
 	if err != nil {
@@ -69,21 +78,33 @@ func setupValeConfig(valePath string, workspaceDir string) (string, error) {
 
 	// 3. Fallback to bundled config walking up from executable directory
 	if iniPath == "" {
-		exePath, err := os.Executable()
-		if err != nil {
-			return "", fmt.Errorf("could not get executable path: %w", err)
+		if exePath, err := os.Executable(); err == nil {
+			if absExePath, err := filepath.Abs(exePath); err == nil {
+				exeDir := filepath.Dir(absExePath)
+				if bundledIni, err := findBundledValeConfig(exeDir); err == nil {
+					iniPath = bundledIni
+				}
+			}
 		}
-		absExePath, err := filepath.Abs(exePath)
-		if err != nil {
-			return "", fmt.Errorf("could not resolve absolute executable path: %w", err)
-		}
-		exeDir := filepath.Dir(absExePath)
+	}
 
-		bundledIni, err := findBundledValeConfig(exeDir)
+	// 4. Fallback to user config directory (~/.speedgrapher)
+	if iniPath == "" {
+		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("could not determine user home directory: %w", err)
 		}
-		iniPath = bundledIni
+		userValeDir := filepath.Join(homeDir, ".speedgrapher")
+		if err := os.MkdirAll(userValeDir, 0755); err != nil {
+			return "", fmt.Errorf("could not create user speedgrapher directory %s: %w", userValeDir, err)
+		}
+		userIni := filepath.Join(userValeDir, ".vale.ini")
+		if _, err := os.Stat(userIni); os.IsNotExist(err) {
+			if err := os.WriteFile(userIni, []byte(defaultValeIni), 0644); err != nil {
+				return "", fmt.Errorf("could not write default .vale.ini to %s: %w", userIni, err)
+			}
+		}
+		iniPath = userIni
 	}
 
 	absIniPath, err := filepath.Abs(iniPath)
@@ -128,7 +149,7 @@ func findBundledValeConfig(exeDir string) (string, error) {
 		}
 		currDir = parent
 	}
-	return "", fmt.Errorf(".vale.ini is missing, it must be bundled with the extension")
+	return "", fmt.Errorf(".vale.ini is missing")
 }
 
 // Register registers the vale tool with the server.

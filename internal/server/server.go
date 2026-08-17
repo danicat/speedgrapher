@@ -19,9 +19,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/danicat/speedgrapher/internal/instructions"
@@ -79,7 +81,22 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 
 // RunStdio runs stdio transport using s.Run(ctx, &mcp.StdioTransport{}).
 func RunStdio(ctx context.Context, s *mcp.Server) error {
-	return s.Run(ctx, &mcp.StdioTransport{})
+	err := s.Run(ctx, &mcp.StdioTransport{})
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) || errors.Is(err, io.ErrClosedPipe) {
+			return nil
+		}
+		msg := err.Error()
+		if strings.Contains(msg, "EOF") ||
+			strings.Contains(msg, "server is closing") ||
+			strings.Contains(msg, "closed pipe") ||
+			strings.Contains(msg, "file already closed") ||
+			strings.Contains(msg, "context canceled") {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // NewStreamableHandler creates streamable HTTP handler using mcp.NewStreamableHTTPHandler.
@@ -91,7 +108,9 @@ func NewStreamableHandler(s *mcp.Server, opts *mcp.StreamableHTTPOptions) http.H
 
 // RunStreamableHTTP starts an http.Server with graceful shutdown on context cancellation.
 func RunStreamableHTTP(ctx context.Context, s *mcp.Server, addr string) error {
-	handler := NewStreamableHandler(s, nil)
+	handler := NewStreamableHandler(s, &mcp.StreamableHTTPOptions{
+		Stateless: true,
+	})
 	httpServer := &http.Server{
 		Addr:    addr,
 		Handler: handler,

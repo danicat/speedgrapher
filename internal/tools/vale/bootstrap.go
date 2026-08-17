@@ -89,35 +89,51 @@ func bootstrapVale(customBinPath string) (string, error) {
 		return absPath, nil
 	}
 
-	exePath, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("could not determine executable path: %w", err)
+	// 1. Check system PATH first
+	if lookPath, err := exec.LookPath("vale"); err == nil {
+		if absLookPath, err := filepath.Abs(lookPath); err == nil {
+			cmd := exec.Command(absLookPath, "-v")
+			if out, err := cmd.Output(); err == nil && len(out) > 0 {
+				return absLookPath, nil
+			}
+		}
 	}
-	absExePath, err := filepath.Abs(exePath)
-	if err != nil {
-		return "", fmt.Errorf("could not get absolute executable path: %w", err)
+
+	// 2. Check user cache directory or executable directory
+	var targetDir string
+	if cacheDir, err := os.UserCacheDir(); err == nil {
+		targetDir = filepath.Join(cacheDir, "speedgrapher", "bin")
+	} else if homeDir, err := os.UserHomeDir(); err == nil {
+		targetDir = filepath.Join(homeDir, ".speedgrapher", "bin")
+	} else {
+		exePath, err := os.Executable()
+		if err != nil {
+			return "", fmt.Errorf("could not determine executable path: %w", err)
+		}
+		targetDir = filepath.Dir(exePath)
 	}
-	exeDir := filepath.Dir(absExePath)
 
 	valeBinName := "vale"
 	if runtime.GOOS == "windows" {
 		valeBinName = "vale.exe"
 	}
-	valePath := filepath.Join(exeDir, valeBinName)
+	valePath := filepath.Join(targetDir, valeBinName)
 	absValePath, err := filepath.Abs(valePath)
 	if err != nil {
 		return "", fmt.Errorf("could not get absolute path for vale binary: %w", err)
 	}
 	valePath = absValePath
 
-	// Check if already installed and correct version
+	// Check if already installed and working
 	if _, err := os.Stat(valePath); err == nil {
 		cmd := exec.Command(valePath, "-v")
-		if out, err := cmd.Output(); err == nil {
-			if strings.Contains(string(out), valeVersion) {
-				return valePath, nil // Already bootstrapped with correct version
-			}
+		if out, err := cmd.Output(); err == nil && len(out) > 0 {
+			return valePath, nil
 		}
+	}
+
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create directory %s: %w", targetDir, err)
 	}
 
 	assetName, expectedChecksum, err := getValeAssetInfo()
