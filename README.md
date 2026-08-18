@@ -64,6 +64,10 @@ speedgrapher
 # List all available editorial tools
 speedgrapher list
 
+# Run dependency & environment diagnostic health checks (Vale, Git, Hugo, Go)
+speedgrapher check
+speedgrapher check --json
+
 # Initialize workspace configuration (speedgrapher.json) and workspace skills (.agents/)
 speedgrapher init
 

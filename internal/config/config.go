@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Default filenames and paths.
@@ -45,12 +46,23 @@ type GuidelinesConfig struct {
 	ValeConfig   string `json:"vale_config"`
 }
 
+// ServerConfig configures the MCP server and StreamableHTTP endpoints.
+type ServerConfig struct {
+	ListenAddr      string        `json:"listen_addr,omitempty"`
+	ReadTimeout     time.Duration `json:"read_timeout,omitempty"`
+	WriteTimeout    time.Duration `json:"write_timeout,omitempty"`
+	IdleTimeout     time.Duration `json:"idle_timeout,omitempty"`
+	ShutdownTimeout time.Duration `json:"shutdown_timeout,omitempty"`
+	AllowedOrigins  []string      `json:"allowed_origins,omitempty"`
+}
+
 // Config represents the workspace-scoped configuration for Speedgrapher.
 type Config struct {
 	WorkspaceDir string           `json:"-"`
 	Accept       []string         `json:"accept,omitempty"`
 	Tools        ToolsConfig      `json:"tools"`
 	Guidelines   GuidelinesConfig `json:"guidelines"`
+	Server       ServerConfig     `json:"server,omitempty"`
 }
 
 // rawToolsConfig is used for unmarshaling with optional/pointer fields.
@@ -68,11 +80,32 @@ type rawGuidelinesConfig struct {
 	ValeConfig   *string `json:"vale_config"`
 }
 
+// rawServerConfig is used for unmarshaling with optional/pointer fields.
+type rawServerConfig struct {
+	ListenAddr      *string          `json:"listen_addr"`
+	ReadTimeout     *json.RawMessage `json:"read_timeout"`
+	WriteTimeout    *json.RawMessage `json:"write_timeout"`
+	IdleTimeout     *json.RawMessage `json:"idle_timeout"`
+	ShutdownTimeout *json.RawMessage `json:"shutdown_timeout"`
+	AllowedOrigins  *[]string        `json:"allowed_origins"`
+}
+
 // rawConfig is used for unmarshaling to detect present vs missing fields.
 type rawConfig struct {
 	Accept     *[]string            `json:"accept"`
 	Tools      *rawToolsConfig      `json:"tools"`
 	Guidelines *rawGuidelinesConfig `json:"guidelines"`
+	Server     *rawServerConfig     `json:"server"`
+}
+
+// DefaultServerConfig returns a ServerConfig with default timeout settings.
+func DefaultServerConfig() ServerConfig {
+	return ServerConfig{
+		ReadTimeout:     30 * time.Second,
+		WriteTimeout:    5 * time.Minute,
+		IdleTimeout:     120 * time.Second,
+		ShutdownTimeout: 10 * time.Second,
+	}
 }
 
 // DefaultToolsConfig returns a ToolsConfig with all tools enabled.
@@ -94,6 +127,23 @@ func DefaultGuidelinesConfig() GuidelinesConfig {
 	}
 }
 
+func parseDurationRaw(raw *json.RawMessage, target *time.Duration) {
+	if raw == nil || len(*raw) == 0 {
+		return
+	}
+	var s string
+	if err := json.Unmarshal(*raw, &s); err == nil && s != "" {
+		if d, err := time.ParseDuration(s); err == nil {
+			*target = d
+			return
+		}
+	}
+	var n int64
+	if err := json.Unmarshal(*raw, &n); err == nil {
+		*target = time.Duration(n)
+	}
+}
+
 // DefaultConfig creates a Config with all default values resolved against workspaceDir.
 func DefaultConfig(workspaceDir string) *Config {
 	if workspaceDir == "" {
@@ -109,6 +159,7 @@ func DefaultConfig(workspaceDir string) *Config {
 		Accept:       []string{},
 		Tools:        DefaultToolsConfig(),
 		Guidelines:   DefaultGuidelinesConfig(),
+		Server:       DefaultServerConfig(),
 	}
 	cfg.ResolvePaths()
 	return cfg
@@ -123,6 +174,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 
 	c.Tools = DefaultToolsConfig()
 	c.Guidelines = DefaultGuidelinesConfig()
+	c.Server = DefaultServerConfig()
 	c.Accept = []string{}
 
 	if raw.Accept != nil {
@@ -153,6 +205,19 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		}
 		if raw.Guidelines.ValeConfig != nil && *raw.Guidelines.ValeConfig != "" {
 			c.Guidelines.ValeConfig = *raw.Guidelines.ValeConfig
+		}
+	}
+
+	if raw.Server != nil {
+		if raw.Server.ListenAddr != nil {
+			c.Server.ListenAddr = *raw.Server.ListenAddr
+		}
+		parseDurationRaw(raw.Server.ReadTimeout, &c.Server.ReadTimeout)
+		parseDurationRaw(raw.Server.WriteTimeout, &c.Server.WriteTimeout)
+		parseDurationRaw(raw.Server.IdleTimeout, &c.Server.IdleTimeout)
+		parseDurationRaw(raw.Server.ShutdownTimeout, &c.Server.ShutdownTimeout)
+		if raw.Server.AllowedOrigins != nil {
+			c.Server.AllowedOrigins = *raw.Server.AllowedOrigins
 		}
 	}
 

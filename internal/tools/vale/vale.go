@@ -18,10 +18,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/danicat/speedgrapher/internal/safeshell"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -53,25 +53,18 @@ func setupValeConfig(valePath string, workspaceDir string) (string, error) {
 
 	var iniPath string
 
-	// 1. Check Config.WorkspaceDir if provided
+	// 1. Check Config.WorkspaceDir (and its parent directories) if provided
 	if workspaceDir != "" {
-		absWorkspace, err := filepath.Abs(workspaceDir)
-		if err == nil {
-			candidate := filepath.Join(absWorkspace, ".vale.ini")
-			if _, err := os.Stat(candidate); err == nil {
-				iniPath = candidate
-			}
+		if found, err := findValeConfigUp(workspaceDir); err == nil {
+			iniPath = found
 		}
 	}
 
-	// 2. If not found in WorkspaceDir, check current working directory
+	// 2. Check current working directory (and its parent directories)
 	if iniPath == "" {
 		if cwd, err := os.Getwd(); err == nil {
-			if absCwd, err := filepath.Abs(cwd); err == nil {
-				candidate := filepath.Join(absCwd, ".vale.ini")
-				if _, err := os.Stat(candidate); err == nil {
-					iniPath = candidate
-				}
+			if found, err := findValeConfigUp(cwd); err == nil {
+				iniPath = found
 			}
 		}
 	}
@@ -81,7 +74,7 @@ func setupValeConfig(valePath string, workspaceDir string) (string, error) {
 		if exePath, err := os.Executable(); err == nil {
 			if absExePath, err := filepath.Abs(exePath); err == nil {
 				exeDir := filepath.Dir(absExePath)
-				if bundledIni, err := findBundledValeConfig(exeDir); err == nil {
+				if bundledIni, err := findValeConfigUp(exeDir); err == nil {
 					iniPath = bundledIni
 				}
 			}
@@ -122,20 +115,24 @@ func setupValeConfig(valePath string, workspaceDir string) (string, error) {
 
 	// If the styles dir doesn't exist, run vale sync
 	if _, err := os.Stat(stylesPath); os.IsNotExist(err) {
-		cmd := exec.Command(valePath, "sync", "--config", iniPath)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("failed to run 'vale sync': %s (error: %w)", string(out), err)
+		res, err := safeshell.Execute(context.Background(), valePath, "sync", "--config", iniPath)
+		if err != nil {
+			outputStr := ""
+			if res != nil {
+				outputStr = string(res.Combined)
+			}
+			return "", fmt.Errorf("failed to run 'vale sync': %s (error: %w)", outputStr, err)
 		}
 	}
 
 	return iniPath, nil
 }
 
-// findBundledValeConfig searches for .vale.ini starting from exeDir and walking up parent directories.
-func findBundledValeConfig(exeDir string) (string, error) {
-	absDir, err := filepath.Abs(exeDir)
+// findValeConfigUp searches for .vale.ini starting from startDir and walking up parent directories.
+func findValeConfigUp(startDir string) (string, error) {
+	absDir, err := filepath.Abs(startDir)
 	if err != nil {
-		return "", fmt.Errorf("could not resolve absolute path for %q: %w", exeDir, err)
+		return "", fmt.Errorf("could not resolve absolute path for %q: %w", startDir, err)
 	}
 	currDir := absDir
 	for {
@@ -150,6 +147,11 @@ func findBundledValeConfig(exeDir string) (string, error) {
 		currDir = parent
 	}
 	return "", fmt.Errorf(".vale.ini is missing")
+}
+
+// findBundledValeConfig is an alias to findValeConfigUp for backward compatibility.
+func findBundledValeConfig(startDir string) (string, error) {
+	return findValeConfigUp(startDir)
 }
 
 // Register registers the vale tool with the server.
@@ -174,7 +176,8 @@ type ValeParams struct {
 
 // ValeResult defines the structured output for the vale tool.
 type ValeResult struct {
-	Output string `json:"output"`
+	Output     string `json:"output"`
+	ConfigPath string `json:"config_path,omitempty"`
 }
 
 // Handler executes the vale tool logic.
@@ -233,14 +236,19 @@ func valeHandler(ctx context.Context, _ *mcp.CallToolRequest, input ValeParams, 
 	}
 
 	// Run vale via stdin so we don't need temporary files, ensuring it uses our managed config
-	cmd := exec.CommandContext(ctx, valePath, "--config", iniPath, "--ext", ".md", "--output=JSON")
-	cmd.Stdin = strings.NewReader(text)
+	res, err := safeshell.ExecuteWithOptions(ctx, safeshell.Options{
+		Stdin: strings.NewReader(text),
+	}, valePath, "--config", iniPath, "--ext", ".md", "--output=JSON")
 
-	// Vale returns non-zero for alerts, so we ignore the error and capture the output
-	output, err := cmd.CombinedOutput()
-	if err != nil && len(output) == 0 {
+	// Vale returns non-zero for alerts, so we ignore non-zero exit errors when output is produced
+	if err != nil && (res == nil || len(res.Combined) == 0) {
 		return nil, nil, fmt.Errorf("failed to execute vale: %w", err)
 	}
 
-	return nil, &ValeResult{Output: string(output)}, nil
+	output := ""
+	if res != nil {
+		output = string(res.Combined)
+	}
+
+	return nil, &ValeResult{Output: output, ConfigPath: iniPath}, nil
 }

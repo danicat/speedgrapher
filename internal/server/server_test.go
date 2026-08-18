@@ -17,31 +17,50 @@ package server_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/danicat/speedgrapher/internal/config"
 	"github.com/danicat/speedgrapher/internal/server"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func TestNewServer_RegistersToolsAndNoPromptsOrResources(t *testing.T) {
+func TestServer_RegisterHandlers_Idempotent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	tmpDir := t.TempDir()
-	srv, err := server.NewServer(server.Config{
-		WorkspaceDir: tmpDir,
-		Version:      "1.2.3",
-	})
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
+	srv := server.New("1.2.3", server.WithWorkspaceDir(tmpDir))
+	if srv == nil {
+		t.Fatal("New returned nil server")
 	}
+
+	// Sequential idempotency check
+	for i := 0; i < 3; i++ {
+		if err := srv.RegisterHandlers(); err != nil {
+			t.Fatalf("RegisterHandlers() iteration %d unexpected error = %v", i, err)
+		}
+	}
+
+	// Concurrent idempotency check
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := srv.RegisterHandlers(); err != nil {
+				t.Errorf("concurrent RegisterHandlers() error = %v", err)
+			}
+		}()
+	}
+	wg.Wait()
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
@@ -108,59 +127,223 @@ func TestNewServer_RegistersToolsAndNoPromptsOrResources(t *testing.T) {
 	}
 }
 
-func TestNewServer_WorkspaceResolution(t *testing.T) {
-	// 1. Empty workspace dir defaults to cwd
-	srv, err := server.NewServer(server.Config{
-		WorkspaceDir: "",
-		Version:      "",
-	})
-	if err != nil {
-		t.Fatalf("NewServer with empty config failed: %v", err)
-	}
-	if srv == nil {
-		t.Fatal("expected non-nil server")
+func TestServer_Options(t *testing.T) {
+	serverCfg := config.ServerConfig{
+		ListenAddr:      ":9090",
+		ReadTimeout:     20 * time.Second,
+		WriteTimeout:    3 * time.Minute,
+		IdleTimeout:     90 * time.Second,
+		ShutdownTimeout: 8 * time.Second,
+		AllowedOrigins:  []string{"https://example.com"},
 	}
 
-	// 2. Relative workspace dir is resolved to absolute path
-	srvRel, err := server.NewServer(server.Config{
-		WorkspaceDir: ".",
-		Version:      "v1.0.0",
-	})
-	if err != nil {
-		t.Fatalf("NewServer with relative path failed: %v", err)
+	s := server.New("2.0.0",
+		server.WithServerConfig(serverCfg),
+		server.WithWorkspaceDir(t.TempDir()),
+		server.WithAllowedOrigins("https://override.com"),
+		server.WithReadTimeout(15*time.Second),
+		server.WithWriteTimeout(4*time.Minute),
+		server.WithIdleTimeout(60*time.Second),
+		server.WithShutdownTimeout(5*time.Second),
+		server.WithInstructions("Custom Instructions"),
+	)
+	if s == nil {
+		t.Fatal("New with server config returned nil server")
 	}
-	if srvRel == nil {
-		t.Fatal("expected non-nil server")
-	}
-
-	// 3. Absolute workspace path
-	absDir := t.TempDir()
-	srvAbs, err := server.NewServer(server.Config{
-		WorkspaceDir: absDir,
-		Version:      "v2.0.0",
-	})
-	if err != nil {
-		t.Fatalf("NewServer with absolute path failed: %v", err)
-	}
-	if srvAbs == nil {
-		t.Fatal("expected non-nil server")
+	if err := s.RegisterHandlers(); err != nil {
+		t.Fatalf("RegisterHandlers() unexpected error = %v", err)
 	}
 }
 
-func TestNewStreamableHandler(t *testing.T) {
+func TestServer_ServeHTTP_CORS(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var lc net.ListenConfig
+	ln, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to listen on free port: %v", err)
+	}
+	addr := ln.Addr().String()
+	_ = ln.Close()
+
+	srv := server.New("test", server.WithServerConfig(config.ServerConfig{
+		AllowedOrigins: []string{"https://custom.allowed.corp"},
+	}))
+	errCh := make(chan error, 1)
+
+	go func() {
+		errCh <- srv.ServeHTTP(ctx, addr)
+	}()
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	waitForServerReady(ctx, t, client, addr)
+
+	tests := corsTestCases()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			verifyCORSResponse(ctx, t, client, addr, tc)
+		})
+	}
+
+	// Trigger graceful shutdown
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Errorf("ServeHTTP returned unexpected error on shutdown: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for HTTP server to shut down")
+	}
+}
+
+type corsTestCase struct {
+	name           string
+	origin         string
+	expectedStatus int
+	expectAllow    bool
+}
+
+func corsTestCases() []corsTestCase {
+	return []corsTestCase{
+		{
+			name:           "localhost port 3000 allowed",
+			origin:         "http://localhost:3000",
+			expectedStatus: http.StatusOK,
+			expectAllow:    true,
+		},
+		{
+			name:           "127.0.0.1 port 8080 allowed",
+			origin:         "http://127.0.0.1:8080",
+			expectedStatus: http.StatusOK,
+			expectAllow:    true,
+		},
+		{
+			name:           "https localhost allowed",
+			origin:         "https://localhost:5173",
+			expectedStatus: http.StatusOK,
+			expectAllow:    true,
+		},
+		{
+			name:           "configured custom origin allowed",
+			origin:         "https://custom.allowed.corp",
+			expectedStatus: http.StatusOK,
+			expectAllow:    true,
+		},
+		{
+			name:           "attacker prefix subdomain rejected",
+			origin:         "http://localhost.attacker.com",
+			expectedStatus: http.StatusForbidden,
+			expectAllow:    false,
+		},
+		{
+			name:           "arbitrary untrusted https origin rejected",
+			origin:         "https://evil-site.com",
+			expectedStatus: http.StatusForbidden,
+			expectAllow:    false,
+		},
+		{
+			name:           "arbitrary untrusted http origin rejected",
+			origin:         "http://attacker.com",
+			expectedStatus: http.StatusForbidden,
+			expectAllow:    false,
+		},
+	}
+}
+
+func waitForServerReady(ctx context.Context, t *testing.T, client *http.Client, addr string) {
+	t.Helper()
+	for i := 0; i < 20; i++ {
+		time.Sleep(50 * time.Millisecond)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodOptions, "http://"+addr+"/", nil)
+		if resp, err := client.Do(req); err == nil {
+			_ = resp.Body.Close()
+			return
+		}
+	}
+	t.Fatal("timed out waiting for HTTP server to become ready")
+}
+
+func verifyCORSResponse(ctx context.Context, t *testing.T, client *http.Client, addr string, tc corsTestCase) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(ctx, http.MethodOptions, "http://"+addr+"/", nil)
+	if err != nil {
+		t.Fatalf("failed to create OPTIONS request: %v", err)
+	}
+	req.Header.Set("Origin", tc.origin)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != tc.expectedStatus {
+		t.Errorf("expected status %d, got %d", tc.expectedStatus, resp.StatusCode)
+	}
+
+	allowOrigin := resp.Header.Get("Access-Control-Allow-Origin")
+	if tc.expectAllow {
+		if allowOrigin != tc.origin {
+			t.Errorf("expected Access-Control-Allow-Origin %q, got %q", tc.origin, allowOrigin)
+		}
+		if resp.Header.Get("Access-Control-Allow-Credentials") != "true" {
+			t.Error("expected Access-Control-Allow-Credentials to be true for allowed origin")
+		}
+	} else if allowOrigin != "" {
+		t.Errorf("expected no Access-Control-Allow-Origin header for rejected origin, got %q", allowOrigin)
+	}
+}
+
+func TestServer_ServeHTTP_BindFailure(t *testing.T) {
+	ctx := context.Background()
+	var lc net.ListenConfig
+	ln, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create test listener: %v", err)
+	}
+	defer func() { _ = ln.Close() }()
+	addr := ln.Addr().String()
+
+	srv := server.New("test")
+
+	// ServeHTTP on the already bound address should fail immediately and not hang
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.ServeHTTP(ctx, addr)
+	}()
+
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Fatal("expected ServeHTTP to return error when binding to used port, got nil")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("ServeHTTP hung instead of returning error on bind failure")
+	}
+}
+
+func TestServer_RunStdio_ContextCancellation(t *testing.T) {
+	srv := server.New("test")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	// Run should return nil cleanly on cancelled context
+	if err := srv.Run(ctx); err != nil {
+		t.Fatalf("srv.Run unexpected error on cancelled context: %v", err)
+	}
+}
+
+func TestServer_HTTPHandler_StreamableToolCall(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	tmpDir := t.TempDir()
-	srv, err := server.NewServer(server.Config{
-		WorkspaceDir: tmpDir,
-		Version:      "1.0.0",
-	})
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
-	}
+	srv := server.New("1.0.0", server.WithWorkspaceDir(tmpDir))
 
-	handler := server.NewStreamableHandler(srv, nil)
+	handler := srv.HTTPHandler()
 	if handler == nil {
 		t.Fatal("expected non-nil HTTP handler")
 	}
@@ -211,93 +394,14 @@ func TestNewStreamableHandler(t *testing.T) {
 	}
 }
 
-func TestRunStdio_ContextCancellation(t *testing.T) {
-	srv, err := server.NewServer(server.Config{})
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately
-
-	// RunStdio should return quickly on cancelled context
-	_ = server.RunStdio(ctx, srv)
-}
-
-func TestRunStreamableHTTP_GracefulShutdown(t *testing.T) {
-	srv, err := server.NewServer(server.Config{})
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
-	}
-
-	// Find a free TCP port
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("net.Listen failed: %v", err)
-	}
-	addr := ln.Addr().String()
-	_ = ln.Close()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	errChan := make(chan error, 1)
-
-	go func() {
-		errChan <- server.RunStreamableHTTP(ctx, srv, addr)
-	}()
-
-	// Give the server time to start listening
-	time.Sleep(100 * time.Millisecond)
-
-	// Trigger graceful shutdown
-	cancel()
-
-	select {
-	case err := <-errChan:
-		if err != nil && !errors.Is(err, context.Canceled) {
-			t.Errorf("unexpected error from RunStreamableHTTP shutdown: %v", err)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("timed out waiting for RunStreamableHTTP graceful shutdown")
-	}
-}
-
-func TestRunStreamableHTTP_ListenError(t *testing.T) {
-	srv, err := server.NewServer(server.Config{})
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
-	}
-
-	// Bind a port first so RunStreamableHTTP fails to listen on it
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("net.Listen failed: %v", err)
-	}
-	defer ln.Close()
-	addr := ln.Addr().String()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	err = server.RunStreamableHTTP(ctx, srv, addr)
-	if err == nil {
-		t.Fatal("expected listen error for occupied port, got nil")
-	}
-}
-
-func TestNewServer_WorkspaceDirFileResolution(t *testing.T) {
-	// Create temporary workspace with a sample file
+func TestServer_WorkspaceDirFileResolution(t *testing.T) {
 	tmpDir := t.TempDir()
 	sampleFile := filepath.Join(tmpDir, "article.txt")
 	if err := os.WriteFile(sampleFile, []byte("Speedgrapher is an editorial tool."), 0600); err != nil {
 		t.Fatalf("failed to write sample file: %v", err)
 	}
 
-	srv, err := server.NewServer(server.Config{
-		WorkspaceDir: tmpDir,
-	})
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
-	}
+	srv := server.New("test", server.WithWorkspaceDir(tmpDir))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -330,5 +434,30 @@ func TestNewServer_WorkspaceDirFileResolution(t *testing.T) {
 	}
 	if res.IsError {
 		t.Fatalf("CallTool fog returned error")
+	}
+}
+
+func TestServer_LegacyCompatibility(t *testing.T) {
+	tmpDir := t.TempDir()
+	legacyServer, err := server.NewServer(server.Config{
+		WorkspaceDir: tmpDir,
+		Version:      "legacy-v1",
+	})
+	if err != nil {
+		t.Fatalf("NewServer failed: %v", err)
+	}
+	if legacyServer == nil {
+		t.Fatal("expected non-nil legacy server")
+	}
+
+	handler := server.NewStreamableHandler(legacyServer, nil)
+	if handler == nil {
+		t.Fatal("expected non-nil legacy streamable handler")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := server.RunStdio(ctx, legacyServer); err != nil {
+		t.Errorf("RunStdio unexpected error on cancelled context: %v", err)
 	}
 }

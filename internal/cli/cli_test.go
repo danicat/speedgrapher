@@ -47,9 +47,11 @@ func TestRun_HelpAndVersion(t *testing.T) {
 		{[]string{"help"}, "Usage:"},
 		{[]string{"--help"}, "Usage:"},
 		{[]string{"-h"}, "Usage:"},
+		{[]string{"-help"}, "Usage:"},
 		{[]string{"version"}, "1.2.3"},
 		{[]string{"--version"}, "1.2.3"},
 		{[]string{"-v"}, "1.2.3"},
+		{[]string{"-version"}, "1.2.3"},
 	}
 
 	for _, tc := range testCases {
@@ -72,7 +74,7 @@ func TestRun_UnknownCommand(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown command")
 	}
-	if !strings.Contains(err.Error(), "unknown command: unknowncmd") {
+	if !strings.Contains(err.Error(), "unknown command") {
 		t.Errorf("expected unknown command message, got %v", err)
 	}
 
@@ -99,6 +101,27 @@ func TestRun_List(t *testing.T) {
 		if !strings.Contains(out, tool) {
 			t.Errorf("expected tool %q in list output, got:\n%s", tool, out)
 		}
+	}
+}
+
+func TestRun_Check(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := Run(context.Background(), "dev", []string{"check"}, nil, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error running check: %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "Speedgrapher Environment & Tool Diagnostic Check") {
+		t.Errorf("expected diagnostic check table in output, got:\n%s", out)
+	}
+
+	stdout.Reset()
+	err = Run(context.Background(), "dev", []string{"check", "--json"}, nil, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error running check --json: %v", err)
+	}
+	if !strings.Contains(stdout.String(), `"display_name"`) {
+		t.Errorf("expected JSON check output, got:\n%s", stdout.String())
 	}
 }
 
@@ -217,6 +240,15 @@ func TestRun_Call_SEO_Aliases(t *testing.T) {
 	}
 }
 
+func TestRun_Call_Vale_EmptyText(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	args := []string{"call", "vale", `{"text": ""}`}
+	err := Run(context.Background(), "dev", args, nil, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for empty text in vale")
+	}
+}
+
 func TestRun_Call_InvalidJSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	err := Run(context.Background(), "dev", []string{"call", "fog", "{invalid json"}, nil, &stdout, &stderr)
@@ -233,14 +265,6 @@ func TestRun_Call_MissingJSONArgs(t *testing.T) {
 	err := Run(context.Background(), "dev", []string{"call", "fog"}, nil, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected error for missing arguments")
-	}
-}
-
-func TestRun_Call_EmptyTextError(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	err := Run(context.Background(), "dev", []string{"call", "fog", `{"text": ""}`}, nil, &stdout, &stderr)
-	if err == nil {
-		t.Fatal("expected error for empty text")
 	}
 }
 
@@ -267,6 +291,51 @@ func TestRun_Init(t *testing.T) {
 	if _, err := os.Stat(workspaceConfig); err != nil {
 		t.Fatalf("expected .agents/mcp_config.json to exist: %v", err)
 	}
+
+	// Verify skills were unpacked
+	skillsDir := filepath.Join(tmpDir, ".agents", "skills", "deslopify")
+	if _, err := os.Stat(skillsDir); err != nil {
+		t.Fatalf("expected .agents/skills/deslopify to exist: %v", err)
+	}
+}
+
+func TestRun_Init_YAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
+
+	var stdout, stderr bytes.Buffer
+	err := Run(context.Background(), "dev", []string{"init", "--yaml", "--minimal"}, nil, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run init --yaml failed: %v", err)
+	}
+
+	yamlFile := filepath.Join(tmpDir, ".speedgrapher.yaml")
+	if _, err := os.Stat(yamlFile); err != nil {
+		t.Fatalf("expected .speedgrapher.yaml to exist: %v", err)
+	}
+}
+
+func TestRun_Init_DirAndNoWorkspace(t *testing.T) {
+	tmpDir := t.TempDir()
+	targetSubDir := filepath.Join(tmpDir, "subproject")
+
+	var stdout, stderr bytes.Buffer
+	err := Run(context.Background(), "dev", []string{"init", "--dir", targetSubDir, "--no-workspace"}, nil, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run init --dir failed: %v", err)
+	}
+
+	configFile := filepath.Join(targetSubDir, "speedgrapher.json")
+	if _, err := os.Stat(configFile); err != nil {
+		t.Fatalf("expected speedgrapher.json to exist in %s: %v", targetSubDir, err)
+	}
+
+	workspaceConfig := filepath.Join(targetSubDir, ".agents", "mcp_config.json")
+	if _, err := os.Stat(workspaceConfig); !os.IsNotExist(err) {
+		t.Errorf("expected .agents/mcp_config.json to NOT exist with --no-workspace")
+	}
 }
 
 func TestRun_MCP_Cancellation(_ *testing.T) {
@@ -275,4 +344,12 @@ func TestRun_MCP_Cancellation(_ *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	_ = Run(ctx, "dev", []string{"mcp"}, nil, &stdout, &stderr)
+}
+
+func TestPrintHelp(t *testing.T) {
+	var buf bytes.Buffer
+	PrintHelp(&buf, "1.0.0")
+	if !strings.Contains(buf.String(), "Usage:") {
+		t.Errorf("expected PrintHelp to output Usage, got: %s", buf.String())
+	}
 }

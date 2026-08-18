@@ -5,16 +5,18 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/danicat/speedgrapher/internal/safeshell"
 )
 
 const valeVersion = "3.13.1"
@@ -90,10 +92,9 @@ func bootstrapVale(customBinPath string) (string, error) {
 	}
 
 	// 1. Check system PATH first
-	if lookPath, err := exec.LookPath("vale"); err == nil {
+	if lookPath, err := safeshell.LookPath("vale"); err == nil {
 		if absLookPath, err := filepath.Abs(lookPath); err == nil {
-			cmd := exec.Command(absLookPath, "-v")
-			if out, err := cmd.Output(); err == nil && len(out) > 0 {
+			if res, err := safeshell.Execute(context.Background(), absLookPath, "-v"); err == nil && len(res.Stdout) > 0 {
 				return absLookPath, nil
 			}
 		}
@@ -126,8 +127,7 @@ func bootstrapVale(customBinPath string) (string, error) {
 
 	// Check if already installed and working
 	if _, err := os.Stat(valePath); err == nil {
-		cmd := exec.Command(valePath, "-v")
-		if out, err := cmd.Output(); err == nil && len(out) > 0 {
+		if res, err := safeshell.Execute(context.Background(), valePath, "-v"); err == nil && len(res.Stdout) > 0 {
 			return valePath, nil
 		}
 	}

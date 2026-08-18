@@ -12,25 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package cli implements the command-line interface for speedgrapher.
+// Package cli implements the command-line interface for speedgrapher using Cobra.
 package cli
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
-	"github.com/danicat/speedgrapher/internal/server"
-	"github.com/danicat/speedgrapher/internal/tools/fog"
-	"github.com/danicat/speedgrapher/internal/tools/seo"
-	"github.com/danicat/speedgrapher/internal/tools/slop"
-	"github.com/danicat/speedgrapher/internal/tools/vale"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/cobra"
 )
+
+// AppName is the root command executable name.
+const AppName = "speedgrapher"
 
 // ToolDef represents metadata and invoker for a tool.
 type ToolDef struct {
@@ -93,306 +90,85 @@ func FindTool(name string) *ToolDef {
 	return nil
 }
 
-// Run executes the CLI with the given arguments.
+// GlobalOptions holds global CLI flags.
+type GlobalOptions struct {
+	ConfigPath string
+	Verbose    bool
+	Quiet      bool
+}
+
+// NewRootCmd constructs the main Cobra command tree following GoDoctor's CLI design.
+func NewRootCmd(version string, stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
+	var globalOpts GlobalOptions
+
+	rootCmd := &cobra.Command{
+		Use:           AppName,
+		Short:         "High-Performance Editorial MCP Server & Intelligence Tools",
+		Version:       version,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
+	}
+
+	rootCmd.SetVersionTemplate("{{.Version}}\n")
+	rootCmd.SetIn(stdin)
+	rootCmd.SetOut(stdout)
+	rootCmd.SetErr(stderr)
+
+	// Global / Persistent Flags
+	rootCmd.PersistentFlags().StringVarP(
+		&globalOpts.ConfigPath, "config", "c", "", "Path to configuration file",
+	)
+	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Verbose, "verbose", "V", false, "Verbose output")
+	rootCmd.PersistentFlags().BoolVarP(&globalOpts.Quiet, "quiet", "q", false, "Quiet output")
+
+	// Register Subcommands
+	rootCmd.AddCommand(newCallCmd(stdin, stdout, stderr))
+	rootCmd.AddCommand(newMCPCmd(version, &globalOpts, stdout, stderr))
+	rootCmd.AddCommand(newCheckCmd(stdout, stderr))
+	rootCmd.AddCommand(newInitCmd(stdout, stderr))
+	rootCmd.AddCommand(newListCmd(stdout))
+	rootCmd.AddCommand(newInstallCmd(stdout, stderr))
+	rootCmd.AddCommand(newUninstallCmd(stdout, stderr))
+	rootCmd.AddCommand(newVersionCmd(version, stdout))
+
+	return rootCmd
+}
+
+// Run executes the CLI with the given arguments and streams.
 func Run(ctx context.Context, version string, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	if len(args) == 0 {
-		PrintHelp(stdout, version)
-		return nil
-	}
+	rootCmd := NewRootCmd(version, stdin, stdout, stderr)
 
-	cmd := args[0]
-	cmdArgs := args[1:]
-
-	switch cmd {
-	case "help", "-h", "--help", "-help":
-		PrintHelp(stdout, version)
-		return nil
-
-	case "version", "-v", "--version", "-version":
-		fmt.Fprintln(stdout, version)
-		return nil
-
-	case "list":
-		return runList(stdout)
-
-	case "call":
-		return runCall(ctx, cmdArgs, stdin, stdout, stderr)
-
-	case "init":
-		return runInit(ctx, cmdArgs, stdout, stderr)
-
-	case "install":
-		return runInstall(ctx, cmdArgs, stdout, stderr)
-
-	case "uninstall":
-		return runUninstall(ctx, cmdArgs, stdout, stderr)
-
-	case "mcp":
-		return runMCP(ctx, version, cmdArgs)
-
-	default:
-		if strings.HasPrefix(cmd, "-") {
-			return fmt.Errorf("unknown flag: %s\nRun 'speedgrapher help' for usage", cmd)
+	// Normalize legacy single-dash flags (e.g. -version -> --version, -help -> --help)
+	normalizedArgs := make([]string, len(args))
+	copy(normalizedArgs, args)
+	for i, arg := range normalizedArgs {
+		switch arg {
+		case "-version":
+			normalizedArgs[i] = "--version"
+		case "-help":
+			normalizedArgs[i] = "--help"
 		}
-		return fmt.Errorf("unknown command: %s\nRun 'speedgrapher help' for usage", cmd)
 	}
+
+	rootCmd.SetArgs(normalizedArgs)
+
+	if len(normalizedArgs) == 0 {
+		return rootCmd.Help()
+	}
+
+	return rootCmd.ExecuteContext(ctx)
 }
 
-// PrintHelp writes the main help text to w.
+// PrintHelp writes the main help text to w for backward compatibility.
 func PrintHelp(w io.Writer, version string) {
-	fmt.Fprintf(w, `speedgrapher %s - High-Performance Editorial MCP Server & Intelligence Tools
-
-Usage:
-  speedgrapher [command]
-
-Available Commands:
-  install        Configure MCP server registration and unpack agent skills
-  uninstall      Remove MCP server registration and agent skills
-  init           Initialize workspace speedgrapher configuration and skills
-  mcp            Run in Model Context Protocol (MCP) server mode
-  list           List all available editorial intelligence tools
-  call           Invoke a tool directly from the CLI
-  version        Print the speedgrapher version
-  help           Print this help message
-
-Surface Management:
-  speedgrapher install              Configure MCP server and install skills (Global)
-  speedgrapher install -w           Configure MCP server and install skills (Workspace)
-  speedgrapher install --mcp        Configure MCP server only
-  speedgrapher install --skills     Install skills only
-  speedgrapher uninstall            Remove MCP server and skills (Global)
-  speedgrapher uninstall -w         Remove MCP server and skills (Workspace)
-  speedgrapher init                 Initialize workspace configuration (.agents/)
-
-MCP Server Mode:
-  speedgrapher mcp                  Run MCP server using standard I/O (default for MCP clients)
-  speedgrapher mcp --listen=:8080   Run MCP server as Streamable HTTP service on specified address
-  speedgrapher mcp --http=:8080     Alias for --listen
-
-Tool Invocation:
-  speedgrapher call <tool-name> '<json-arguments>'
-
-Tools:
-  fog, slop, seo, vale
-
-Examples:
-  speedgrapher init
-  speedgrapher list
-  speedgrapher call fog '{"text": "This is a simple sentence."}'
-  speedgrapher call slop '{"text": "Delve into the intricate tapestry."}'
-  speedgrapher call seo '{"html": "<html><head><title>Test Title</title></head><body>...</body></html>"}'
-  speedgrapher call vale '{"text": "This is very unique."}'
-`, version)
+	cmd := NewRootCmd(version, nil, w, w)
+	_ = cmd.Help()
 }
 
-func runList(w io.Writer) error {
-	fmt.Fprintln(w, "Available speedgrapher tools:")
-	fmt.Fprintln(w)
-	for _, tool := range GetTools() {
-		aliasStr := ""
-		if len(tool.Aliases) > 0 {
-			aliasStr = fmt.Sprintf(" (aliases: %s)", strings.Join(tool.Aliases, ", "))
-		}
-		fmt.Fprintf(w, "• %s%s\n", tool.Name, aliasStr)
-		fmt.Fprintf(w, "  %s\n", tool.Description)
-		fmt.Fprintf(w, "  Usage: %s\n\n", tool.Usage)
-	}
-	return nil
-}
-
-func runCall(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	if len(args) == 0 {
-		return errors.New("missing tool name\nUsage: speedgrapher call <tool-name> '<json-arguments>'")
-	}
-
-	toolName := args[0]
-	tool := FindTool(toolName)
-	if tool == nil {
-		return fmt.Errorf("unknown tool: %q\nRun 'speedgrapher list' to see available tools", toolName)
-	}
-
-	res, err := tool.Invoke(ctx, args[1:], stdin)
-	if err != nil {
-		return err
-	}
-
-	if res == nil {
-		return nil
-	}
-
-	for _, content := range res.Content {
-		if tc, ok := content.(*mcp.TextContent); ok {
-			if res.IsError {
-				fmt.Fprintln(stderr, tc.Text)
-			} else {
-				fmt.Fprintln(stdout, tc.Text)
-			}
-		}
-	}
-
-	if res.IsError {
-		return errors.New("tool execution returned an error")
-	}
-
-	return nil
-}
-
-func runInit(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	configPath := "speedgrapher.json"
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		defaultConfig := map[string]any{
-			"accept": []string{},
-		}
-		data, err := json.MarshalIndent(defaultConfig, "", "  ")
-		if err == nil {
-			data = append(data, '\n')
-			_ = os.WriteFile(configPath, data, 0644)
-		}
-	}
-
-	hasScopeFlag := false
-	for _, arg := range args {
-		if arg == "-w" || arg == "--workspace" || arg == "-g" || arg == "--global" {
-			hasScopeFlag = true
-			break
-		}
-	}
-	installArgs := args
-	if !hasScopeFlag {
-		installArgs = append([]string{"-w"}, args...)
-	}
-
-	return runInstall(ctx, installArgs, stdout, stderr)
-}
-
-func runMCP(ctx context.Context, version string, args []string) error {
-	var listenAddr string
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if strings.HasPrefix(arg, "--listen=") {
-			listenAddr = strings.TrimPrefix(arg, "--listen=")
-		} else if strings.HasPrefix(arg, "-listen=") {
-			listenAddr = strings.TrimPrefix(arg, "-listen=")
-		} else if strings.HasPrefix(arg, "--http=") {
-			listenAddr = strings.TrimPrefix(arg, "--http=")
-		} else if strings.HasPrefix(arg, "-http=") {
-			listenAddr = strings.TrimPrefix(arg, "-http=")
-		} else if (arg == "--listen" || arg == "-listen" || arg == "--http" || arg == "-http") && i+1 < len(args) {
-			listenAddr = args[i+1]
-			i++
-		}
-	}
-
-	srv, err := server.NewServer(server.Config{
-		Version: version,
-	})
-	if err != nil {
-		return err
-	}
-
-	if listenAddr != "" {
-		return server.RunStreamableHTTP(ctx, srv, listenAddr)
-	}
-
-	return server.RunStdio(ctx, srv)
-}
-
-// Helper to parse arguments into a struct, supporting JSON string argument or stdin JSON.
-func parseArgs(rawArgs []string, stdin io.Reader, target any) error {
-	// 1. If single argument looks like JSON:
-	if len(rawArgs) == 1 {
-		trimmed := strings.TrimSpace(rawArgs[0])
-		if strings.HasPrefix(trimmed, "{") {
-			return json.Unmarshal([]byte(trimmed), target)
-		}
-	}
-
-	// 2. If rawArgs joined is JSON (e.g. unquoted JSON or shell split):
-	if len(rawArgs) > 0 {
-		joined := strings.TrimSpace(strings.Join(rawArgs, " "))
-		if strings.HasPrefix(joined, "{") && strings.HasSuffix(joined, "}") {
-			return json.Unmarshal([]byte(joined), target)
-		}
-	}
-
-	// 3. If no args provided, try reading from stdin
-	if len(rawArgs) == 0 && stdin != nil {
-		data, err := io.ReadAll(stdin)
-		if err == nil && len(strings.TrimSpace(string(data))) > 0 {
-			trimmed := strings.TrimSpace(string(data))
-			if strings.HasPrefix(trimmed, "{") {
-				return json.Unmarshal([]byte(trimmed), target)
-			}
-		}
-	}
-
-	if len(rawArgs) == 0 {
-		return errors.New("missing arguments (expected JSON string, e.g. '{\"key\": \"value\"}')")
-	}
-
-	return fmt.Errorf("invalid arguments: %v (expected JSON string, e.g. '{\"key\": \"value\"}')", rawArgs)
-}
-
-func invokeFog(ctx context.Context, rawArgs []string, stdin io.Reader) (*mcp.CallToolResult, error) {
-	var params fog.FogParams
-	if err := parseArgs(rawArgs, stdin, &params); err != nil {
-		return nil, fmt.Errorf("invalid arguments for fog: %w", err)
-	}
-	res, typedRes, err := fog.Handler(ctx, nil, params)
-	if err != nil {
-		return nil, err
-	}
-	if res != nil {
-		return res, nil
-	}
-	return marshalResult(typedRes)
-}
-
-func invokeSlop(ctx context.Context, rawArgs []string, stdin io.Reader) (*mcp.CallToolResult, error) {
-	var params slop.SlopParams
-	if err := parseArgs(rawArgs, stdin, &params); err != nil {
-		return nil, fmt.Errorf("invalid arguments for slop: %w", err)
-	}
-	res, typedRes, err := slop.Handler(ctx, nil, params)
-	if err != nil {
-		return nil, err
-	}
-	if res != nil {
-		return res, nil
-	}
-	return marshalResult(typedRes)
-}
-
-func invokeSEO(ctx context.Context, rawArgs []string, stdin io.Reader) (*mcp.CallToolResult, error) {
-	var params seo.SEOParams
-	if err := parseArgs(rawArgs, stdin, &params); err != nil {
-		return nil, fmt.Errorf("invalid arguments for seo: %w", err)
-	}
-	res, typedRes, err := seo.Handler(ctx, nil, params)
-	if err != nil {
-		return nil, err
-	}
-	if res != nil {
-		return res, nil
-	}
-	return marshalResult(typedRes)
-}
-
-func invokeVale(ctx context.Context, rawArgs []string, stdin io.Reader) (*mcp.CallToolResult, error) {
-	var params vale.ValeParams
-	if err := parseArgs(rawArgs, stdin, &params); err != nil {
-		return nil, fmt.Errorf("invalid arguments for vale: %w", err)
-	}
-	res, typedRes, err := vale.Handler(ctx, nil, params)
-	if err != nil {
-		return nil, err
-	}
-	if res != nil {
-		return res, nil
-	}
-	return marshalResult(typedRes)
-}
-
+// marshalResult serializes arbitrary tool output into an MCP CallToolResult.
 func marshalResult(v any) (*mcp.CallToolResult, error) {
 	if v == nil {
 		return nil, nil
