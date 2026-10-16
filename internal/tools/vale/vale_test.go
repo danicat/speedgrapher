@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,18 +25,16 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func TestFindBundledValeConfig(t *testing.T) {
-	// Create temporary directory structure:
-	// tmp/
-	//   .vale.ini
-	//   bin/
-	//     sub/
-	//       deep/
+func TestFindValeConfigUp(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	iniPath := filepath.Join(tmpDir, ".vale.ini")
 	if err := os.WriteFile(iniPath, []byte("StylesPath = styles\n"), 0644); err != nil {
 		t.Fatalf("failed to write test .vale.ini: %v", err)
+	}
+	stylesDir := filepath.Join(tmpDir, "styles")
+	if err := os.MkdirAll(stylesDir, 0755); err != nil {
+		t.Fatalf("failed to create styles dir: %v", err)
 	}
 
 	binDir := filepath.Join(tmpDir, "bin")
@@ -47,61 +45,60 @@ func TestFindBundledValeConfig(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		exeDir  string
-		want    string
-		wantErr bool
+		name     string
+		startDir string
+		want     string
+		wantErr  bool
 	}{
 		{
-			name:    "config in same directory",
-			exeDir:  tmpDir,
-			want:    iniPath,
-			wantErr: false,
+			name:     "config in same directory",
+			startDir: tmpDir,
+			want:     iniPath,
+			wantErr:  false,
 		},
 		{
-			name:    "config in parent directory (e.g. bin/)",
-			exeDir:  binDir,
-			want:    iniPath,
-			wantErr: false,
+			name:     "config in parent directory (e.g. bin/)",
+			startDir: binDir,
+			want:     iniPath,
+			wantErr:  false,
 		},
 		{
-			name:    "config in ancestor directory (e.g. bin/sub/)",
-			exeDir:  subDir,
-			want:    iniPath,
-			wantErr: false,
+			name:     "config in ancestor directory (e.g. bin/sub/)",
+			startDir: subDir,
+			want:     iniPath,
+			wantErr:  false,
 		},
 		{
-			name:    "config in deep ancestor directory (e.g. bin/sub/deep/)",
-			exeDir:  deepDir,
-			want:    iniPath,
-			wantErr: false,
+			name:     "config in deep ancestor directory (e.g. bin/sub/deep/)",
+			startDir: deepDir,
+			want:     iniPath,
+			wantErr:  false,
 		},
 		{
-			name:    "config missing in empty directory tree",
-			exeDir:  t.TempDir(),
-			want:    "",
-			wantErr: true,
+			name:     "config missing in empty directory tree",
+			startDir: t.TempDir(),
+			want:     "",
+			wantErr:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := findBundledValeConfig(tt.exeDir)
+			got, err := findValeConfigUp(tt.startDir)
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("findBundledValeConfig() error = %v, wantErr %v", err, tt.wantErr)
+				t.Fatalf("findValeConfigUp() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if got != tt.want {
-				t.Errorf("findBundledValeConfig() = %v, want %v", got, tt.want)
+				t.Errorf("findValeConfigUp() = %v, want %v", got, tt.want)
 			}
 			if got != "" && !filepath.IsAbs(got) {
-				t.Errorf("findBundledValeConfig() returned non-absolute path: %s", got)
+				t.Errorf("findValeConfigUp() returned non-absolute path: %s", got)
 			}
 		})
 	}
 }
 
 func TestSetupValeConfig_WorkspaceDir(t *testing.T) {
-	// Test resolving .vale.ini from configured WorkspaceDir
 	wsDir := t.TempDir()
 	iniPath := filepath.Join(wsDir, ".vale.ini")
 	if err := os.WriteFile(iniPath, []byte("StylesPath = styles\n"), 0644); err != nil {
@@ -112,7 +109,7 @@ func TestSetupValeConfig_WorkspaceDir(t *testing.T) {
 		t.Fatalf("failed to create styles dir: %v", err)
 	}
 
-	got, err := setupValeConfig("fake-vale", wsDir)
+	got, err := setupValeConfig(wsDir)
 	if err != nil {
 		t.Fatalf("setupValeConfig() unexpected error: %v", err)
 	}
@@ -124,8 +121,7 @@ func TestSetupValeConfig_WorkspaceDir(t *testing.T) {
 	}
 }
 
-func TestSetupValeConfig_Fallback(t *testing.T) {
-	// Test fallback to cwd when WorkspaceDir has no .vale.ini
+func TestSetupValeConfig_CwdAndBundledAndMissing(t *testing.T) {
 	cwdDir := t.TempDir()
 	cwdIni := filepath.Join(cwdDir, ".vale.ini")
 	if err := os.WriteFile(cwdIni, []byte("StylesPath = styles\n"), 0644); err != nil {
@@ -145,13 +141,10 @@ func TestSetupValeConfig_Fallback(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origWd) }()
 
-	// 1. WorkspaceDir is empty, should fall back to cwd
-	got, err := setupValeConfig("fake-vale", "")
+	// 1. WorkspaceDir is empty, resolves from cwd
+	got, err := setupValeConfig("")
 	if err != nil {
 		t.Fatalf("setupValeConfig(\"\") error: %v", err)
-	}
-	if !filepath.IsAbs(got) {
-		t.Errorf("setupValeConfig(\"\") returned non-absolute path: %s", got)
 	}
 	gotReal, _ := filepath.EvalSymlinks(got)
 	cwdIniReal, _ := filepath.EvalSymlinks(cwdIni)
@@ -159,18 +152,81 @@ func TestSetupValeConfig_Fallback(t *testing.T) {
 		t.Errorf("setupValeConfig(\"\") = %s, want %s", got, cwdIni)
 	}
 
-	// 2. WorkspaceDir is provided but has no .vale.ini, should fall back to cwd
-	emptyWs := t.TempDir()
-	gotWs, err := setupValeConfig("fake-vale", emptyWs)
+	// 2. Bundled executable parent directory resolution when cwd and workspace lack .vale.ini
+	emptyCwd := t.TempDir()
+	if err := os.Chdir(emptyCwd); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	pluginRoot := t.TempDir()
+	bundledIni := filepath.Join(pluginRoot, ".vale.ini")
+	if err := os.WriteFile(bundledIni, []byte("StylesPath = styles\n"), 0644); err != nil {
+		t.Fatalf("failed to write bundled .vale.ini: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(pluginRoot, "styles"), 0755); err != nil {
+		t.Fatalf("failed to create bundled styles dir: %v", err)
+	}
+	fakeExe := filepath.Join(pluginRoot, "bin", "speedgrapher")
+
+	origExeFunc := executablePathFunc
+	origHomeFunc := userHomeDirFunc
+	defer func() {
+		executablePathFunc = origExeFunc
+		userHomeDirFunc = origHomeFunc
+	}()
+	executablePathFunc = func() (string, error) {
+		return fakeExe, nil
+	}
+	userHomeDirFunc = func() (string, error) {
+		return t.TempDir(), nil
+	}
+
+	gotBundled, err := setupValeConfig(t.TempDir())
 	if err != nil {
-		t.Fatalf("setupValeConfig(emptyWs) error: %v", err)
+		t.Fatalf("setupValeConfig(bundled) error: %v", err)
 	}
-	if !filepath.IsAbs(gotWs) {
-		t.Errorf("setupValeConfig(emptyWs) returned non-absolute path: %s", gotWs)
+	gotBundledReal, _ := filepath.EvalSymlinks(gotBundled)
+	bundledIniReal, _ := filepath.EvalSymlinks(bundledIni)
+	if gotBundledReal != bundledIniReal {
+		t.Errorf("setupValeConfig(bundled) = %s, want %s", gotBundled, bundledIni)
 	}
-	gotWsReal, _ := filepath.EvalSymlinks(gotWs)
-	if gotWsReal != cwdIniReal {
-		t.Errorf("setupValeConfig(emptyWs) = %s, want %s", gotWs, cwdIni)
+
+	// 3. Installed Antigravity plugin path (~/.gemini/config/plugins/speedgrapher) resolution
+	executablePathFunc = func() (string, error) {
+		return filepath.Join(t.TempDir(), "go", "bin", "speedgrapher"), nil
+	}
+	fakeHome := t.TempDir()
+	installedPluginDir := filepath.Join(fakeHome, ".gemini", "config", "plugins", "speedgrapher")
+	if err := os.MkdirAll(filepath.Join(installedPluginDir, "styles"), 0755); err != nil {
+		t.Fatalf("failed to create installed plugin styles dir: %v", err)
+	}
+	installedIni := filepath.Join(installedPluginDir, ".vale.ini")
+	if err := os.WriteFile(installedIni, []byte("StylesPath = styles\n"), 0644); err != nil {
+		t.Fatalf("failed to write installed plugin .vale.ini: %v", err)
+	}
+	userHomeDirFunc = func() (string, error) {
+		return fakeHome, nil
+	}
+
+	gotInstalled, err := setupValeConfig(t.TempDir())
+	if err != nil {
+		t.Fatalf("setupValeConfig(installed plugin) error: %v", err)
+	}
+	gotInstalledReal, _ := filepath.EvalSymlinks(gotInstalled)
+	installedIniReal, _ := filepath.EvalSymlinks(installedIni)
+	if gotInstalledReal != installedIniReal {
+		t.Errorf("setupValeConfig(installed plugin) = %s, want %s", gotInstalled, installedIni)
+	}
+
+	// 4. Fail fast when no valid .vale.ini exists anywhere
+	userHomeDirFunc = func() (string, error) {
+		return t.TempDir(), nil
+	}
+	_, err = setupValeConfig(t.TempDir())
+	if err == nil {
+		t.Fatal("expected fail-fast error when no valid .vale.ini exists, got nil")
+	}
+	if !strings.Contains(err.Error(), "no valid .vale.ini with styles/ directory found") {
+		t.Errorf("unexpected error message: %v", err)
 	}
 }
 
@@ -184,7 +240,7 @@ func createFakeValeBinary(t *testing.T) string {
 			t.Fatalf("failed to write fake vale binary: %v", err)
 		}
 	} else {
-		script := "#!/bin/sh\nif [ \"$1\" = \"sync\" ]; then\n  exit 0\nfi\necho '{\"stdin.md\": []}'\n"
+		script := "#!/bin/sh\necho '{\"stdin.md\": []}'\n"
 		if err := os.WriteFile(fakeVale, []byte(script), 0755); err != nil {
 			t.Fatalf("failed to write fake vale binary: %v", err)
 		}
@@ -287,9 +343,32 @@ func TestValeParams_Validation(t *testing.T) {
 			t.Fatal("expected non-empty output")
 		}
 	})
+
+	if runtime.GOOS != "windows" {
+		t.Run("vale runtime error fails fast with stderr", func(t *testing.T) {
+			errVale := filepath.Join(t.TempDir(), "err-vale")
+			script := "#!/bin/sh\necho 'E100: invalid config syntax' >&2\nexit 2\n"
+			if err := os.WriteFile(errVale, []byte(script), 0755); err != nil {
+				t.Fatalf("failed to write failing vale script: %v", err)
+			}
+
+			_, _, err := valeHandler(context.Background(), nil, ValeParams{
+				Text: "# Hello World",
+			}, Config{
+				ValeBinPath:  errVale,
+				WorkspaceDir: wsDir,
+			})
+			if err == nil {
+				t.Fatal("expected error when vale exits non-zero, got nil")
+			}
+			if !strings.Contains(err.Error(), "vale execution failed") || !strings.Contains(err.Error(), "E100: invalid config syntax") {
+				t.Errorf("expected stderr in error message, got: %v", err)
+			}
+		})
+	}
 }
 
-func TestBootstrapVale_CustomBin(t *testing.T) {
+func TestResolveValeBinary(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	t.Run("custom valid binary", func(t *testing.T) {
@@ -305,27 +384,27 @@ func TestBootstrapVale_CustomBin(t *testing.T) {
 			}
 		}
 
-		got, err := bootstrapVale(validBin)
+		got, err := resolveValeBinary(validBin)
 		if err != nil {
-			t.Fatalf("bootstrapVale() error = %v", err)
+			t.Fatalf("resolveValeBinary() error = %v", err)
 		}
 		if got != validBin {
-			t.Errorf("bootstrapVale() = %v, want %v", got, validBin)
+			t.Errorf("resolveValeBinary() = %v, want %v", got, validBin)
 		}
 		if !filepath.IsAbs(got) {
-			t.Errorf("bootstrapVale() returned non-absolute path: %s", got)
+			t.Errorf("resolveValeBinary() returned non-absolute path: %s", got)
 		}
 	})
 
 	t.Run("custom non-existent binary", func(t *testing.T) {
-		_, err := bootstrapVale(filepath.Join(tmpDir, "non_existent_binary"))
+		_, err := resolveValeBinary(filepath.Join(tmpDir, "non_existent_binary"))
 		if err == nil {
 			t.Fatal("expected error for non-existent binary, got nil")
 		}
 	})
 
 	t.Run("custom binary is a directory", func(t *testing.T) {
-		_, err := bootstrapVale(tmpDir)
+		_, err := resolveValeBinary(tmpDir)
 		if err == nil {
 			t.Fatal("expected error when binary path is a directory, got nil")
 		}
@@ -337,12 +416,47 @@ func TestBootstrapVale_CustomBin(t *testing.T) {
 			if err := os.WriteFile(nonExec, []byte("data"), 0644); err != nil {
 				t.Fatalf("failed to write non-exec file: %v", err)
 			}
-			_, err := bootstrapVale(nonExec)
+			_, err := resolveValeBinary(nonExec)
 			if err == nil {
 				t.Fatal("expected error when binary is not executable, got nil")
 			}
 		})
 	}
+
+	t.Run("resolves from PATH via lookPathFunc", func(t *testing.T) {
+		origLookPath := lookPathFunc
+		defer func() { lookPathFunc = origLookPath }()
+
+		fakeBin := filepath.Join(tmpDir, "vale")
+		lookPathFunc = func(file string) (string, error) {
+			return fakeBin, nil
+		}
+
+		got, err := resolveValeBinary("")
+		if err != nil {
+			t.Fatalf("resolveValeBinary(\"\") error = %v", err)
+		}
+		if got != fakeBin {
+			t.Errorf("resolveValeBinary(\"\") = %v, want %v", got, fakeBin)
+		}
+	})
+
+	t.Run("fails fast when vale is missing from PATH", func(t *testing.T) {
+		origLookPath := lookPathFunc
+		defer func() { lookPathFunc = origLookPath }()
+
+		lookPathFunc = func(file string) (string, error) {
+			return "", os.ErrNotExist
+		}
+
+		_, err := resolveValeBinary("")
+		if err == nil {
+			t.Fatal("expected error when vale is not in PATH, got nil")
+		}
+		if !strings.Contains(err.Error(), "vale binary not found in PATH") {
+			t.Errorf("unexpected error message: %v", err)
+		}
+	})
 }
 
 func TestRegister(t *testing.T) {
@@ -354,4 +468,164 @@ func TestRegister(t *testing.T) {
 		WorkspaceDir: "/tmp",
 		ValeBinPath:  "/custom/vale",
 	})
+}
+
+func TestManageRules(t *testing.T) {
+	wsDir := t.TempDir()
+	iniPath := filepath.Join(wsDir, ".vale.ini")
+	initialIni := `StylesPath = styles
+MinAlertLevel = suggestion
+Vocab = Speedgrapher
+
+[*.md]
+BasedOnStyles = Vale, Google, proselint, write-good
+`
+	if err := os.WriteFile(iniPath, []byte(initialIni), 0644); err != nil {
+		t.Fatalf("failed to write .vale.ini: %v", err)
+	}
+
+	googleDir := filepath.Join(wsDir, "styles", "Google")
+	if err := os.MkdirAll(googleDir, 0755); err != nil {
+		t.Fatalf("failed to create Google styles dir: %v", err)
+	}
+	weRule := `extends: existence
+message: "Try to avoid using first-person plural like '%s'."
+link: 'https://developers.google.com/style/pronouns#personal-pronouns'
+level: warning
+tokens:
+  - we
+`
+	if err := os.WriteFile(filepath.Join(googleDir, "We.yml"), []byte(weRule), 0644); err != nil {
+		t.Fatalf("failed to write We.yml: %v", err)
+	}
+
+	vocabDir := filepath.Join(wsDir, "styles", "config", "vocabularies", "Speedgrapher")
+	if err := os.MkdirAll(vocabDir, 0755); err != nil {
+		t.Fatalf("failed to create vocab dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(vocabDir, "accept.txt"), []byte("[Ss]peedgrapher\nAntigravity\n"), 0644); err != nil {
+		t.Fatalf("failed to write accept.txt: %v", err)
+	}
+
+	cfg := Config{WorkspaceDir: wsDir}
+
+	// 1. List rules and vocabulary
+	state, err := ManageRules(ValeRuleActionParams{Action: "list"}, cfg)
+	if err != nil {
+		t.Fatalf("ManageRules(list) unexpected error: %v", err)
+	}
+	if len(state.VocabTerms) != 2 {
+		t.Errorf("expected 2 initial vocab terms, got %v", state.VocabTerms)
+	}
+	foundWe := false
+	foundSpelling := false
+	for _, r := range state.Rules {
+		if r.ID == "Google.We" {
+			foundWe = true
+			if !r.Enabled || r.EffectiveLevel != "warning" {
+				t.Errorf("expected Google.We enabled at warning level, got %+v", r)
+			}
+		}
+		if r.ID == "Vale.Spelling" {
+			foundSpelling = true
+		}
+	}
+	if !foundWe || !foundSpelling {
+		t.Errorf("expected Google.We and Vale.Spelling in rules list, got %+v", state.Rules)
+	}
+
+	// 2. Disable Google.We via set_rule
+	disable := false
+	state, err = ManageRules(ValeRuleActionParams{
+		Action:  "set_rule",
+		RuleID:  "Google.We",
+		Enabled: &disable,
+	}, cfg)
+	if err != nil {
+		t.Fatalf("ManageRules(set_rule disable) unexpected error: %v", err)
+	}
+	for _, r := range state.Rules {
+		if r.ID == "Google.We" && (r.Enabled || r.EffectiveLevel != "NO") {
+			t.Errorf("expected Google.We to be disabled (NO), got %+v", r)
+		}
+	}
+
+	// 3. Re-enable Google.We via set_rule
+	enable := true
+	state, err = ManageRules(ValeRuleActionParams{
+		Action:  "set_rule",
+		RuleID:  "Google.We",
+		Enabled: &enable,
+	}, cfg)
+	if err != nil {
+		t.Fatalf("ManageRules(set_rule enable) unexpected error: %v", err)
+	}
+	for _, r := range state.Rules {
+		if r.ID == "Google.We" && (!r.Enabled || r.EffectiveLevel != "warning") {
+			t.Errorf("expected Google.We to be re-enabled (warning), got %+v", r)
+		}
+	}
+
+	// 4. Add vocabulary term with CaseInsensitive=true
+	state, err = ManageRules(ValeRuleActionParams{
+		Action:          "add_vocab",
+		Term:            "Ebitengine",
+		CaseInsensitive: true,
+	}, cfg)
+	if err != nil {
+		t.Fatalf("ManageRules(add_vocab) unexpected error: %v", err)
+	}
+	if len(state.VocabTerms) != 3 || state.VocabTerms[2] != "[Ee]bitengine" {
+		t.Errorf("expected [Ee]bitengine added to VocabTerms, got %v", state.VocabTerms)
+	}
+
+	// 5. Remove vocabulary term
+	state, err = ManageRules(ValeRuleActionParams{
+		Action: "remove_vocab",
+		Term:   "Ebitengine",
+	}, cfg)
+	if err != nil {
+		t.Fatalf("ManageRules(remove_vocab) unexpected error: %v", err)
+	}
+	if len(state.VocabTerms) != 2 {
+		t.Errorf("expected Ebitengine removed from VocabTerms, got %v", state.VocabTerms)
+	}
+
+	// 5b. All-uppercase acronym with CaseInsensitive=true does NOT convert to [Ww]ASM
+	state, err = ManageRules(ValeRuleActionParams{
+		Action:          "add_vocab",
+		Term:            "WASM",
+		CaseInsensitive: true,
+	}, cfg)
+	if err != nil {
+		t.Fatalf("ManageRules(add_vocab WASM) unexpected error: %v", err)
+	}
+	if len(state.VocabTerms) != 3 || state.VocabTerms[2] != "WASM" {
+		t.Errorf("expected WASM preserved without [Ww]ASM conversion, got %v", state.VocabTerms)
+	}
+
+	// 6. Error cases fail fast
+	if _, err := ManageRules(ValeRuleActionParams{Action: "set_rule", RuleID: "NonExistent.Rule", Enabled: &disable}, cfg); err == nil {
+		t.Error("expected error for unknown rule_id, got nil")
+	}
+	if _, err := ManageRules(ValeRuleActionParams{Action: "add_vocab", Term: "   "}, cfg); err == nil {
+		t.Error("expected error for empty term, got nil")
+	}
+	if _, err := ManageRules(ValeRuleActionParams{Action: "add_vocab", Term: "[unclosed-regex"}, cfg); err == nil {
+		t.Error("expected error for invalid regex term, got nil")
+	}
+	if _, err := ManageRules(ValeRuleActionParams{Action: "add_vocab", Term: "line1\nline2"}, cfg); err == nil {
+		t.Error("expected error for term containing newline, got nil")
+	}
+	if _, err := ManageRules(ValeRuleActionParams{Action: "unknown_action"}, cfg); err == nil {
+		t.Error("expected error for unknown action, got nil")
+	}
+
+	// 7. Invalid Vocab name in .vale.ini fails fast against path traversal
+	if err := os.WriteFile(iniPath, []byte("StylesPath = styles\nVocab = ../../escape\n"), 0644); err != nil {
+		t.Fatalf("failed to write .vale.ini: %v", err)
+	}
+	if _, err := ManageRules(ValeRuleActionParams{Action: "list"}, cfg); err == nil {
+		t.Error("expected error for path-traversal Vocab name, got nil")
+	}
 }

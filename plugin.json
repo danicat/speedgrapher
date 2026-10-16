@@ -1,0 +1,12 @@
+{
+  "name": "speedgrapher",
+  "displayName": "Speedgrapher",
+  "version": "0.11.0",
+  "description": "Technical writing assistant, side-panel Markdown editor, Model Context Protocol (MCP) server, and Agent Skills suite for Antigravity: Gunning Fog readability, AI slop detection, Vale grammar linting, and technical SEO/GEO auditing.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Interview me with ideate to brainstorm and outline a new technical blog post",
+    "Improve the readability of this draft by cutting corporate jargon and AI slop",
+    "Review my article using fog, slop, vale, and seo, and resolve any inline review comments"
+  ]
+}

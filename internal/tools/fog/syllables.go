@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,12 +19,14 @@ import (
 	"strings"
 )
 
+var vowelGroupRegex = regexp.MustCompile("[aeiouy]+")
+
 // countSyllables estimates the number of syllables in a word by counting vowel groups.
 // This is a simplified heuristic.
 func countSyllables(word string) int {
 	word = strings.ToLower(word)
 
-	vowelGroups := regexp.MustCompile("[aeiouy]+").FindAllString(word, -1)
+	vowelGroups := vowelGroupRegex.FindAllString(word, -1)
 	syllableCount := len(vowelGroups)
 
 	if syllableCount == 0 {

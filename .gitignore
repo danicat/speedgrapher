@@ -1,7 +1,9 @@
 bin/
-speedgrapher
+/speedgrapher
+dist/
+coverage.out
 .gemini/tmp/
 .gemini/settings.json
 .gemini/memory.json
-styles/
 .antigravitycli/
+.godoctor/

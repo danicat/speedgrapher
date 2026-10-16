@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -553,4 +553,67 @@ func TestRegister(t *testing.T) {
 		server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
 		Register(server, Config{WorkspaceDir: "/tmp/test"})
 	})
+}
+
+func TestFog_BlockSegmentationAndFindings(t *testing.T) {
+	md := `---
+title: "Readability Architecture"
+---
+<!-- review(p0): Complicated comment that should be ignored -->
+# System Architecture
+
+We built a complicated configuration to verify how the readability analyzer evaluates polysyllabic words and long sentences across paragraphs when scanning technical prose that runs well past thirty words in a single uninterrupted line.
+
+> Service Level Objectives (SLOs) define reliability targets for each service.
+
+- Configure the threshold in the dashboard.
+- Audit policies before deployment.
+
+` + "```go\n// Code block should be ignored: complicated configuration\nfunc main() {}\n```" + `
+`
+	res, err := Analyze(FogParams{Text: md})
+	if err != nil {
+		t.Fatalf("Analyze() unexpected error: %v", err)
+	}
+
+	foundComplex := false
+	foundLongSentence := false
+	for _, f := range res.Findings {
+		if f.Category == "complex_word" && f.Match == "complicated" {
+			foundComplex = true
+			if f.Line != 7 {
+				t.Errorf("expected 'complicated' finding on line 7, got line %d", f.Line)
+			}
+		}
+		if f.Category == "long_sentence" {
+			foundLongSentence = true
+			if f.Line != 7 {
+				t.Errorf("expected long_sentence finding on line 7, got line %d", f.Line)
+			}
+		}
+	}
+	if !foundComplex {
+		t.Errorf("expected to find 'complicated' complex_word finding, got %+v", res.Findings)
+	}
+	if !foundLongSentence {
+		t.Errorf("expected to find long_sentence finding on line 7, got %+v", res.Findings)
+	}
+
+	// Verify segmented blocks: heading (line 5), paragraph (line 7), blockquote (line 9), list (lines 11-12)
+	if len(res.Paragraphs) != 4 {
+		t.Fatalf("expected 4 segmented prose blocks, got %d: %+v", len(res.Paragraphs), res.Paragraphs)
+	}
+	wantTypes := []string{"heading", "paragraph", "blockquote", "list"}
+	wantStarts := []int{5, 7, 9, 11}
+	for i, p := range res.Paragraphs {
+		if p.BlockType != wantTypes[i] {
+			t.Errorf("block %d: expected type %q, got %q", i, wantTypes[i], p.BlockType)
+		}
+		if p.StartLine != wantStarts[i] {
+			t.Errorf("block %d: expected start_line %d, got %d", i, wantStarts[i], p.StartLine)
+		}
+		if p.HeatmapTint != "green" && p.HeatmapTint != "amber" && p.HeatmapTint != "red" {
+			t.Errorf("block %d: invalid heatmap_tint %q", i, p.HeatmapTint)
+		}
+	}
 }

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "speedgrapher": {
+      "command": "speedgrapher",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

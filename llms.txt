@@ -1,0 +1,26 @@
+# Speedgrapher
+
+> Open-source technical writing assistant, side-panel Markdown editor, Model Context Protocol (MCP) server, and Agent Skills suite for Google Antigravity. Measures Gunning Fog readability, detects synthetic AI slop tropes, mitigates status-signaling corporate jargon, lints grammar with Vale, and audits technical SEO and Generative Engine Optimization (GEO).
+
+This file provides a curated, token-efficient Markdown index for Large Language Models (LLMs), AI search engines, and coding agents.
+
+## Core Documentation
+- [README.md](README.md): Architecture overview, installation guide, four-mode sidecar panel walkthrough (`Reader`, `Editor`, `Reviewer`, and `Raw`), MCP server tools (`fog`, `slop`, `vale`, and `seo`), and CLI usage.
+- [Agent Rules (`rules/AGENTS.md`)](rules/AGENTS.md): Workspace rules for opening the Speedgrapher side panel, handling inline `<!-- review: ... -->` HTML comments, and routing writing tasks.
+- [Plugin Manifest (`plugin.json`)](plugin.json): Antigravity plugin configuration, version metadata, and suggested prompts.
+- [MCP Server Configuration (`mcp_config.json`)](mcp_config.json): Stdio MCP server launch definition for `speedgrapher mcp`.
+
+## Writing Lifecycle Agent Skills
+- [Speedgrapher Side Panel & Orchestrator (`skills/speedgrapher/SKILL.md`)](skills/speedgrapher/SKILL.md): Master orchestrator skill for launching the side panel, resolving inline review comments, and coordinating multi-stage writing workflows.
+- [Socratic Ideation & Inverted Pyramid Outlining (`skills/ideate/SKILL.md`)](skills/ideate/SKILL.md): One-question-at-a-time technical interviewing workflow and inverted-pyramid outline generator for blog posts, `README.md` files, and `SKILL.md` files.
+- [Adaptive-Voice Technical Drafting (`skills/draft/SKILL.md`)](skills/draft/SKILL.md): Technical drafting workflow enforcing voice fingerprinting, 150-word outcome leads, why-before-how code pedagogy, and sentence-case headings.
+- [Readability, Jargon Mitigation & Deslopification (`skills/readability/SKILL.md`)](skills/readability/SKILL.md): Copyediting workflow grounded in the Harvard Business Review jargon study and five-dimension AI slop elimination.
+- [Tropes & Jargon Reference (`skills/readability/references/tropes-and-jargon.md`)](skills/readability/references/tropes-and-jargon.md): Diagnostic tables of synthetic AI lexical/structural tells and status-signaling corporate jargon replacements.
+- [Editorial Review & Technical SEO/GEO Publishing (`skills/publish/SKILL.md`)](skills/publish/SKILL.md): Two-stage release gate for inline review annotations, line-indexed editorial scorecards, dual-purpose `summary` vs. `description` metadata, GEO citability, and localization.
+
+## Go MCP Tools & Packages
+- [CLI & MCP Entrypoint (`cmd/speedgrapher/main.go`)](cmd/speedgrapher/main.go): Go binary supporting `speedgrapher mcp`, `speedgrapher audit`, `speedgrapher call`, and `speedgrapher version`.
+- [Gunning Fog & HBR Jargon Analyzer (`internal/tools/fog/fog.go`)](internal/tools/fog/fog.go): Document and per-paragraph Gunning Fog readability index, complex word spans, unexpanded acronym detector, and status-signaling jargon analyzer.
+- [AI Slop Detector (`internal/tools/slop/slop.go`)](internal/tools/slop/slop.go): Calibrated five-dimension synthetic prose detector measuring structural clichés, lexical tells, filler words, sentence rhythm variance, and passive/nominalized voice.
+- [Vale Grammar Linter & Rule Manager (`internal/tools/vale/vale.go`)](internal/tools/vale/vale.go): Static style and grammar linter using `Google`, `proselint`, and `write-good` rule sets, with live `.vale.ini` rule toggling and custom vocabulary management in [`internal/tools/vale/rules.go`](internal/tools/vale/rules.go).
+- [Technical SEO & GEO Analyzer (`internal/tools/seo/seo.go`)](internal/tools/seo/seo.go): HTML, Markdown, and Hugo auditor checking titles, `summary` vs. `description` metadata split, inverted-pyramid lead blocks, heading hierarchy, image `alt` text, and link hygiene.

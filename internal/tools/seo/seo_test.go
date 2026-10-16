@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -225,8 +225,13 @@ func TestAnalyzeSEO_IndividualChecks(t *testing.T) {
 						if expected && check.Status != "pass" {
 							t.Errorf("Expected check %q to pass, got status %q (%s)", checkName, check.Status, check.Description)
 						}
-						if !expected && check.Status == "pass" {
-							t.Errorf("Expected check %q to fail/warn, got status 'pass'", checkName)
+						if !expected {
+							if check.Status == "pass" {
+								t.Errorf("Expected check %q to fail/warn, got status 'pass'", checkName)
+							}
+							if check.ScoreImpact >= 0 {
+								t.Errorf("Expected negative ScoreImpact on non-passing check %q, got %d", checkName, check.ScoreImpact)
+							}
 						}
 					}
 				}
@@ -378,6 +383,14 @@ func TestSEOHandler_URLInput(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected network error for invalid address, got nil")
 	}
+
+	// 4. Reject non-http scheme and cloud metadata host
+	if _, _, err := seoHandler(context.Background(), nil, SEOParams{URL: "file:///etc/passwd"}); err == nil {
+		t.Error("Expected error for file:// scheme URL, got nil")
+	}
+	if _, _, err := seoHandler(context.Background(), nil, SEOParams{URL: "http://169.254.169.254/latest/meta-data/"}); err == nil {
+		t.Error("Expected error for cloud metadata host URL, got nil")
+	}
 }
 
 func TestFindHugoRoot(t *testing.T) {
@@ -427,10 +440,8 @@ func TestFindHugoRoot(t *testing.T) {
 	})
 
 	t.Run("EmptyStartDir", func(t *testing.T) {
-		// findHugoRoot with "" falls back to current working directory
 		cwd, _ := os.Getwd()
 		_, err := findHugoRoot("")
-		// May or may not find hugo depending on where tests run, but should not crash
 		_ = err
 		_ = cwd
 	})
@@ -476,6 +487,7 @@ func TestConvertHugoMarkdownToHTML(t *testing.T) {
 title: "My Hugo Post Title"
 description: "This is a description for the Hugo post that is long enough."
 canonical: "https://example.com/hugo-post"
+draft: true
 ---
 
 # Heading 1
@@ -484,7 +496,13 @@ This is the body content.
 [Link](https://example.com)
 `
 
-	html, err := convertHugoMarkdownToHTML(markdown, tempDir)
+	// Reject path traversal in frontmatter slug/url before invoking Hugo
+	traversalMarkdown := "---\ntitle: \"Traversal\"\nslug: \"../../../etc/passwd\"\n---\nBody\n"
+	if _, err := convertHugoMarkdownToHTML(context.Background(), traversalMarkdown, tempDir); err == nil {
+		t.Fatal("Expected error for path traversal slug in convertHugoMarkdownToHTML, got nil")
+	}
+
+	html, err := convertHugoMarkdownToHTML(context.Background(), markdown, tempDir)
 	if err != nil {
 		if strings.Contains(err.Error(), "executable file not found in $PATH") {
 			t.Skip("Hugo binary not installed, skipping integration test")
@@ -526,6 +544,246 @@ This is the body content.
 	if res != nil && res.Title != "My Hugo Post Title" {
 		t.Errorf("Expected title 'My Hugo Post Title', got %q", res.Title)
 	}
+
+	// Test fail-fast when Hugo does not render the target page (e.g., _build.render = never)
+	unrenderedMarkdown := `---
+title: "Unrendered Post"
+build:
+  render: "never"
+---
+Unrendered content.
+`
+	_, err = convertHugoMarkdownToHTML(context.Background(), unrenderedMarkdown, tempDir)
+	if err == nil {
+		t.Fatal("Expected error when Hugo output is not rendered at expected path, got nil")
+	}
+	if !strings.Contains(err.Error(), "expected rendered Hugo output at") {
+		t.Errorf("Expected fail-fast error containing 'expected rendered Hugo output at', got: %v", err)
+	}
+}
+
+func TestSEOHandler_StandaloneMarkdown(t *testing.T) {
+	tempDir := t.TempDir()
+
+	t.Run("Markdown with YAML frontmatter outside Hugo repo", func(t *testing.T) {
+		mdPath := filepath.Join(tempDir, "article.md")
+		md := `---
+title: "Standalone Markdown Article Title With Keyword"
+description: "This is a standalone markdown meta description with between 120 and 160 characters containing the target keyword for testing."
+canonical: "https://example.com/article"
+---
+
+# Main Article Keyword Heading
+
+![Diagram Alt](diagram.png)
+
+Check out [Example Docs](https://example.com/docs) for details.
+
+` + "```bash\n# This bash comment inside a code fence is NOT an H1 tag\necho hello\n```\n" + strings.Repeat("word ", 320)
+
+		if err := os.WriteFile(mdPath, []byte(md), 0644); err != nil {
+			t.Fatalf("failed to write article.md: %v", err)
+		}
+
+		res, err := Analyze(context.Background(), SEOParams{
+			Path:    mdPath,
+			Keyword: "keyword",
+		}, Config{WorkspaceDir: tempDir})
+		if err != nil {
+			t.Fatalf("Analyze failed for standalone Markdown: %v", err)
+		}
+		if res.Score != 100 {
+			t.Errorf("Expected score 100 for complete standalone Markdown, got %d (checks: %+v)", res.Score, res.Checks)
+		}
+		if res.DocType != "page" {
+			t.Errorf("Expected doc_type 'page' for Markdown with title/canonical frontmatter, got %q", res.DocType)
+		}
+		if res.Title != "Standalone Markdown Article Title With Keyword" {
+			t.Errorf("Unexpected title: %q", res.Title)
+		}
+		if res.H1 != "Main Article Keyword Heading" {
+			t.Errorf("Unexpected H1: %q", res.H1)
+		}
+		if len(res.Headings) != 1 || res.Headings[0].Text != "Main Article Keyword Heading" || res.Headings[0].Level != 1 {
+			t.Errorf("Unexpected headings: %+v", res.Headings)
+		}
+	})
+
+	t.Run("Blog post with TOML frontmatter and H1 in title starting body at H2 passes SEO and GEO", func(t *testing.T) {
+		md := `+++
+title = "Optimizing Go Garbage Collection Latency in Production"
+summary = "How we cut p99 GC pause times by 64% in our high-throughput Go ingestion service."
+description = "Learn how tuning GOGC, GOMEMLIMIT, and buffer pooling reduced p99 garbage collection latency from 42ms to 15ms across 120 production Go nodes."
+canonical = "https://example.com/go-gc-latency"
+draft = false
++++
+
+Cutting p99 garbage collection latency from 42ms to 15ms reduced tail timeouts by 64% across 120 production nodes.
+
+## Memory allocation profile
+
+- Pool request buffers with sync.Pool.
+- Set GOMEMLIMIT to 85% of container memory.
+
+![Flamegraph showing 64 percent reduction in heap allocations](flamegraph.png)
+
+Read the [Go GC guide](https://tip.golang.org/doc/gc-guide) for runtime internals.
+
+` + "```go\nvar bufPool = sync.Pool{}\n```\n" + strings.Repeat("latency benchmark metric ", 120)
+
+		res, err := Analyze(context.Background(), SEOParams{
+			HTML:    md,
+			Keyword: "latency",
+		}, Config{WorkspaceDir: tempDir})
+		if err != nil {
+			t.Fatalf("Analyze failed for TOML blog post: %v", err)
+		}
+		if res.Score != 100 {
+			t.Errorf("Expected SEO Score 100 for TOML blog post with frontmatter title and H2 body, got %d (checks: %+v)", res.Score, res.Checks)
+		}
+		if res.GEOScore != 100 {
+			t.Errorf("Expected GEO Score 100 for TOML blog post starting body at H2, got %d (geo_checks: %+v)", res.GEOScore, res.GEOChecks)
+		}
+		if res.H1 != "Optimizing Go Garbage Collection Latency in Production" {
+			t.Errorf("Expected synthesized H1 from frontmatter title, got %q", res.H1)
+		}
+		if len(res.Headings) != 2 || res.Headings[0].Level != 1 || res.Headings[1].Level != 2 {
+			t.Errorf("Expected [H1, H2] headings, got %+v", res.Headings)
+		}
+	})
+
+	t.Run("Markdown with invalid YAML frontmatter fails fast", func(t *testing.T) {
+		md := "---\ntitle: [unclosed yaml\n---\n# Heading\n"
+		_, err := Analyze(context.Background(), SEOParams{
+			HTML: md,
+		}, Config{WorkspaceDir: tempDir})
+		if err == nil {
+			t.Fatal("Expected error for invalid YAML frontmatter, got nil")
+		}
+		if !strings.Contains(err.Error(), "invalid YAML frontmatter") {
+			t.Errorf("Unexpected error: %v", err)
+		}
+	})
+
+	t.Run("Markdown with invalid TOML frontmatter fails fast", func(t *testing.T) {
+		md := "+++\ntitle = \"unclosed quote\n+++\n# Heading\n"
+		_, err := Analyze(context.Background(), SEOParams{
+			HTML: md,
+		}, Config{WorkspaceDir: tempDir})
+		if err == nil {
+			t.Fatal("Expected error for invalid TOML frontmatter, got nil")
+		}
+		if !strings.Contains(err.Error(), "invalid TOML frontmatter") {
+			t.Errorf("Unexpected error: %v", err)
+		}
+	})
+}
+
+func TestSEOHandler_DocStructureMode(t *testing.T) {
+	tempDir := t.TempDir()
+
+	t.Run("README without frontmatter auto-detects doc mode and scores 100", func(t *testing.T) {
+		readmePath := filepath.Join(tempDir, "README.md")
+		md := `# Speedgrapher Editorial Studio
+
+Speedgrapher is an MCP server and Antigravity plugin for technical writers.
+
+## Installation
+
+Install the binary using Go and read the [installation guide](https://example.com/install).
+
+### Prerequisites
+
+Make sure Go 1.27 and Vale are installed on your machine.
+`
+		if err := os.WriteFile(readmePath, []byte(md), 0644); err != nil {
+			t.Fatalf("failed to write README.md: %v", err)
+		}
+
+		res, err := Analyze(context.Background(), SEOParams{
+			Path: readmePath,
+		}, Config{WorkspaceDir: tempDir})
+		if err != nil {
+			t.Fatalf("Analyze failed for README.md: %v", err)
+		}
+		if res.DocType != "doc" {
+			t.Errorf("Expected doc_type 'doc', got %q", res.DocType)
+		}
+		if res.Score != 100 {
+			t.Errorf("Expected score 100 for well-structured README.md, got %d (checks: %+v)", res.Score, res.Checks)
+		}
+		if res.Title != "Speedgrapher Editorial Studio" {
+			t.Errorf("Expected Title to fallback to H1 in doc mode, got %q", res.Title)
+		}
+		if len(res.Headings) != 3 {
+			t.Fatalf("Expected 3 extracted headings, got %d: %+v", len(res.Headings), res.Headings)
+		}
+		if res.Headings[0].Line != 1 || res.Headings[1].Line != 5 || res.Headings[2].Line != 9 {
+			t.Errorf("Expected heading line numbers 1, 5, 9, got %+v", res.Headings)
+		}
+	})
+
+	t.Run("SKILL.md with name/description frontmatter auto-detects doc mode", func(t *testing.T) {
+		md := `---
+name: tech-reviewer
+description: Reviews technical articles.
+---
+
+# Tech Reviewer Skill
+
+## Workflow
+
+Follow the [editorial guidelines](https://example.com/guidelines).
+`
+		res, err := Analyze(context.Background(), SEOParams{
+			HTML: md,
+		}, Config{WorkspaceDir: tempDir})
+		if err != nil {
+			t.Fatalf("Analyze failed for SKILL.md: %v", err)
+		}
+		if res.DocType != "doc" {
+			t.Errorf("Expected doc_type 'doc' for SKILL.md frontmatter without title/canonical, got %q", res.DocType)
+		}
+		if res.Score != 100 {
+			t.Errorf("Expected score 100 for valid SKILL.md, got %d (checks: %+v)", res.Score, res.Checks)
+		}
+	})
+
+	t.Run("Doc mode detects skipped heading hierarchy and generic link text", func(t *testing.T) {
+		md := `# Top Level Heading
+
+### Skipped H2 Heading
+
+Read more [click here](https://example.com) and ![](missing-alt.png).
+`
+		res, err := Analyze(context.Background(), SEOParams{
+			HTML:    md,
+			DocType: "doc",
+		}, Config{WorkspaceDir: tempDir})
+		if err != nil {
+			t.Fatalf("Analyze failed: %v", err)
+		}
+		if res.DocType != "doc" {
+			t.Errorf("Expected doc_type 'doc', got %q", res.DocType)
+		}
+		if res.Score >= 100 {
+			t.Errorf("Expected score penalty for skipped heading level, missing alt, and generic link, got %d", res.Score)
+		}
+
+		statusByName := map[string]string{}
+		for _, c := range res.Checks {
+			statusByName[c.Name] = c.Status
+		}
+		if statusByName["Heading Hierarchy"] != "warning" {
+			t.Errorf("Expected Heading Hierarchy warning, got %q", statusByName["Heading Hierarchy"])
+		}
+		if statusByName["Image Alt Text"] != "warning" {
+			t.Errorf("Expected Image Alt Text warning, got %q", statusByName["Image Alt Text"])
+		}
+		if statusByName["Link Hygiene"] != "warning" {
+			t.Errorf("Expected Link Hygiene warning, got %q", statusByName["Link Hygiene"])
+		}
+	})
 }
 
 func TestRegister(t *testing.T) {
@@ -534,4 +792,102 @@ func TestRegister(t *testing.T) {
 
 	serverWithCfg := mcp.NewServer(&mcp.Implementation{Name: "test-server-2"}, nil)
 	Register(serverWithCfg, Config{WorkspaceDir: "/tmp"})
+}
+
+func TestSEO_DualPurposeMetadataAndGEO(t *testing.T) {
+	tempDir := t.TempDir()
+
+	t.Run("distinct summary and description with clean GEO passes all 6 GEO checks", func(t *testing.T) {
+		md := `---
+title: "Optimizing Go Garbage Collection Latency in Production"
+summary: "How we cut p99 GC pause times by 64% in our high-throughput Go ingestion service."
+description: "Learn how tuning GOGC, GOMEMLIMIT, and buffer pooling reduced p99 garbage collection latency from 42ms to 15ms across 120 production Go nodes."
+canonical: "https://example.com/go-gc-latency"
+---
+
+# Optimizing Go garbage collection latency
+
+Cutting p99 garbage collection latency from 42ms to 15ms reduced tail timeouts by 64% across 120 production nodes.
+
+## Memory allocation profile
+
+- Pool request buffers with sync.Pool.
+- Set GOMEMLIMIT to 85% of container memory.
+
+![Flamegraph showing 64 percent reduction in heap allocations](flamegraph.png)
+
+Read the [Go GC guide](https://tip.golang.org/doc/gc-guide) for runtime internals.
+
+` + "```go\nvar bufPool = sync.Pool{}\n```\n" + strings.Repeat("latency benchmark metric ", 120)
+
+		res, err := Analyze(context.Background(), SEOParams{
+			HTML:    md,
+			Keyword: "latency",
+		}, Config{WorkspaceDir: tempDir})
+		if err != nil {
+			t.Fatalf("Analyze() unexpected error: %v", err)
+		}
+		if res.Summary == "" || res.Metadata.SummaryEqualsDescription {
+			t.Errorf("expected distinct non-empty summary, got Metadata=%+v", res.Metadata)
+		}
+		if res.GEOScore != 100 {
+			t.Errorf("expected GEOScore 100, got %d (geo_checks: %+v)", res.GEOScore, res.GEOChecks)
+		}
+		if len(res.GEOChecks) != 6 {
+			t.Fatalf("expected 6 geo_checks, got %d", len(res.GEOChecks))
+		}
+		if len(res.ImageIssues) != 0 {
+			t.Errorf("expected 0 image issues, got %+v", res.ImageIssues)
+		}
+		if len(res.LinkIssues) != 0 {
+			t.Errorf("expected 0 link issues, got %+v", res.LinkIssues)
+		}
+	})
+
+	t.Run("identical summary and description, unlabeled code block, Title Case heading, and bad image/link flagged", func(t *testing.T) {
+		md := `---
+title: "Identical Metadata Split Example For Testing"
+summary: "This description is duplicated verbatim in both summary and description fields to trigger the dual-purpose split warning."
+description: "This description is duplicated verbatim in both summary and description fields to trigger the dual-purpose split warning."
+canonical: "https://example.com/identical"
+---
+
+# Main Heading
+
+In today's fast-paced world, let's dive in.
+
+## Why Modern Distributed Systems Fail Under Heavy Load
+
+![](missing.png)
+![chart](brief.png)
+
+Click [here](https://example.com) or [https://example.com/raw](https://example.com/raw).
+
+` + "```\nunlabeled code block\n```\n"
+
+		res, err := Analyze(context.Background(), SEOParams{
+			HTML: md,
+		}, Config{WorkspaceDir: tempDir})
+		if err != nil {
+			t.Fatalf("Analyze() unexpected error: %v", err)
+		}
+		if !res.Metadata.SummaryEqualsDescription {
+			t.Errorf("expected SummaryEqualsDescription=true, got false")
+		}
+		if res.GEO.UnlabeledCodeBlocks != 1 {
+			t.Errorf("expected 1 unlabeled code block, got %d", res.GEO.UnlabeledCodeBlocks)
+		}
+		if res.GEO.TitleCaseHeadings < 1 {
+			t.Errorf("expected TitleCaseHeadings >= 1, got %d", res.GEO.TitleCaseHeadings)
+		}
+		if len(res.ImageIssues) != 2 {
+			t.Errorf("expected 2 image issues (missing and brief alt), got %+v", res.ImageIssues)
+		}
+		if len(res.LinkIssues) != 2 {
+			t.Errorf("expected 2 link issues (generic 'here' and raw URL), got %+v", res.LinkIssues)
+		}
+		if res.GEOScore >= 100 {
+			t.Errorf("expected GEOScore < 100, got %d", res.GEOScore)
+		}
+	})
 }
