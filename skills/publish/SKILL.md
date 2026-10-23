@@ -15,7 +15,7 @@ metadata:
   category: writing
   tags: "review, publish, seo, geo, localization, frontmatter, inline-comments"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.11.0"
+  version: "0.11.1"
 ---
 
 # Publish: Editorial Review, Inline Annotations & SEO/GEO Release Gate

@@ -2294,9 +2294,8 @@ async function dispatchReviewCommentsToAgent() {
   updateHeaderTelemetry();
   renderCanvas();
 
-  const telemetrySections = targetBlocksInfo.map(({ block }) => buildParagraphContextTelemetryMarkdown(block));
-
   try {
+    const telemetrySections = targetBlocksInfo.map(({ block }) => buildParagraphContextTelemetryMarkdown(block));
     const res = await apiPost('/api/ai/rewrite', {
       fullDocument: fullDocumentWithComments,
       skill: 'readability',
@@ -4009,6 +4008,11 @@ function buildParagraphContextTelemetryMarkdown(block) {
     (b) => typeof b.start_line === 'number' && b.start_line <= block.endLine && b.end_line >= block.startLine
   );
 
+  const blockSpans = state.spans.filter((s) => s.blockId === block.id);
+  const complexWordsList = blockSpans
+    .filter((s) => s.pillar === 'fog' && !s.isSentenceSpan && s.match)
+    .map((s) => s.match);
+
   const fogVal = diag?.fog ?? serverFogPara?.fog_index ?? '—';
   const wordCount = diag?.wordCount ?? serverFogPara?.total_words ?? countWordsInText(block.raw);
   const sentCount = diag?.sentenceCount ?? serverFogPara?.total_sentences ?? 1;
@@ -4016,9 +4020,7 @@ function buildParagraphContextTelemetryMarkdown(block) {
     diag?.complexWords ??
     (typeof serverFogPara?.complex_words === 'number'
       ? serverFogPara.complex_words
-      : Array.isArray(serverFogPara?.complex_words)
-      ? serverFogPara.complex_words.length
-      : 0);
+      : complexWordsList.length);
   const asl =
     typeof serverFogPara?.average_sentence_length === 'number'
       ? serverFogPara.average_sentence_length.toFixed(1)
@@ -4041,14 +4043,10 @@ function buildParagraphContextTelemetryMarkdown(block) {
     `- **Slop & Style Telemetry**: Paragraph Slop Score ${slopScore}, Slop Spans: ${diag?.slopCount ?? 0}, Vale Alerts: ${diag?.valeCount ?? 0}, Long Sentences: ${diag?.fogSpanCount ?? 0}`,
   ];
 
-  const complexWordsList = Array.isArray(serverFogPara?.complex_words)
-    ? serverFogPara.complex_words
-    : extractWordsFromText(block.raw).filter((w) => countWordSyllables(w) >= 3);
   if (complexWordsList.length > 0) {
     lines.push(`- **Complex Words (3+ syllables)**: ${[...new Set(complexWordsList)].map((w) => `\`${w}\``).join(', ')}`);
   }
 
-  const blockSpans = state.spans.filter((s) => s.blockId === block.id);
   if (blockSpans.length === 0) {
     lines.push(`- **Active Findings**: None (0 Slop, Vale, or Fog alerts in this paragraph).`);
   } else {
@@ -4194,8 +4192,6 @@ async function dispatchScopedAgentSkill(skillName, block, instruction) {
   state.cmdSelectedText = '';
 
   const effectiveInstruction = `${instruction}${selectedFocus}`.trim();
-  const telemetryContext = buildParagraphContextTelemetryMarkdown(block);
-  const fullDocument = serializeBlocksToMarkdown(state.blocks);
 
   if (block) {
     block.busy = true;
@@ -4204,6 +4200,8 @@ async function dispatchScopedAgentSkill(skillName, block, instruction) {
     renderCanvas();
 
     try {
+      const telemetryContext = buildParagraphContextTelemetryMarkdown(block);
+      const fullDocument = serializeBlocksToMarkdown(state.blocks);
       const res = await apiPost('/api/ai/rewrite', {
         fullDocument,
         skill: skillName || 'draft',
@@ -4265,6 +4263,8 @@ async function dispatchScopedAgentSkill(skillName, block, instruction) {
   renderCanvas();
 
   try {
+    const telemetryContext = buildParagraphContextTelemetryMarkdown(null);
+    const fullDocument = serializeBlocksToMarkdown(state.blocks);
     const res = await apiPost('/api/ai/rewrite', {
       fullDocument,
       skill: skillName || 'publish',

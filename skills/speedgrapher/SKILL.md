@@ -14,7 +14,7 @@ metadata:
   category: writing
   tags: "sidecar, markdown-editor, orchestrator, editorial, review, seo"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.11.0"
+  version: "0.11.1"
 ---
 
 # Speedgrapher: Master Orchestrator & Side-Panel Editor (`/speedgrapher`)

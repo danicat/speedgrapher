@@ -14,7 +14,7 @@ metadata:
   category: writing
   tags: "drafting, blogging, documentation, style-guide, code-pedagogy, geo"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.11.0"
+  version: "0.11.1"
 ---
 
 # Draft: Adaptive-Voice Technical Writing

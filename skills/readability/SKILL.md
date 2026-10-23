@@ -13,7 +13,7 @@ metadata:
   category: writing
   tags: "readability, jargon, deslopify, fog, vale, copyediting, prose"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.11.0"
+  version: "0.11.1"
 ---
 
 # Readability: jargon mitigation, deslopification & copyediting

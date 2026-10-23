@@ -14,7 +14,7 @@ metadata:
   category: writing
   tags: "ideation, interviewing, outlining, inverted-pyramid, readme, architecture"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.11.0"
+  version: "0.11.1"
 ---
 
 # Ideate: Socratic Discovery & Inverted-Pyramid Outlining

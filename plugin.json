@@ -1,7 +1,7 @@
 {
   "name": "speedgrapher",
   "displayName": "Speedgrapher",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Technical writing assistant, side-panel Markdown editor, Model Context Protocol (MCP) server, and Agent Skills suite for Antigravity: Gunning Fog readability, AI slop detection, Vale grammar linting, and technical SEO/GEO auditing.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [
