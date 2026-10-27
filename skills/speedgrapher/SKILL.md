@@ -8,7 +8,7 @@ metadata:
   category: writing
   tags: "writing, markdown, editor, blog, article, documentation, prose"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.12.0"
+  version: "0.12.1"
 ---
 
 # Speedgrapher: Side-Panel Launcher

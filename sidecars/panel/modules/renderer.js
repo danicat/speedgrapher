@@ -33,6 +33,8 @@ export const FRONTMATTER_STANDARD_KEYS = [
   'version',
 ];
 
+export const FRONTMATTER_TAG_KEYS = new Set(['tags', 'keywords', 'categories']);
+
 // ---------------------------------------------------------------------------
 // 100% GFM Markdown Rendering (Images, Frontmatter, Alerts, Task Lists, Tables, Math)
 // ---------------------------------------------------------------------------
@@ -319,6 +321,7 @@ export function parseFrontmatterData(rawFrontmatter) {
       const listItems = [];
       const mapEntries = {};
       let currentListObj = null;
+      let lastSubKey = null;
       i++;
       while (i < bodyLines.length && (/^\s+\S/.test(bodyLines[i]) || bodyLines[i].trim() === '')) {
         const sub = bodyLines[i];
@@ -333,27 +336,56 @@ export function parseFrontmatterData(rawFrontmatter) {
           const itemRest = listMatch[1].trim();
           const itemKvMatch = itemRest.match(/^([a-zA-Z0-9_.-]+)\s*:\s*(.*)$/);
           if (itemKvMatch) {
+            const firstKey = itemKvMatch[1].trim();
+            const rawVal = itemKvMatch[2].trim().replace(/^["']|["']$/g, '');
             currentListObj = {
-              [itemKvMatch[1].trim()]: itemKvMatch[2].trim().replace(/^["']|["']$/g, ''),
+              [firstKey]: /^[>|][-+]?$/.test(rawVal) ? '' : rawVal,
             };
+            lastSubKey = firstKey;
             listItems.push(currentListObj);
-          } else if (itemRest === '') {
-            currentListObj = {};
-            listItems.push(currentListObj);
+          } else if (itemRest === '' || /^[>|][-+]?$/.test(itemRest)) {
+            currentListObj = null;
+            lastSubKey = null;
+            listItems.push('');
           } else {
             currentListObj = null;
+            lastSubKey = null;
             listItems.push(itemRest.replace(/^["']|["']$/g, ''));
           }
         } else if (mapMatch) {
           const subKey = mapMatch[1].trim();
-          const subVal = mapMatch[2].trim().replace(/^["']|["']$/g, '');
+          const rawSubVal = mapMatch[2].trim().replace(/^["']|["']$/g, '');
+          const subVal = /^[>|][-+]?$/.test(rawSubVal) ? '' : rawSubVal;
+          lastSubKey = subKey;
           if (currentListObj !== null) {
             currentListObj[subKey] = subVal;
           } else if (listItems.length > 0) {
             const lastIdx = listItems.length - 1;
-            listItems[lastIdx] = `${listItems[lastIdx]} · ${subKey}: ${subVal}`;
+            const prev = listItems[lastIdx];
+            if (prev === '') {
+              currentListObj = { [subKey]: subVal };
+              listItems[lastIdx] = currentListObj;
+            } else {
+              currentListObj = { value: String(prev), [subKey]: subVal };
+              listItems[lastIdx] = currentListObj;
+            }
           } else {
             mapEntries[subKey] = subVal;
+          }
+        } else {
+          // Wrapped continuation line inside a list item or nested map value
+          const contText = trimmedSub.replace(/^["']|["']$/g, '');
+          if (currentListObj !== null && lastSubKey) {
+            currentListObj[lastSubKey] = currentListObj[lastSubKey]
+              ? `${currentListObj[lastSubKey]} ${contText}`
+              : contText;
+          } else if (listItems.length > 0) {
+            const lastIdx = listItems.length - 1;
+            listItems[lastIdx] = listItems[lastIdx] ? `${listItems[lastIdx]} ${contText}` : contText;
+          } else if (lastSubKey && lastSubKey in mapEntries) {
+            mapEntries[lastSubKey] = mapEntries[lastSubKey]
+              ? `${mapEntries[lastSubKey]} ${contText}`
+              : contText;
           }
         }
         i++;
@@ -361,9 +393,7 @@ export function parseFrontmatterData(rawFrontmatter) {
       if (listItems.length > 0) {
         data[key] = listItems.map((item) => {
           if (item && typeof item === 'object') {
-            return Object.entries(item)
-              .map(([k, v]) => `${k}: ${v}`)
-              .join(' · ');
+            return { ...item };
           }
           return String(item);
         });
@@ -380,6 +410,53 @@ export function parseFrontmatterData(rawFrontmatter) {
   }
 
   return { format: 'yaml', data };
+}
+
+export function renderFrontmatterFieldValue(key, val) {
+  const normalizedKey = String(key || '').toLowerCase();
+  if (FRONTMATTER_TAG_KEYS.has(normalizedKey)) {
+    const tagItems = Array.isArray(val)
+      ? val.map((item) => String(item ?? '').trim()).filter(Boolean)
+      : typeof val === 'string' && val
+        ? val
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : [];
+    if (tagItems.length === 0) return '';
+    return `<div class="md-fm-tags">${tagItems.map((t) => `<span class="md-fm-tag-pill">${escapeHtml(t)}</span>`).join('')}</div>`;
+  }
+
+  if (Array.isArray(val)) {
+    const hasObjects = val.some((item) => item && typeof item === 'object');
+    if (hasObjects) {
+      return `<div class="md-fm-obj-list">${val
+        .map((item) => {
+          if (item && typeof item === 'object') {
+            return `<div class="md-fm-obj-item">${Object.entries(item)
+              .map(
+                ([ik, iv]) =>
+                  `<div class="md-fm-obj-row"><span class="md-fm-obj-key">${escapeHtml(ik)}</span><span class="md-fm-obj-val">${escapeHtml(String(iv ?? ''))}</span></div>`
+              )
+              .join('')}</div>`;
+          }
+          return `<div class="md-fm-obj-item"><div class="md-fm-obj-row"><span class="md-fm-obj-val">${escapeHtml(String(item ?? ''))}</span></div></div>`;
+        })
+        .join('')}</div>`;
+    }
+    return `<ul class="md-fm-list">${val.map((item) => `<li>${escapeHtml(String(item ?? ''))}</li>`).join('')}</ul>`;
+  }
+
+  if (val && typeof val === 'object') {
+    return `<div class="md-fm-obj-item">${Object.entries(val)
+      .map(
+        ([ik, iv]) =>
+          `<div class="md-fm-obj-row"><span class="md-fm-obj-key">${escapeHtml(ik)}</span><span class="md-fm-obj-val">${escapeHtml(String(iv ?? ''))}</span></div>`
+      )
+      .join('')}</div>`;
+  }
+
+  return escapeHtml(String(val ?? ''));
 }
 
 export function renderFrontmatterBlockCard(block) {
@@ -456,26 +533,7 @@ export function renderFrontmatterBlockCard(block) {
   const extraRows = [];
   for (const [k, v] of Object.entries(data)) {
     if (['title', 'summary', 'description', 'draft', 'tags'].includes(k)) continue;
-    let valHtml = '';
-    if (Array.isArray(v)) {
-      valHtml = `<div class="md-fm-tags">${v
-        .map((item) => {
-          const itemStr =
-            item && typeof item === 'object'
-              ? Object.entries(item)
-                  .map(([ik, iv]) => `${ik}: ${iv}`)
-                  .join(' · ')
-              : String(item);
-          return `<span class="md-fm-tag-pill">${escapeHtml(itemStr)}</span>`;
-        })
-        .join('')}</div>`;
-    } else if (v && typeof v === 'object') {
-      valHtml = `<div class="md-fm-tags">${Object.entries(v)
-        .map(([ik, iv]) => `<span class="md-fm-tag-pill">${escapeHtml(`${ik}: ${iv}`)}</span>`)
-        .join('')}</div>`;
-    } else {
-      valHtml = escapeHtml(String(v ?? ''));
-    }
+    const valHtml = renderFrontmatterFieldValue(k, v);
     extraRows.push(`<div class="md-fm-key">${escapeHtml(k)}</div><div class="md-fm-val">${valHtml}</div>`);
   }
 

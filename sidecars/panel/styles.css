@@ -1684,6 +1684,52 @@ body {
   color: var(--accent);
 }
 
+.md-fm-list {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.md-fm-obj-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.md-fm-obj-item {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) 1fr;
+  gap: 3px 10px;
+  align-items: baseline;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-col);
+}
+
+.md-fm-obj-row {
+  display: contents;
+}
+
+.md-fm-obj-key {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.md-fm-obj-val {
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
 /* ---------------------------------------------------------------------------
  * Inline Paragraph Commenting (<!-- review: ... -->)
  * --------------------------------------------------------------------------- */
