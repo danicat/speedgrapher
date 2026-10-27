@@ -41,41 +41,65 @@
       <!-- Left: Document Back/Forward Trail, File Selector, Sync Status Dot & Mode Switch -->
       <div class="toolbar-group">
         <div id="doc-nav-cluster" class="doc-nav-cluster hidden" hidden role="group" aria-label="Document Navigation History">
-          <button id="btn-nav-back" class="icon-btn" type="button" disabled data-tooltip="Back (⌘[)">
+          <button id="btn-nav-back" class="icon-btn" type="button" disabled data-tooltip="Back" data-tooltip-pos="right">
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <button id="btn-nav-forward" class="icon-btn" type="button" disabled data-tooltip="Forward (⌘])">
+          <button id="btn-nav-forward" class="icon-btn" type="button" disabled data-tooltip="Forward">
             <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
 
         <div class="file-selector-wrap">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-          <select id="file-select" class="file-select" aria-label="Select Markdown file">
-            <option value="">Select .md file…</option>
-          </select>
+          <button id="btn-open-file" class="file-picker-btn" type="button" data-tooltip="Open file" data-tooltip-pos="right" aria-haspopup="dialog" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            <span id="active-file-label">Open .md file…</span>
+          </button>
+          <button id="btn-close-file" class="file-close-btn hidden" type="button" hidden data-tooltip="Close" aria-label="Close document">×</button>
+
+          <!-- Instant Single-Directory Markdown File Browser Popover -->
+          <div id="file-browser-popover" class="file-browser-popover hidden" hidden role="dialog" aria-label="Open Markdown File">
+            <div class="fb-header-row">
+              <div class="fb-roots-bar" role="group" aria-label="Quick Locations">
+                <button id="fb-root-workspace" class="fb-root-pill" type="button" title="Jump to Workspace root">Workspace</button>
+                <button id="fb-root-session" class="fb-root-pill hidden" type="button" hidden title="Jump to Active Session Artifacts">Session</button>
+                <button id="fb-root-home" class="fb-root-pill" type="button" title="Jump to Home directory">Home</button>
+              </div>
+              <button id="fb-btn-system-dialog" class="fb-sys-btn" type="button" title="Open native OS file dialog">System Dialog…</button>
+            </div>
+            <div class="fb-nav-row">
+              <button id="fb-btn-up" class="fb-up-btn" type="button" title="Go to parent folder (↑)">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+                <span>Up</span>
+              </button>
+              <div id="fb-current-dir" class="fb-current-dir" title=""></div>
+            </div>
+            <div class="fb-input-row">
+              <input id="fb-filter-input" class="fb-filter-input" type="text" placeholder="Filter folder or paste file path + Enter…" autocomplete="off" spellcheck="false" />
+            </div>
+            <div id="fb-entry-list" class="fb-entry-list" role="listbox" aria-label="Directory contents"></div>
+          </div>
         </div>
 
         <span id="sync-dot" class="status-dot" data-state="idle" data-tooltip="Ready"></span>
 
         <!-- 4-Mode Segmented Control: Reader | Editor | Reviewer | Raw -->
         <div class="mode-segmented-control" role="group" aria-label="Workspace Mode">
-          <button id="mode-btn-reader" class="mode-seg-btn active" type="button" data-mode="reader" data-tooltip="Reader Mode · Final clean visualization (click 💬 Comment on hover to add/edit notes)">
+          <button id="mode-btn-reader" class="mode-seg-btn active" type="button" data-mode="reader" data-tooltip="Reader" data-tooltip-pos="right">
             <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             <span>Reader</span>
           </button>
-          <button id="mode-btn-editor" class="mode-seg-btn" type="button" data-mode="editor" data-tooltip="Editor Mode · Click any block to edit, Heatmap, Slop/Vale/Fog lenses &amp; AI">
+          <button id="mode-btn-editor" class="mode-seg-btn" type="button" data-mode="editor" data-tooltip="Editor">
             <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
             <span>Editor</span>
           </button>
-          <button id="mode-btn-reviewer" class="mode-seg-btn" type="button" data-mode="reviewer" data-tooltip="Reviewer Mode · Inline review comment threads in body &amp; diagnostic lenses">
+          <button id="mode-btn-reviewer" class="mode-seg-btn" type="button" data-mode="reviewer" data-tooltip="Reviewer">
             <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             <span>Reviewer</span>
           </button>
-          <button id="mode-btn-raw" class="mode-seg-btn" type="button" data-mode="raw" data-tooltip="Raw Mode · Full-document raw Markdown source editor">
+          <button id="mode-btn-raw" class="mode-seg-btn" type="button" data-mode="raw" data-tooltip="Raw">
             <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
             <span>Raw</span>
           </button>
@@ -84,63 +108,68 @@
 
       <!-- Center: Ambient Editorial Lenses (Editor & Reviewer Modes) -->
       <div id="editor-lens-cluster" class="lens-cluster editor-only hidden" hidden role="group" aria-label="Editorial Lenses">
-        <button id="lens-btn-heatmap" class="lens-chip active" type="button" data-lens="heatmap" data-tooltip="Paragraph Heatmap · Color-tint blocks by Fog, Slop &amp; Vale health">
-          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
-          <span>Heatmap</span>
-          <span id="metric-heatmap" class="lens-metric-val">ON</span>
+        <button id="lens-btn-heatmap" class="lens-chip active" type="button" data-lens="heatmap" data-tooltip="Heatmap" data-tooltip-pos="right" aria-label="Toggle Paragraph Heatmap">
+          <span id="heatmap-toggle-icon" class="lens-emoji-icon" aria-hidden="true">🔥</span>
+          <span id="metric-heatmap" class="lens-metric-val hidden" hidden>ON</span>
         </button>
-        <button id="lens-btn-slop" class="lens-chip active" type="button" data-lens="slop" data-tooltip="AI Slop Lens · Toggle highlights (Target &lt; 20)">
-          <svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
-          <span>Slop</span>
-          <span id="metric-slop" class="lens-metric-val">—</span>
+        <button id="lens-btn-slop" class="lens-chip active" type="button" data-lens="slop" data-tooltip="Slop" aria-label="Toggle Slop Lens">
+          <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
+          <span id="metric-slop" class="lens-val">—</span>
         </button>
-        <button id="lens-btn-vale" class="lens-chip active" type="button" data-lens="vale" data-tooltip="Vale Style Lens · Toggle highlights (Target 0)">
-          <svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
-          <span>Vale</span>
-          <span id="metric-vale" class="lens-metric-val">—</span>
+        <button id="lens-btn-vale" class="lens-chip active" type="button" data-lens="vale" data-tooltip="Vale" aria-label="Toggle Vale Lens">
+          <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+          <span id="metric-vale" class="lens-val">—</span>
         </button>
-        <button id="lens-btn-fog" class="lens-chip" type="button" data-lens="fog" data-tooltip="Gunning Fog Readability · Toggle long sentences (Target 11–15)">
-          <svg viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-          <span>Fog</span>
-          <span id="metric-fog" class="lens-metric-val">—</span>
+        <button id="lens-btn-fog" class="lens-chip" type="button" data-lens="fog" data-tooltip="Fog" aria-label="Toggle Fog Lens">
+          <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 17H7"/><path d="M17 21H9"/></svg>
+          <span id="metric-fog" class="lens-val">—</span>
         </button>
       </div>
 
       <!-- Right: Send Review Comments, Second-Plane SEO & GEO, Undo/Redo, Ask Agent, Settings & Theme -->
-      <div class="toolbar-group">
+      <div class="toolbar-group toolbar-right">
         <!-- Visible in any mode whenever totalReviews > 0 -->
-        <button id="btn-send-review-agent" class="btn-review-dispatch hidden" type="button" hidden data-tooltip="Resolve all inline paragraph review comments with AI (stages inline diff proposals)" data-tooltip-pos="left">
-          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          <span id="review-count-label">Resolve Comments with AI (0)</span>
+        <button id="btn-send-review-chat" class="btn-review-dispatch btn-review-chat hidden" type="button" hidden data-tooltip="Send to chat" data-tooltip-pos="left">
+          <svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+          <span id="review-chat-count-label">0</span>
         </button>
 
-        <!-- Second-Plane SEO & GEO Readiness Audit -->
-        <button id="btn-seo-geo" class="lens-chip seo-geo-chip editor-only hidden" hidden type="button" data-lens="seo" data-tooltip="SEO &amp; GEO Readiness Audit (Metadata Split &amp; LLM Quotability)" data-tooltip-pos="left">
-          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <span>SEO &amp; GEO</span>
-          <span id="metric-seo" class="lens-metric-val">—</span>
-        </button>
-
-        <button id="btn-undo" class="tool-icon-btn editor-only hidden" hidden type="button" data-tooltip="Undo (⌘Z)" data-tooltip-pos="left" aria-label="Undo" disabled>
-          <svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
-        </button>
-
-        <button id="btn-redo" class="tool-icon-btn editor-only hidden" hidden type="button" data-tooltip="Redo (⌘Y / ⇧⌘Z)" data-tooltip-pos="left" aria-label="Redo" disabled>
-          <svg viewBox="0 0 24 24"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
-        </button>
-
-        <button id="btn-ask-agent-top" class="tool-icon-btn accent-glow editor-only hidden" hidden type="button" data-tooltip="Ask Agent &amp; AI Rewrites (⌘K / ⌘I)" data-tooltip-pos="left" aria-label="Ask Agent">
+        <button id="btn-send-review-agent" class="btn-review-dispatch hidden" type="button" hidden data-tooltip="Resolve" data-tooltip-pos="left">
           <svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+          <span id="review-count-label">0</span>
         </button>
 
-        <button id="btn-settings" class="tool-icon-btn" type="button" data-tooltip="Settings · AI, Vale Rules &amp; Vocabulary" data-tooltip-pos="left" aria-label="Settings">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
+        <div class="toolbar-actions-cluster" role="group" aria-label="Document &amp; Studio Actions">
+          <!-- Second-Plane SEO & GEO Readiness Audit -->
+          <button id="btn-seo-geo" class="lens-chip seo-geo-chip editor-only hidden" hidden type="button" data-lens="seo" data-tooltip="SEO &amp; GEO" data-tooltip-pos="left">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span>SEO</span>
+            <span id="metric-seo" class="lens-metric-val">—</span>
+          </button>
 
-        <button id="btn-theme-toggle" class="tool-icon-btn" type="button" data-tooltip="Toggle Light / Dark Theme" data-tooltip-pos="left" aria-label="Toggle Light or Dark Theme">
-          <svg id="theme-icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-          <svg id="theme-icon-moon" class="hidden" hidden viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-        </button>
+          <div class="history-btn-group editor-only" role="group" aria-label="Edit History">
+            <button id="btn-undo" class="tool-icon-btn editor-only hidden" hidden type="button" data-tooltip="Undo" data-tooltip-pos="left" aria-label="Undo" disabled>
+              <svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+            </button>
+
+            <button id="btn-redo" class="tool-icon-btn editor-only hidden" hidden type="button" data-tooltip="Redo" data-tooltip-pos="left" aria-label="Redo" disabled>
+              <svg viewBox="0 0 24 24"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
+            </button>
+          </div>
+
+          <button id="btn-ask-agent-top" class="tool-icon-btn accent-glow editor-only hidden" hidden type="button" data-tooltip="AI rewrite" data-tooltip-pos="left" aria-label="Ask Agent">
+            <svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+          </button>
+
+          <button id="btn-settings" class="tool-icon-btn" type="button" data-tooltip="Settings" data-tooltip-pos="left" aria-label="Settings">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+
+          <button id="btn-theme-toggle" class="tool-icon-btn" type="button" data-tooltip="Theme" data-tooltip-pos="left" aria-label="Toggle Light or Dark Theme">
+            <svg id="theme-icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            <svg id="theme-icon-moon" class="hidden" hidden viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -166,9 +195,9 @@
           <h2>Speedgrapher</h2>
           <p id="empty-state-subtitle">Select a Markdown file from your workspace or start a new draft.</p>
           <div class="empty-state-actions">
-            <button id="btn-empty-add-block" class="btn-secondary" type="button">New Blank Draft</button>
+            <button id="btn-empty-open-file" class="btn-primary" type="button">Open File…</button>
+            <button id="btn-empty-add-block" class="btn-secondary" type="button">New Draft</button>
           </div>
-          <div id="empty-workspace-files" class="empty-files-list hidden" hidden></div>
         </div>
 
         <!-- Seamless Block-Direct Document Sheet (Reader, Editor, Reviewer Modes) -->
@@ -176,19 +205,14 @@
 
         <!-- Full-Document Raw Markdown Editor Sheet (Raw Mode) -->
         <div id="raw-editor-wrap" class="document-sheet raw-editor-sheet hidden" hidden aria-label="Raw Markdown Source Editor">
-          <div class="raw-editor-header">
-            <span class="raw-editor-title">RAW MARKDOWN SOURCE</span>
+          <div class="raw-editor-header" style="justify-content: flex-end;">
             <span id="raw-line-count-badge" class="cmd-row-badge">0 lines</span>
           </div>
           <textarea id="raw-markdown-editor" class="raw-markdown-textarea" spellcheck="true" placeholder="Write raw Markdown here…"></textarea>
         </div>
 
         <div id="sheet-footer" class="sheet-meta-footer hidden" hidden>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span id="word-count-badge">0 words</span>
-            <span id="footer-mode-badge" class="cmd-row-badge">Reader Mode</span>
-          </div>
-          <span id="active-file-badge" style="font-family: var(--font-mono); font-size: 10.5px;"></span>
+          <span id="word-count-badge">0 words</span>
         </div>
       </main>
     </div>
@@ -198,7 +222,7 @@
       <div class="panel-head">
         <div class="panel-head-title">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <span>SEO &amp; GEO Readiness Audit</span>
+          <span>SEO &amp; GEO</span>
         </div>
         <button id="btn-close-seo" class="block-mini-icon" type="button" title="Close">
           <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -208,46 +232,44 @@
       <!-- Dual Score Strip: SEO Score + GEO Score -->
       <div class="seo-geo-score-row">
         <div class="seo-geo-score-card">
-          <span class="seo-geo-score-label">SEO Score</span>
+          <span class="seo-geo-score-label">SEO</span>
           <strong id="seo-score-val" class="seo-geo-score-num">—</strong>
-          <span class="seo-geo-score-sub">Search Hygiene</span>
         </div>
         <div class="seo-geo-score-card">
-          <span class="seo-geo-score-label">GEO Score</span>
+          <span class="seo-geo-score-label">GEO</span>
           <strong id="geo-score-val" class="seo-geo-score-num">—</strong>
-          <span class="seo-geo-score-sub">LLM Quotability</span>
         </div>
       </div>
 
       <div class="segmented-row">
-        <span style="font-size: 11px; color: var(--text-muted);">Audit Profile</span>
+        <span style="font-size: 11px; color: var(--text-muted);">Profile</span>
         <div class="segmented-control" role="group">
           <button class="seg-btn active" type="button" data-doc-type="auto">Auto</button>
           <button class="seg-btn" type="button" data-doc-type="doc">Doc</button>
-          <button class="seg-btn" type="button" data-doc-type="page">Web Page</button>
+          <button class="seg-btn" type="button" data-doc-type="page">Page</button>
         </div>
       </div>
 
       <div style="display: flex; gap: 6px;">
-        <input id="keyword-input" class="text-input" type="text" placeholder="Target SEO/GEO keyword…" />
-        <button id="btn-seo-agent-fix" class="btn-primary" type="button" style="white-space: nowrap;" data-tooltip="Run publish skill &amp; SEO/GEO rewrite in-panel with AI (stages inline diff proposals)" data-tooltip-pos="left">✨ Fix with AI</button>
+        <input id="keyword-input" class="text-input" type="text" placeholder="Target keyword…" />
+        <button id="btn-seo-agent-fix" class="btn-primary" type="button" style="white-space: nowrap;" data-tooltip="Fix SEO" data-tooltip-pos="left">✨ Fix</button>
       </div>
 
       <!-- Dual-Purpose Metadata Split (summary 80-180 chars vs description 120-160 chars) -->
       <div class="seo-section-block">
-        <div class="seo-section-head">Dual-Purpose Metadata Split</div>
+        <div class="seo-section-head">Metadata</div>
         <div id="seo-metadata-split" class="seo-metadata-split"></div>
       </div>
 
       <!-- GEO Readiness Checks -->
       <div class="seo-section-block">
-        <div class="seo-section-head">GEO Checks (Generative Engine Optimization)</div>
+        <div class="seo-section-head">GEO Checks</div>
         <div id="geo-checks-strip" class="seo-checks-grid"></div>
       </div>
 
       <!-- Technical SEO Checks -->
       <div class="seo-section-block">
-        <div class="seo-section-head">Technical SEO &amp; Structure Checks</div>
+        <div class="seo-section-head">SEO Checks</div>
         <div id="seo-checks-strip" class="seo-checks-grid"></div>
       </div>
     </section>
@@ -257,7 +279,7 @@
       <div class="panel-head">
         <div class="panel-head-title">
           <svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
-          <span>Ask Agent</span>
+          <span id="cmd-title-label">Ask Agent</span>
         </div>
         <div style="display: flex; align-items: center; gap: 6px;">
           <span id="cmd-scope-badge" class="cmd-row-badge">Full Doc</span>
@@ -270,8 +292,10 @@
       <!-- Free-Style Instruction Input -->
       <div class="cmd-input-box">
         <input id="cmd-input" type="text" placeholder="Describe how to edit this passage or document…" autocomplete="off" />
-        <button id="btn-cmd-submit" class="btn-primary" type="button" style="white-space: nowrap;" data-tooltip="Rewrite in-panel with AI (stages inline diff proposal without writing to disk)" data-tooltip-pos="left">✨ Rewrite with AI</button>
-        <button id="btn-cmd-send-chat" class="btn-secondary" type="button" style="white-space: nowrap;" data-tooltip="Share passage and note with Main Agent Chat for awareness/discussion" data-tooltip-pos="left">💬 Send to Chat</button>
+        <button id="btn-cmd-submit" class="btn-primary" type="button" style="white-space: nowrap;" data-tooltip="Stage diff" data-tooltip-pos="left">Stage Diff</button>
+        <button id="btn-cmd-send-chat" class="btn-secondary btn-icon-only" type="button" data-tooltip="Send to chat" data-tooltip-pos="left" aria-label="Send to main chat">
+          <svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+        </button>
       </div>
 
       <!-- Attached Paragraph Telemetry & Findings Summary -->
@@ -420,10 +444,10 @@
       <div id="popover-block-diag" class="popover-diag-box hidden" hidden></div>
 
       <div id="popover-action-bar" class="lens-popover-bar">
-        <button id="btn-popover-replace" class="btn-success hidden" type="button" hidden>✓ Apply Fix</button>
-        <button id="btn-popover-add-vocab" class="btn-secondary hidden" type="button" hidden data-tooltip="Add term to Vale accept.txt vocabulary">+ Add to Vocab</button>
-        <button id="btn-popover-disable-rule" class="btn-secondary hidden" type="button" hidden data-tooltip="Disable this Vale rule in .vale.ini">Mute Rule</button>
-        <button id="btn-popover-ask-agent" class="btn-secondary" type="button">✨ Ask Agent to Fix</button>
+        <button id="btn-popover-replace" class="btn-success hidden" type="button" hidden>Apply</button>
+        <button id="btn-popover-add-vocab" class="btn-secondary hidden" type="button" hidden data-tooltip="Add vocab">+ Vocab</button>
+        <button id="btn-popover-disable-rule" class="btn-secondary hidden" type="button" hidden data-tooltip="Mute rule">Mute</button>
+        <button id="btn-popover-ask-agent" class="btn-secondary" type="button">✨ Rewrite</button>
       </div>
     </div>
   </div>

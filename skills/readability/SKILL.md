@@ -1,19 +1,15 @@
 ---
 name: readability
 description: >
-  Jargon mitigation, AI-trope elimination (deslopify), and paragraph-level
-  copyediting workflow. Grounded in the Harvard Business Review study "Does Your
-  Office Have a Jargon Problem?" (Brown, Anicich, Galinsky 2021), it separates
-  functional technical precision from status-signaling jargon, purges synthetic
-  AI phrasing across five dimensions, and resolves per-paragraph Gunning Fog
-  (11-15) and Vale style hotspots. Activate when asked to improve readability,
-  cut jargon, deslopify prose, or fix fog, slop, and vale alerts.
+  Technical copyediting workflow that replaces corporate jargon with plain
+  English, removes synthetic AI phrasing, and resolves paragraph-level
+  readability and grammar issues.
 license: Apache-2.0
 metadata:
   category: writing
-  tags: "readability, jargon, deslopify, fog, vale, copyediting, prose"
+  tags: "readability, copyediting, editing, jargon, style, grammar, prose"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.11.1"
+  version: "0.12.0"
 ---
 
 # Readability: jargon mitigation, deslopification & copyediting
@@ -117,7 +113,7 @@ Re-run `fog`, `slop`, and `vale` on the edited file to verify measurable improve
 - **Target `slop` Score**: **$< 20$** (never finish with a Slop Score $\ge 25$).
 - **Target `fog` Index**: **$11.0\text{–}15.0$** overall, with no individual narrative paragraph stranded in the `hard` ($> 18$) bucket.
 - **Target `vale` Status**: **0 errors and 0 warnings**.
-- Report a concise **Before $\rightarrow$ After Telemetry Table** (`fog`, `slop`, and `vale` counts) and surface `[Speedgrapher](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md)`.
+- Report a concise **Before $\rightarrow$ After Telemetry Table** (`fog`, `slop`, and `vale` counts) and surface `[file.md](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md)`.
 
 ---
 

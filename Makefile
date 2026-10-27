@@ -31,12 +31,22 @@ build:
 
 install-plugin: build
 	@mkdir -p $(PLUGIN_DIR)
-	@rsync -a --delete \
+	@TMP_VOCAB=""; \
+	if [ -f "$(PLUGIN_DIR)/styles/config/vocabularies/Speedgrapher/accept.txt" ]; then \
+		TMP_VOCAB=$$(mktemp); \
+		cp "$(PLUGIN_DIR)/styles/config/vocabularies/Speedgrapher/accept.txt" "$$TMP_VOCAB"; \
+	fi; \
+	rsync -a --delete \
 		--exclude='.git/' \
 		--exclude='dist/' \
 		--exclude='.gemini/' \
 		--exclude='coverage.out' \
-		./ $(PLUGIN_DIR)/
+		./ $(PLUGIN_DIR)/; \
+	if [ -n "$$TMP_VOCAB" ] && [ -f "$$TMP_VOCAB" ]; then \
+		awk 'NF && !seen[$$0]++' "$(PLUGIN_DIR)/styles/config/vocabularies/Speedgrapher/accept.txt" "$$TMP_VOCAB" > "$$TMP_VOCAB.merged" && \
+		mv "$$TMP_VOCAB.merged" "$(PLUGIN_DIR)/styles/config/vocabularies/Speedgrapher/accept.txt"; \
+		rm -f "$$TMP_VOCAB"; \
+	fi
 	@if [ -n "$$ANTIGRAVITY_LS_ADDRESS" ] && [ -n "$$ANTIGRAVITY_CSRF_TOKEN" ]; then \
 		curl -sS -X POST "http://$$ANTIGRAVITY_LS_ADDRESS/exa.language_server_pb.LanguageServerService/JetboxWriteState" \
 			-H "Content-Type: application/json" \

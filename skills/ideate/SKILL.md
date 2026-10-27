@@ -1,20 +1,15 @@
 ---
 name: ideate
 description: >
-  Socratic technical discovery and inverted-pyramid information architecture
-  workflow. Interviews engineers one question at a time using the
-  Open-Focused-Closed loop to extract triggering incidents, failed hypotheses,
-  concrete artifacts, and engineering trade-offs, then structures blog posts,
-  README.md files, and Agent Skills (SKILL.md) across three progressive reader
-  personas (The Scanner, The Operator, and The Contributor). Activate when
-  brainstorming a technical article, interviewing an author, or outlining a
-  blog post, README.md, or SKILL.md.
+  Socratic technical discovery and inverted-pyramid outlining workflow that
+  interviews engineers one question at a time and structures blog posts,
+  READMEs, and documentation by descending reader value.
 license: Apache-2.0
 metadata:
   category: writing
-  tags: "ideation, interviewing, outlining, inverted-pyramid, readme, architecture"
+  tags: "brainstorming, interview, outline, blog, readme, documentation, writing"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.11.1"
+  version: "0.12.0"
 ---
 
 # Ideate: Socratic Discovery & Inverted-Pyramid Outlining

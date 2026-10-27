@@ -1,5 +1,6 @@
 [Ss]peedgrapher
 Antigravity
+[Aa]gentic
 [Dd]eslopify
 Gunning
 Fog

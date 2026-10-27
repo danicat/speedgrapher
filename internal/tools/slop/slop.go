@@ -188,13 +188,16 @@ var (
 	codeBlockRegex     = regexp.MustCompile("(?s)(?:```[\\s\\S]*?```|~~~[\\s\\S]*?~~~)")
 	htmlCommentRegex   = regexp.MustCompile(`(?s)<!--.*?-->`)
 	mdTableSepRegex    = regexp.MustCompile(`(?m)^\s*\|?(?:\s*:?-{2,}:?\s*\|)+\s*:?-{2,}:?\s*\|?\s*$`)
-	hrLineRegex        = regexp.MustCompile(`^(?:\*\s*){3,}$|^(?:-\s*){3,}$|^(?:_\s*){3,}$`)
-	mdImageRegex       = regexp.MustCompile(`!\[([^\]]*)\]\([^\)]+\)`)
-	mdLinkRegex        = regexp.MustCompile(`\[([^\]]+)\]\([^\)]+\)`)
-	mdLinkURLSpanRegex = regexp.MustCompile(`\]\([^\)]+\)`)
-	inlineCodeRegex    = regexp.MustCompile("`([^`]+)`")
-	htmlTagRegex       = regexp.MustCompile(`(?s)<[^>]*>`)
-	shortcodeRegex     = regexp.MustCompile(`(?s)\{\{[^}]*\}\}`)
+	hrLineRegex           = regexp.MustCompile(`^(?:\*\s*){3,}$|^(?:-\s*){3,}$|^(?:_\s*){3,}$`)
+	mdHugoImageRegex      = regexp.MustCompile(`(?s)!\[([^\]]*)\]\(\s*\{\{.*?\}\}\s*\)`)
+	mdHugoLinkRegex       = regexp.MustCompile(`(?s)\[([^\]]+)\]\(\s*\{\{.*?\}\}\s*\)`)
+	mdHugoLinkURLSpanRe   = regexp.MustCompile(`(?s)\]\(\s*\{\{.*?\}\}\s*\)`)
+	mdImageRegex          = regexp.MustCompile(`!\[([^\]]*)\]\([^\)]+\)`)
+	mdLinkRegex           = regexp.MustCompile(`\[([^\]]+)\]\([^\)]+\)`)
+	mdLinkURLSpanRegex    = regexp.MustCompile(`\]\([^\)]+\)`)
+	inlineCodeRegex       = regexp.MustCompile("`([^`]+)`")
+	shortcodeRegex        = regexp.MustCompile(`(?s)\{\{.*?\}\}`)
+	htmlTagRegex          = regexp.MustCompile(`(?s)<[^>]*>`)
 	nonAlphaNumRegex   = regexp.MustCompile(`(?i)[^a-z0-9\s]`)
 	sentenceSplitRe    = regexp.MustCompile(`[.!?]+(?:\s+|$)`)
 	multiSpaceCollapse = regexp.MustCompile(`\s{2,}`)
@@ -441,9 +444,14 @@ func maskInlineSpans(line string) string {
 	masked := inlineCodeRegex.ReplaceAllStringFunc(line, func(m string) string {
 		return strings.Repeat(" ", len(m))
 	})
+	masked = mdHugoLinkURLSpanRe.ReplaceAllStringFunc(masked, func(m string) string {
+		return "]" + strings.Repeat(" ", len(m)-1)
+	})
 	masked = mdLinkURLSpanRegex.ReplaceAllStringFunc(masked, func(m string) string {
 		return "]" + strings.Repeat(" ", len(m)-1)
 	})
+	masked = shortcodeRegex.ReplaceAllStringFunc(masked, maskPreserveNewlines)
+	masked = htmlTagRegex.ReplaceAllStringFunc(masked, maskPreserveNewlines)
 	return masked
 }
 
@@ -830,13 +838,15 @@ func Calculate(rawText string) (SlopResult, error) {
 	text = frontmatterRegex.ReplaceAllString(text, "")
 	text = codeBlockRegex.ReplaceAllString(text, "")
 	text = mdTableSepRegex.ReplaceAllString(text, "")
+	text = mdHugoImageRegex.ReplaceAllString(text, "$1")
+	text = mdHugoLinkRegex.ReplaceAllString(text, "$1")
 	text = mdImageRegex.ReplaceAllString(text, "$1")
 	text = mdLinkRegex.ReplaceAllString(text, "$1")
 	// Strip inline code
 	text = inlineCodeRegex.ReplaceAllString(text, "$1")
-	// Strip HTML tags and Hugo shortcodes
-	text = htmlTagRegex.ReplaceAllString(text, "")
-	text = shortcodeRegex.ReplaceAllString(text, "")
+	// Strip Hugo shortcodes before HTML tags so {{< ... >}} is removed cleanly
+	text = shortcodeRegex.ReplaceAllString(text, " ")
+	text = htmlTagRegex.ReplaceAllString(text, " ")
 
 	words := strings.Fields(nonAlphaNumRegex.ReplaceAllString(text, ""))
 	totalW := float64(len(words))

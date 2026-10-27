@@ -1,21 +1,15 @@
 ---
 name: publish
 description: >
-  Two-stage editorial review, inline annotation (<!-- review: ... -->),
-  technical SEO, Generative Engine Optimization (GEO), and localization release
-  gate. Stage A audits any Markdown document with fog, slop, and vale, resolves
-  or injects inline review comments, and outputs a line-indexed Editorial Review
-  Scorecard. Stage B runs the 7-point seo verification gate for blog posts and
-  web pages, enforcing the dual-purpose metadata split (summary vs.
-  description), GEO citability, TechArticle JSON-LD, /llms.txt awareness, and
-  technical localization. Activate when reviewing a draft, resolving inline
-  comments, auditing SEO/GEO metadata, or preparing an article for publication.
+  Editorial review and publication readiness workflow that audits prose
+  quality, resolves or injects inline review comments, and verifies technical
+  SEO, GEO, and frontmatter metadata.
 license: Apache-2.0
 metadata:
   category: writing
-  tags: "review, publish, seo, geo, localization, frontmatter, inline-comments"
+  tags: "review, publish, seo, geo, metadata, localization, blog"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.11.1"
+  version: "0.12.0"
 ---
 
 # Publish: Editorial Review, Inline Annotations & SEO/GEO Release Gate
@@ -40,9 +34,9 @@ flowchart TD
     StageB --> Output["Deliver Scorecard, Indexed Fixes\n& Release Checklist + Speedgrapher Pill"]
 ```
 
-Whenever you review or prepare a `.md` file for release, always surface the deep-linked side-panel pill at the top of your response:
+Whenever you review or prepare a `.md` file for release, always surface the side-panel pill at the top of your response:
 
-> Open in [Speedgrapher](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md) to inspect live diagnostics, inline comments, and SEO telemetry in the side pane.
+> Open [file.md](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md) to inspect live diagnostics, inline comments, and SEO telemetry in the side pane.
 
 ---
 
@@ -88,7 +82,7 @@ Structure every editorial review using this exact template so the author can eva
 ```markdown
 ## Editorial Review: `<filename.md>`
 
-Open in [Speedgrapher](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md)
+Open [file.md](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md)
 
 ### 1. Editorial Review Scorecard
 

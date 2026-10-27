@@ -518,3 +518,24 @@ func TestRealWorldWebCalibrationCorpus(t *testing.T) {
 		})
 	}
 }
+
+func TestCalculate_HugoShortcodeLinksIgnored(t *testing.T) {
+	withHugo := `In the [previous article]({{< ref "/posts/20261006-delve-tapestry-pivotal-landscape" >}}), we wrote a simple HTTP server in Go. It reads requests from a socket and writes JSON responses.`
+	withStandard := `In the [previous article](https://example.com/post), we wrote a simple HTTP server in Go. It reads requests from a socket and writes JSON responses.`
+
+	resHugo, err := Calculate(withHugo)
+	if err != nil {
+		t.Fatalf("Calculate(withHugo) unexpected error: %v", err)
+	}
+	resStandard, err := Calculate(withStandard)
+	if err != nil {
+		t.Fatalf("Calculate(withStandard) unexpected error: %v", err)
+	}
+
+	if len(resHugo.Findings) != len(resStandard.Findings) {
+		t.Errorf("expected Hugo shortcode URL contents to be ignored by slop detector: got findings %+v, want %+v", resHugo.Findings, resStandard.Findings)
+	}
+	if resHugo.OverallScore != resStandard.OverallScore {
+		t.Errorf("expected identical slop score with Hugo shortcode link: got %.2f, want %.2f", resHugo.OverallScore, resStandard.OverallScore)
+	}
+}

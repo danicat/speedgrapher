@@ -25,11 +25,13 @@ var (
 	hrRe          = regexp.MustCompile(`^(?:\*\s*){3,}$|^(?:-\s*){3,}$|^(?:_\s*){3,}$`)
 	headingRe     = regexp.MustCompile(`^(#{1,6})\s+(.*)$`)
 	listItemRe    = regexp.MustCompile(`^\s*(?:[-*+]|\d+[.)])\s+`)
+	mdHugoLinkRe  = regexp.MustCompile(`(?s)\[([^\]]+)\]\(\s*\{\{.*?\}\}\s*\)`)
+	mdHugoImageRe = regexp.MustCompile(`(?s)!\[([^\]]*)\]\(\s*\{\{.*?\}\}\s*\)`)
 	mdLinkRe      = regexp.MustCompile(`\[([^\]]+)\]\([^)]+\)`)
 	mdImageRe     = regexp.MustCompile(`!\[([^\]]*)\]\([^)]+\)`)
 	inlineCodeRe  = regexp.MustCompile("`([^`]*)`")
+	shortcodeRe   = regexp.MustCompile(`(?s)\{\{.*?\}\}`)
 	htmlTagRe     = regexp.MustCompile(`(?s)<[^>]*>`)
-	shortcodeRe   = regexp.MustCompile(`(?s)\{\{[^}]*\}\}`)
 )
 
 // ProseBlock represents a segmented 1-indexed Markdown prose block.
@@ -129,11 +131,13 @@ func maskNonProseLines(raw string) []string {
 
 // cleanProseLine strips Markdown formatting tokens from a single prose line for word/sentence counting.
 func cleanProseLine(line string) string {
-	s := mdImageRe.ReplaceAllString(line, "$1")
+	s := mdHugoImageRe.ReplaceAllString(line, "$1")
+	s = mdHugoLinkRe.ReplaceAllString(s, "$1")
+	s = mdImageRe.ReplaceAllString(s, "$1")
 	s = mdLinkRe.ReplaceAllString(s, "$1")
 	s = inlineCodeRe.ReplaceAllString(s, "$1")
-	s = htmlTagRe.ReplaceAllString(s, " ")
 	s = shortcodeRe.ReplaceAllString(s, " ")
+	s = htmlTagRe.ReplaceAllString(s, " ")
 	if m := headingRe.FindStringSubmatch(strings.TrimSpace(s)); m != nil {
 		s = m[2]
 	}

@@ -484,12 +484,15 @@ func renderContentToHTML(ctx context.Context, content, filePath, searchDir, docT
 }
 
 var (
-	mdImagePattern   = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
-	mdLinkPattern    = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
-	htmlCommentStrip = regexp.MustCompile(`(?s)<!--.*?-->`)
-	numericClaimRe   = regexp.MustCompile(`\b\d+(?:\.\d+)?(?:\s*(?:%|ms|ns|us|s|x|MB|GB|KB|KiB|MiB|fps|req/s|ops/s|words|chars))?\b`)
-	mdTableSepLineRe = regexp.MustCompile(`^\s*\|?(?:\s*:?-{2,}:?\s*\|)+\s*:?-{2,}:?\s*\|?\s*$`)
-	mdListLineRe     = regexp.MustCompile(`^\s*(?:[-*+]|\d+[.)])\s+`)
+	mdHugoImagePattern = regexp.MustCompile(`(?s)!\[([^\]]*)\]\(\s*(\{\{.*?\}\})\s*\)`)
+	mdHugoLinkPattern  = regexp.MustCompile(`(?s)\[([^\]]+)\]\(\s*(\{\{.*?\}\})\s*\)`)
+	mdImagePattern     = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
+	mdLinkPattern      = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+	hugoShortcodeStrip = regexp.MustCompile(`(?s)\{\{.*?\}\}`)
+	htmlCommentStrip   = regexp.MustCompile(`(?s)<!--.*?-->`)
+	numericClaimRe     = regexp.MustCompile(`\b\d+(?:\.\d+)?(?:\s*(?:%|ms|ns|us|s|x|MB|GB|KB|KiB|MiB|fps|req/s|ops/s|words|chars))?\b`)
+	mdTableSepLineRe   = regexp.MustCompile(`^\s*\|?(?:\s*:?-{2,}:?\s*\|)+\s*:?-{2,}:?\s*\|?\s*$`)
+	mdListLineRe       = regexp.MustCompile(`^\s*(?:[-*+]|\d+[.)])\s+`)
 )
 
 func hasMarkdownH1(body string) bool {
@@ -551,16 +554,30 @@ func convertMarkdownToHTML(markdown string) (string, error) {
 		}
 
 		// Extract images first and replace them in line so their brackets aren't matched as links
-		imagesMatches := mdImagePattern.FindAllStringSubmatch(line, -1)
+		hugoImagesMatches := mdHugoImagePattern.FindAllStringSubmatch(line, -1)
+		for _, m := range hugoImagesMatches {
+			altText := html.EscapeString(m[1])
+			srcText := html.EscapeString(m[2])
+			bodyBuilder.WriteString(fmt.Sprintf(`<img src="%s" alt="%s">`, srcText, altText) + "\n")
+		}
+		lineWithoutImages := mdHugoImagePattern.ReplaceAllString(line, "")
+		imagesMatches := mdImagePattern.FindAllStringSubmatch(lineWithoutImages, -1)
 		for _, m := range imagesMatches {
 			altText := html.EscapeString(m[1])
 			srcText := html.EscapeString(m[2])
 			bodyBuilder.WriteString(fmt.Sprintf(`<img src="%s" alt="%s">`, srcText, altText) + "\n")
 		}
-		lineWithoutImages := mdImagePattern.ReplaceAllString(line, "")
+		lineWithoutImages = mdImagePattern.ReplaceAllString(lineWithoutImages, "")
 
-		// Extract links
-		linkMatches := mdLinkPattern.FindAllStringSubmatch(lineWithoutImages, -1)
+		// Extract links (including Hugo shortcode links)
+		hugoLinkMatches := mdHugoLinkPattern.FindAllStringSubmatch(lineWithoutImages, -1)
+		for _, m := range hugoLinkMatches {
+			label := html.EscapeString(m[1])
+			href := html.EscapeString(m[2])
+			bodyBuilder.WriteString(fmt.Sprintf(`<a href="%s">%s</a>`, href, label) + "\n")
+		}
+		lineAfterHugoLinks := mdHugoLinkPattern.ReplaceAllString(lineWithoutImages, "$1")
+		linkMatches := mdLinkPattern.FindAllStringSubmatch(lineAfterHugoLinks, -1)
 		for _, m := range linkMatches {
 			label := html.EscapeString(m[1])
 			href := html.EscapeString(m[2])
@@ -574,15 +591,18 @@ func convertMarkdownToHTML(markdown string) (string, error) {
 				level++
 			}
 			if level >= 1 && level <= 6 && level < len(line) && line[level] == ' ' {
-				headingText := strings.TrimSpace(line[level+1:])
+				headingText := strings.TrimSpace(hugoShortcodeStrip.ReplaceAllString(line[level+1:], ""))
 				_, _ = fmt.Fprintf(&bodyBuilder, "<h%d>%s</h%d>\n", level, html.EscapeString(headingText), level)
 				continue
 			}
 		}
 
 		// Plain text line for word count
-		cleanLine := mdLinkPattern.ReplaceAllString(lineWithoutImages, "$1")
-		bodyBuilder.WriteString("<p>" + html.EscapeString(cleanLine) + "</p>\n")
+		cleanLine := mdLinkPattern.ReplaceAllString(lineAfterHugoLinks, "$1")
+		cleanLine = strings.TrimSpace(hugoShortcodeStrip.ReplaceAllString(cleanLine, " "))
+		if cleanLine != "" {
+			bodyBuilder.WriteString("<p>" + html.EscapeString(cleanLine) + "</p>\n")
+		}
 	}
 
 	return fmt.Sprintf("<html><head>\n%s</head><body>\n%s</body></html>", headBuilder.String(), bodyBuilder.String()), nil

@@ -629,3 +629,23 @@ tokens:
 		t.Error("expected error for path-traversal Vocab name, got nil")
 	}
 }
+
+func TestMaskHugoShortcodesForVale(t *testing.T) {
+	input := `In the [previous article]({{< ref "/posts/20261006-building-agentic-backends-with-genkit-go" >}}), we built a Go agent. Also see {{< youtube "dQw4w9WgXcQ" >}} here.`
+	masked := maskHugoShortcodesForVale(input)
+
+	if len(masked) != len(input) {
+		t.Fatalf("expected masked length %d to equal input length %d", len(masked), len(input))
+	}
+	if strings.Contains(masked, "{{") || strings.Contains(masked, "}}") {
+		t.Errorf("expected all Hugo shortcodes to be masked, got %q", masked)
+	}
+	if !strings.Contains(masked, "[previous article](") {
+		t.Errorf("expected link label to be preserved for Vale Markdown parsing, got %q", masked)
+	}
+	suffix := ", we built a Go agent. Also see "
+	if strings.Index(masked, suffix) != strings.Index(input, suffix) {
+		t.Errorf("expected byte offset of suffix after Hugo link to be preserved: got %d, want %d",
+			strings.Index(masked, suffix), strings.Index(input, suffix))
+	}
+}

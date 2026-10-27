@@ -4,9 +4,9 @@
 
 ## Side-panel workspace and modes
 
-Whenever a user types `/speedgrapher`, or creates, edits, or reviews a `*.md` file, surface a pill in chat to open `Speedgrapher` in the auxiliary pane while keeping standard `[filename.md](file:///...)` links for the default Markdown viewer:
+Whenever a user creates, edits, or reviews a `*.md` file, surface a pill in chat to open `Speedgrapher` in the auxiliary pane while keeping standard `[filename.md](file:///...)` links for the default Markdown viewer:
 
-- Use `[Speedgrapher](sidecar://speedgrapher/panel/?file=<path>)` to open a specific file.
+- Use `[file.md](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md)` to open a specific file (using the file's basename as the link text).
 - Use `[Speedgrapher](sidecar://speedgrapher/panel/)` when no specific file sits in scope.
 
 You can switch between four workspace modes in the side panel:
@@ -46,7 +46,7 @@ The `seo` tool audits titles, meta tags (`summary` versus `description`), headin
 
 Activate the matching skill whenever your user's task fits one of these five stages:
 
-1. Use `speedgrapher` to open the side panel, handle inline `<!-- review: ... -->` notes, or route multi-stage writing tasks.
+1. Use `speedgrapher` to surface the `[Speedgrapher](sidecar://speedgrapher/panel/)` pill and open the side-panel Markdown editor.
 2. Use `ideate` to interview engineers one question at a time (`Open -> Focused -> Closed`) and outline blog posts, `README.md` files, or `SKILL.md` files with the inverted pyramid.
 3. Use `draft` to write technical articles and docs that match the author's voice with a 150-word outcome lead, *why-before-how* code examples, and sentence-case headings.
 4. Use `readability` to replace status-signaling corporate jargon and undefined acronyms with plain English using the [Harvard Business Review jargon framework](https://hbr.org/2021/03/do-you-have-a-jargon-problem), purge AI tropes (`deslopify`), and fix paragraph `fog` and `vale` trouble spots.

@@ -35,10 +35,11 @@ const (
 )
 
 var (
-	punctRegex    = regexp.MustCompile(`[[:punct:]]`)
-	sentenceRegex = regexp.MustCompile(`[.!?]+`)
-	wordTokenRe   = regexp.MustCompile(`[A-Za-z]+`)
-	mdLinkDestRe  = regexp.MustCompile(`\]\([^)]*\)`)
+	punctRegex       = regexp.MustCompile(`[[:punct:]]`)
+	sentenceRegex    = regexp.MustCompile(`[.!?]+`)
+	wordTokenRe      = regexp.MustCompile(`[A-Za-z]+`)
+	mdHugoLinkDestRe = regexp.MustCompile(`(?s)\]\(\s*\{\{.*?\}\}\s*\)`)
+	mdLinkDestRe     = regexp.MustCompile(`\]\([^)]*\)`)
 )
 
 // Register registers the fog tool with the server.
@@ -273,11 +274,14 @@ func ClassifyFogIndex(index float64) string {
 
 func maskInlineCodeAndLinks(line string) string {
 	masked := inlineCodeRe.ReplaceAllStringFunc(line, maskSpaces)
+	masked = mdHugoLinkDestRe.ReplaceAllStringFunc(masked, func(m string) string {
+		return "](" + strings.Repeat(" ", len(m)-3) + ")"
+	})
 	masked = mdLinkDestRe.ReplaceAllStringFunc(masked, func(m string) string {
 		return "](" + strings.Repeat(" ", len(m)-3) + ")"
 	})
-	masked = htmlTagRe.ReplaceAllStringFunc(masked, maskSpaces)
 	masked = shortcodeRe.ReplaceAllStringFunc(masked, maskSpaces)
+	masked = htmlTagRe.ReplaceAllStringFunc(masked, maskSpaces)
 	return masked
 }
 

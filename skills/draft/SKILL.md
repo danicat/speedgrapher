@@ -1,20 +1,15 @@
 ---
 name: draft
 description: >
-  Adaptive-voice technical drafting workflow for authoring and expanding
-  engineering blog posts, tutorials, READMEs, and documentation. Enforces voice
-  fingerprinting, an inverted-pyramid 150-word outcome lead, self-contained
-  GEO-ready section leads, grounded code pedagogy (explaining why before how),
-  canonical markdown link citations, sentence-case headings, Google developer
-  brand and legal safety, first-draft anti-slop and anti-jargon guardrails, and
-  pre-delivery verification with fog, slop, and vale. Activate when drafting new
-  technical articles, expanding outlines into prose, or rewriting sections.
+  Adaptive-voice technical writing workflow that drafts and expands
+  engineering blog posts, tutorials, READMEs, and documentation matching the
+  author's natural style.
 license: Apache-2.0
 metadata:
   category: writing
-  tags: "drafting, blogging, documentation, style-guide, code-pedagogy, geo"
+  tags: "writing, drafting, blog, article, tutorial, documentation, readme"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.11.1"
+  version: "0.12.0"
 ---
 
 # Draft: Adaptive-Voice Technical Writing
@@ -117,7 +112,7 @@ Before presenting a completed draft or expanded section to the user, run the `sp
    - Target: **0 errors and 0 warnings**.
    - Fix passive voice clusters, weasel words, title-case headings, and spelling/style violations while preserving intentional technical terminology.
 4. **Surface the Speedgrapher Pill**:
-   - Always include `[Speedgrapher](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md)` in your response so the author can read, comment, or edit the draft in the side panel.
+   - Always include `[file.md](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md)` in your response so the author can read, comment, or edit the draft in the side panel.
 
 ---
 

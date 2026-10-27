@@ -21,11 +21,54 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+var (
+	hugoLinkDestRe  = regexp.MustCompile(`(?s)\]\(\s*\{\{.*?\}\}\s*\)`)
+	hugoShortcodeRe = regexp.MustCompile(`(?s)\{\{.*?\}\}`)
+)
+
+// maskHugoShortcodesForVale masks Hugo shortcodes in Markdown link destinations and standalone
+// shortcodes while preserving exact byte lengths, line numbers, and column offsets so Vale's
+// Goldmark parser treats `[label]({{< ref "..." >}})` as a standard Markdown link and ignores
+// standalone `{{ ... }}` shortcodes.
+func maskHugoShortcodesForVale(text string) string {
+	masked := hugoLinkDestRe.ReplaceAllStringFunc(text, func(m string) string {
+		if len(m) <= 3 {
+			return m
+		}
+		var b strings.Builder
+		b.Grow(len(m))
+		b.WriteString("](")
+		for i := 2; i < len(m)-1; i++ {
+			if m[i] == '\n' {
+				b.WriteByte('\n')
+			} else {
+				b.WriteByte('a')
+			}
+		}
+		b.WriteByte(')')
+		return b.String()
+	})
+	masked = hugoShortcodeRe.ReplaceAllStringFunc(masked, func(m string) string {
+		var b strings.Builder
+		b.Grow(len(m))
+		for i := 0; i < len(m); i++ {
+			if m[i] == '\n' {
+				b.WriteByte('\n')
+			} else {
+				b.WriteByte(' ')
+			}
+		}
+		return b.String()
+	})
+	return masked
+}
 
 // Config holds configuration options for the Vale tool.
 type Config struct {
@@ -331,7 +374,7 @@ func valeHandler(ctx context.Context, _ *mcp.CallToolRequest, input ValeParams, 
 
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, valePath, "--no-exit", "--config", iniPath, "--ext", ".md", "--output=JSON")
-	cmd.Stdin = strings.NewReader(text)
+	cmd.Stdin = strings.NewReader(maskHugoShortcodesForVale(text))
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 

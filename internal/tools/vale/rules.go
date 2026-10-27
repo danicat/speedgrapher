@@ -195,6 +195,9 @@ func ManageRules(input ValeRuleActionParams, cfg ...Config) (*ValeConfigState, e
 		if err != nil {
 			return nil, err
 		}
+		if err := ensureValeIniVocab(iniPath, state.VocabName); err != nil {
+			return nil, err
+		}
 		formattedTerm := formatVocabTerm(rawTerm, input.CaseInsensitive)
 		if err := addTermToVocabFile(state.VocabPath, rawTerm, formattedTerm); err != nil {
 			return nil, err
@@ -447,6 +450,60 @@ func updateValeIniRule(iniPath, ruleID, desiredOverride string) error {
 		newOut = append(newOut, fmt.Sprintf("%s = %s", ruleID, desiredOverride))
 		newOut = append(newOut, out[insertIdx:]...)
 		out = newOut
+	}
+
+	content := strings.TrimRight(strings.Join(out, "\n"), "\n") + "\n"
+	if err := os.WriteFile(iniPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", iniPath, err)
+	}
+	return nil
+}
+
+func ensureValeIniVocab(iniPath, vocabName string) error {
+	data, err := os.ReadFile(iniPath)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", iniPath, err)
+	}
+	lines := strings.Split(string(data), "\n")
+	inRoot := true
+	stylesIdx := -1
+	firstSectionIdx := -1
+
+	for i, rawLine := range lines {
+		trimmed := strings.TrimSpace(rawLine)
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			if inRoot {
+				firstSectionIdx = i
+				inRoot = false
+			}
+			continue
+		}
+		if inRoot {
+			if before, after, ok := strings.Cut(trimmed, "="); ok {
+				key := strings.ToLower(strings.TrimSpace(before))
+				val := strings.TrimSpace(after)
+				if key == "vocab" && val != "" {
+					return nil
+				}
+				if key == "stylespath" {
+					stylesIdx = i
+				}
+			}
+		}
+	}
+
+	vocabLine := fmt.Sprintf("Vocab = %s", vocabName)
+	var out []string
+	if stylesIdx >= 0 {
+		out = append(out, lines[:stylesIdx+1]...)
+		out = append(out, vocabLine)
+		out = append(out, lines[stylesIdx+1:]...)
+	} else if firstSectionIdx >= 0 {
+		out = append(out, lines[:firstSectionIdx]...)
+		out = append(out, vocabLine, "")
+		out = append(out, lines[firstSectionIdx:]...)
+	} else {
+		out = append([]string{vocabLine}, lines...)
 	}
 
 	content := strings.TrimRight(strings.Join(out, "\n"), "\n") + "\n"

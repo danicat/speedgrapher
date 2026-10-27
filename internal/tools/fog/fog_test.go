@@ -617,3 +617,27 @@ We built a complicated configuration to verify how the readability analyzer eval
 		}
 	}
 }
+
+func TestAnalyze_HugoShortcodeLinksIgnored(t *testing.T) {
+	withHugo := `In the [previous article]({{< ref "/posts/20261006-building-agentic-backends-with-genkit-go" >}}), we built an agent.`
+	withNormalLink := `In the [previous article](https://example.com/post), we built an agent.`
+
+	resHugo, err := Analyze(FogParams{Text: withHugo})
+	if err != nil {
+		t.Fatalf("Analyze(withHugo) unexpected error: %v", err)
+	}
+	resNormal, err := Analyze(FogParams{Text: withNormalLink})
+	if err != nil {
+		t.Fatalf("Analyze(withNormalLink) unexpected error: %v", err)
+	}
+
+	if resHugo.TotalWords != resNormal.TotalWords {
+		t.Errorf("Hugo shortcode link leaked into word count: got %d words, want %d", resHugo.TotalWords, resNormal.TotalWords)
+	}
+	if resHugo.ComplexWords != resNormal.ComplexWords {
+		t.Errorf("Hugo shortcode link leaked into complex words: got %d, want %d", resHugo.ComplexWords, resNormal.ComplexWords)
+	}
+	if resHugo.FogIndex != resNormal.FogIndex {
+		t.Errorf("Hugo shortcode link affected FogIndex: got %.2f, want %.2f", resHugo.FogIndex, resNormal.FogIndex)
+	}
+}
