@@ -35,6 +35,7 @@ import { apiPost } from './api.js';
 import {
   parseDocumentIntoBlocks,
   serializeBlocksToMarkdown,
+  serializeBaselineBlocksToMarkdown,
   recomputeBlockLineNumbers,
   findBlockForLine,
   slugifyHeadingAnchor,
@@ -54,40 +55,272 @@ import {
   setStudioMode,
   renderEmptyState,
   renderCanvas,
+  enterBlockEditMode,
 } from './canvas.js';
+import { reconcileExternalDiskUpdate } from './ai.js';
 
 export function updateFilePickerLabel() {
+  const newBtn = document.getElementById('btn-new-file');
   const openBtn = document.getElementById('btn-open-file');
+  const saveBtn = document.getElementById('btn-save-file');
+  const saveAsBtn = document.getElementById('btn-save-as-file');
+  const filePill = document.getElementById('active-file-pill');
   const labelEl = document.getElementById('active-file-label');
   const closeBtn = document.getElementById('btn-close-file');
+  const sendChatTopBtn = document.getElementById('btn-send-chat-top');
+  const isUnsavedDraft = !state.filePath && state.blocks.length > 0;
+  const hasDoc = Boolean(state.filePath || state.blocks.length > 0);
 
   if (labelEl) {
     if (state.filePath) {
       labelEl.textContent = pathBasename(state.filePath);
-    } else if (state.blocks.length > 0) {
-      labelEl.textContent = 'Unsaved Draft (Open .md…)';
+    } else if (isUnsavedDraft) {
+      labelEl.textContent = 'Untitled';
     } else {
-      labelEl.textContent = 'Open .md file…';
+      labelEl.textContent = '';
     }
   }
 
+  if (filePill) {
+    setHidden(filePill, !hasDoc);
+    filePill.classList.toggle('is-unsaved-draft', isUnsavedDraft);
+    filePill.setAttribute(
+      'data-tooltip',
+      state.filePath ? state.filePath : 'Untitled (unsaved file)'
+    );
+  }
+
+  if (newBtn) {
+    newBtn.setAttribute('data-tooltip', 'New File (⌘N)');
+  }
+
   if (openBtn) {
-    openBtn.classList.toggle('has-file', Boolean(state.filePath));
-    openBtn.setAttribute('data-tooltip', 'Open file');
+    openBtn.setAttribute('data-tooltip', 'Open File… (⌘O)');
+  }
+
+  if (saveBtn) {
+    saveBtn.disabled = !hasDoc;
+    saveBtn.classList.toggle('is-unsaved-draft', isUnsavedDraft);
+    saveBtn.setAttribute(
+      'data-tooltip',
+      isUnsavedDraft ? 'Save (⌘S)' : 'Save (⌘S)'
+    );
+  }
+
+  if (saveAsBtn) {
+    saveAsBtn.disabled = !hasDoc;
+    saveAsBtn.setAttribute('data-tooltip', 'Save As… (⇧⌘S)');
   }
 
   if (closeBtn) {
-    setHidden(closeBtn, !state.filePath && state.blocks.length === 0);
+    setHidden(closeBtn, !hasDoc);
   }
+
+  if (sendChatTopBtn) {
+    setHidden(sendChatTopBtn, !hasDoc);
+  }
+}
+
+export function startNewFile() {
+  if (runtime.pollIntervalId) {
+    clearInterval(runtime.pollIntervalId);
+    runtime.pollIntervalId = null;
+  }
+  if (runtime.syncDebounceTimer) {
+    clearTimeout(runtime.syncDebounceTimer);
+    runtime.syncDebounceTimer = null;
+  }
+  closeFileBrowserPopover();
+  clearError();
+  state.filePath = '';
+  state.mtimeMs = 0;
+  state.fileSize = 0;
+  state.lastDiskContent = '';
+  state.audit = null;
+  state.metrics = { fog: null, slop: null, vale: null, seo: null, geo: null, words: 0, blockHealth: {} };
+  state.spans = [];
+  state.blocks = [
+    {
+      id: 'b-1',
+      type: 'paragraph',
+      level: 0,
+      raw: '',
+      baselineRaw: '',
+      reviews: [],
+      startLine: 1,
+      endLine: 1,
+      diff: null,
+      tournament: null,
+      busy: false,
+      busyLabel: '',
+    },
+  ];
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('file');
+    window.history.replaceState({}, '', url.toString());
+  } catch {}
+  resetHistoryForDocument('', 'New file');
+  setStudioMode('editor');
+  updateFilePickerLabel();
+  updateDocNavButtons();
+  updateHeaderTelemetry();
+  renderCanvas();
+  enterBlockEditMode('b-1');
+  setSyncStatus('idle', 'Untitled — unsaved');
+}
+
+export function suggestFilenameFromDraft() {
+  for (const b of state.blocks) {
+    if (b.type === 'heading' && typeof b.raw === 'string') {
+      const headingText = b.raw.replace(/^#{1,6}\s+/, '').trim();
+      const slug = slugifyHeadingAnchor(headingText);
+      if (slug && slug !== 'draft-title') {
+        return `${slug}.md`;
+      }
+    }
+  }
+  return 'untitled.md';
 }
 
 export function closeFileBrowserPopover() {
   fileBrowserState.open = false;
+  fileBrowserState.creatingNewFile = false;
+  fileBrowserState.saveDraftMode = false;
   setHidden('file-browser-popover', true);
-  const openBtn = document.getElementById('btn-open-file');
-  if (openBtn) {
-    openBtn.setAttribute('aria-expanded', 'false');
-    openBtn.classList.remove('active');
+  setHidden('fb-new-file-bar', true);
+  for (const id of ['btn-open-file', 'btn-save-file', 'btn-save-as-file']) {
+    const btn = document.getElementById(id);
+    if (btn) {
+      btn.setAttribute('aria-expanded', 'false');
+      btn.classList.remove('active');
+    }
+  }
+}
+
+export function toggleNewFileBar(forceVisible = undefined, defaultName = '', options = {}) {
+  const next = typeof forceVisible === 'boolean' ? forceVisible : !fileBrowserState.creatingNewFile;
+  const hasDoc = Boolean(state.filePath || state.blocks.length > 0);
+  const saveDraft =
+    typeof options.saveDraftMode === 'boolean' ? options.saveDraftMode : hasDoc;
+
+  fileBrowserState.creatingNewFile = next;
+  fileBrowserState.saveDraftMode = next ? saveDraft : false;
+  setHidden('fb-new-file-bar', !next);
+  const confirmBtn = document.getElementById('fb-btn-create-confirm');
+  if (confirmBtn) {
+    confirmBtn.textContent = 'Save';
+  }
+  if (next) {
+    const inputEl = document.getElementById('fb-new-file-input');
+    if (inputEl) {
+      const initialVal =
+        defaultName ||
+        (state.filePath ? pathBasename(state.filePath) : suggestFilenameFromDraft());
+      inputEl.value = initialVal;
+      inputEl.placeholder = 'filename.md';
+      setTimeout(() => {
+        inputEl.focus();
+        const dotIdx = initialVal.lastIndexOf('.');
+        if (dotIdx > 0) {
+          inputEl.setSelectionRange(0, dotIdx);
+        } else {
+          inputEl.select();
+        }
+      }, 10);
+    }
+  } else {
+    const filterInput = document.getElementById('fb-filter-input');
+    setTimeout(() => filterInput?.focus(), 10);
+  }
+}
+
+export async function openNewFilePrompt(defaultName = '', options = {}) {
+  if (!fileBrowserState.open) {
+    await toggleFileBrowserPopover(true);
+  }
+  toggleNewFileBar(true, defaultName, options);
+}
+
+export async function openSaveDraftPrompt() {
+  const defaultName = state.filePath
+    ? pathBasename(state.filePath)
+    : suggestFilenameFromDraft();
+  await openNewFilePrompt(defaultName, { saveDraftMode: true });
+}
+
+export async function openSaveAsPrompt() {
+  const defaultName = state.filePath
+    ? pathBasename(state.filePath)
+    : suggestFilenameFromDraft();
+  await openNewFilePrompt(defaultName, { saveDraftMode: true });
+}
+
+export async function createNewDocument(rawFilename, rawDir = '', options = {}) {
+  const cleanName = String(rawFilename || '').trim();
+  if (!cleanName) {
+    showError('Please enter a file name for the Markdown document.');
+    return false;
+  }
+  const targetDir =
+    rawDir ||
+    fileBrowserState.currentDir ||
+    (state.filePath ? pathDirname(state.filePath) : state.workspacePath || '');
+
+  const hasDoc = Boolean(state.filePath || state.blocks.length > 0);
+  const shouldSaveContent =
+    typeof options.saveCurrentDraft === 'boolean'
+      ? options.saveCurrentDraft
+      : Boolean(fileBrowserState.saveDraftMode || hasDoc);
+  const rawEditor = document.getElementById('raw-markdown-editor');
+  const currentMarkdown =
+    state.studioMode === 'raw' && rawEditor
+      ? rawEditor.value.replace(/\r\n/g, '\n')
+      : serializeBlocksToMarkdown(state.blocks);
+  const initialContent = shouldSaveContent ? currentMarkdown : '';
+
+  try {
+    clearError();
+    setSyncStatus('saving', 'Saving file…');
+    const res = await apiPost('/api/doc/create', {
+      dir: targetDir,
+      filename: cleanName,
+      content: initialContent,
+      baseDocPath: state.filePath || '',
+      workspacePath: state.workspacePath || '',
+      docType: state.docType,
+      keyword: state.keyword,
+      conversationId: window.sidecar?.conversationId || '',
+    });
+
+    closeFileBrowserPopover();
+    applyOpenedDocumentResponse(res, { targetMode: state.studioMode === 'raw' ? 'raw' : 'editor' });
+
+    if (state.blocks.length === 0) {
+      state.blocks = [
+        {
+          id: 'b-1',
+          type: 'paragraph',
+          level: 0,
+          raw: '',
+          baselineRaw: '',
+          reviews: [],
+          startLine: 1,
+          endLine: 1,
+          diff: null,
+          tournament: null,
+          busy: false,
+          busyLabel: '',
+        },
+      ];
+      renderCanvas();
+      enterBlockEditMode(state.blocks[0].id);
+    }
+    return true;
+  } catch (err) {
+    setSyncStatus('idle', 'Error');
+    showError(`Failed to save "${cleanName}":\n${err.message}`);
+    return false;
   }
 }
 
@@ -103,10 +336,13 @@ export async function toggleFileBrowserPopover(forceOpen = undefined) {
   closeCommentPopover();
 
   fileBrowserState.open = true;
+  fileBrowserState.creatingNewFile = false;
+  fileBrowserState.saveDraftMode = false;
   fileBrowserState.filterText = '';
   fileBrowserState.selectedIndex = 0;
 
   setHidden('file-browser-popover', false);
+  setHidden('fb-new-file-bar', true);
   const openBtn = document.getElementById('btn-open-file');
   if (openBtn) {
     openBtn.setAttribute('aria-expanded', 'true');
@@ -230,36 +466,62 @@ export function renderFileBrowserPopover() {
       ? `No matching folders or .md files in this directory.`
       : `No subdirectories or .md files in this folder.`;
     listEl.appendChild(empty);
-    return;
+  } else {
+    entries.forEach((entry, idx) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const isCurrentDoc = entry.type === 'file' && state.filePath && entry.path === state.filePath;
+      btn.className = `fb-entry-item${idx === fileBrowserState.selectedIndex ? ' is-active' : ''}${
+        isCurrentDoc ? ' is-current-doc' : ''
+      }`;
+      btn.setAttribute('role', 'option');
+      btn.setAttribute('aria-selected', idx === fileBrowserState.selectedIndex ? 'true' : 'false');
+
+      const icon = entry.type === 'dir' ? '📁' : '📄';
+      const badge = entry.type === 'dir' ? 'Folder ↵' : isCurrentDoc ? 'Active' : '.md';
+
+      btn.innerHTML = `
+        <span class="fb-entry-main">
+          <span class="fb-entry-icon" aria-hidden="true">${icon}</span>
+          <span class="fb-entry-name">${escapeHtml(entry.name)}</span>
+        </span>
+        <span class="fb-entry-badge">${escapeHtml(badge)}</span>
+      `;
+
+      btn.addEventListener('click', () => {
+        activateFileBrowserEntry(entry);
+      });
+
+      listEl.appendChild(btn);
+    });
   }
 
-  entries.forEach((entry, idx) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    const isCurrentDoc = entry.type === 'file' && state.filePath && entry.path === state.filePath;
-    btn.className = `fb-entry-item${idx === fileBrowserState.selectedIndex ? ' is-active' : ''}${
-      isCurrentDoc ? ' is-current-doc' : ''
-    }`;
-    btn.setAttribute('role', 'option');
-    btn.setAttribute('aria-selected', idx === fileBrowserState.selectedIndex ? 'true' : 'false');
-
-    const icon = entry.type === 'dir' ? '📁' : '📄';
-    const badge = entry.type === 'dir' ? 'Folder ↵' : isCurrentDoc ? 'Active' : '.md';
-
-    btn.innerHTML = `
-      <span class="fb-entry-main">
-        <span class="fb-entry-icon" aria-hidden="true">${icon}</span>
-        <span class="fb-entry-name">${escapeHtml(entry.name)}</span>
-      </span>
-      <span class="fb-entry-badge">${escapeHtml(badge)}</span>
-    `;
-
-    btn.addEventListener('click', () => {
-      activateFileBrowserEntry(entry);
-    });
-
-    listEl.appendChild(btn);
-  });
+  const rawFilter = (fileBrowserState.filterText || '').trim();
+  if (rawFilter && !rawFilter.includes('/') && !rawFilter.includes('\\')) {
+    const candidateName = /\.(md|markdown)$/i.test(rawFilter) ? rawFilter : `${rawFilter}.md`;
+    const exactExists = fileBrowserState.files.some(
+      (f) => f.name.toLowerCase() === candidateName.toLowerCase()
+    );
+    if (!exactExists) {
+      const isUnsavedDraft = !state.filePath && state.blocks.length > 0;
+      const createRowBtn = document.createElement('button');
+      createRowBtn.type = 'button';
+      createRowBtn.className = 'fb-entry-item fb-entry-create';
+      createRowBtn.innerHTML = `
+        <span class="fb-entry-main">
+          <span class="fb-entry-icon" aria-hidden="true">${isUnsavedDraft ? '💾' : '＋'}</span>
+          <span class="fb-entry-name">${isUnsavedDraft ? 'Save draft as' : 'Create'} <strong>${escapeHtml(candidateName)}</strong></span>
+        </span>
+        <span class="fb-entry-badge">${isUnsavedDraft ? 'Save .md' : 'New .md'}</span>
+      `;
+      createRowBtn.addEventListener('click', () => {
+        createNewDocument(candidateName, fileBrowserState.currentDir, {
+          saveCurrentDraft: isUnsavedDraft,
+        });
+      });
+      listEl.appendChild(createRowBtn);
+    }
+  }
 
   const activeEl = listEl.querySelector('.fb-entry-item.is-active');
   if (activeEl) {
@@ -274,33 +536,6 @@ export async function activateFileBrowserEntry(entry) {
   } else {
     closeFileBrowserPopover();
     await navigateToLinkedDocument(entry.path);
-  }
-}
-
-export async function openSystemFileDialog() {
-  const openBtn = document.getElementById('btn-open-file');
-  try {
-    if (openBtn) openBtn.disabled = true;
-    clearError();
-    const startDir =
-      fileBrowserState.currentDir ||
-      (state.filePath ? pathDirname(state.filePath) : state.workspacePath || '');
-    const res = await apiPost('/api/dialog/open-file', {
-      startDir,
-      currentFilePath: state.filePath || '',
-      workspaceUri: state.workspacePath || '',
-      conversationId: window.sidecar?.conversationId || '',
-    });
-    if (res.canceled || !res.path) {
-      return false;
-    }
-    await navigateToLinkedDocument(res.path);
-    return true;
-  } catch (err) {
-    showError(`Failed to open system file dialog: ${err.message}`);
-    return false;
-  } finally {
-    if (openBtn) openBtn.disabled = false;
   }
 }
 
@@ -545,7 +780,11 @@ function applyOpenedDocumentResponse(res, options = {}) {
     window.__lastObservedSearch = window.location.search;
   } catch {}
 
-  state.blocks = parseDocumentIntoBlocks(res.content);
+  const hasBaselineDiff =
+    typeof res.baselineContent === 'string' &&
+    res.baselineContent.replace(/\r\n/g, '\n') !== (res.content || '').replace(/\r\n/g, '\n');
+
+  state.blocks = parseDocumentIntoBlocks(hasBaselineDiff ? res.baselineContent : res.content);
   recomputeBlockLineNumbers();
   state.activeBlockId = null;
   state.activeCommentBlockId = null;
@@ -559,7 +798,10 @@ function applyOpenedDocumentResponse(res, options = {}) {
     showError(`Failed to build ambient spans from audit: ${err.message}`);
   }
 
-  resetHistoryForDocument(res.content, `Opened ${state.filePath ? pathBasename(state.filePath) : 'document'}`);
+  resetHistoryForDocument(
+    hasBaselineDiff ? res.baselineContent : res.content,
+    `Opened ${state.filePath ? pathBasename(state.filePath) : 'document'}`
+  );
   updateFilePickerLabel();
   updateDocNavButtons();
 
@@ -569,15 +811,30 @@ function applyOpenedDocumentResponse(res, options = {}) {
   const nextMode = options.targetMode || (options.preserveMode ? state.studioMode : 'reader');
   setStudioMode(nextMode);
 
-  setSyncStatus('synced', 'Synced');
-  updateHeaderTelemetry();
-  renderCanvas();
+  if (hasBaselineDiff) {
+    reconcileExternalDiskUpdate(res.content, res.audit, res.metrics, {
+      fromDisk: true,
+      source: '✨ Proposed Agent Edit',
+    });
+    if (!state.blocks.some((b) => Boolean(b.diff))) {
+      syncDocumentToDisk('user', 'Normalized baseline');
+    }
+  } else {
+    setSyncStatus('synced', 'Synced');
+    updateHeaderTelemetry();
+    renderCanvas();
+  }
 
   const canvasScroll = document.getElementById('canvas-scroll');
   if (options.anchor) {
     setTimeout(() => scrollToDocumentAnchor(options.anchor), 30);
   } else if (typeof options.restoreScrollTop === 'number' && canvasScroll) {
     canvasScroll.scrollTop = options.restoreScrollTop;
+  } else if (hasBaselineDiff && state.blocks.some((b) => Boolean(b.diff))) {
+    setTimeout(() => {
+      const firstDiffCard = document.querySelector('.block-diff-card');
+      firstDiffCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
   } else if (canvasScroll) {
     canvasScroll.scrollTop = 0;
   }
@@ -663,11 +920,13 @@ export async function syncDocumentToDisk(source = 'user', label = 'Edited prose'
       return;
     }
 
+    const baselineMarkdown = serializeBaselineBlocksToMarkdown(state.blocks);
     const res = await apiPost('/api/doc/sync', {
       path: state.filePath,
       workspacePath: state.workspacePath || '',
       conversationId: window.sidecar?.conversationId || '',
       content: markdown,
+      baselineContent: baselineMarkdown,
       source,
       label,
       docType: state.docType,
@@ -683,7 +942,11 @@ export async function syncDocumentToDisk(source = 'user', label = 'Edited prose'
       recomputeBlockLineNumbers();
       state.spans = buildAmbientSpansFromAudit(res.audit);
 
-      setSyncStatus('synced', 'Saved & Audited');
+      const hasPendingDiffs = state.blocks.some((b) => Boolean(b.diff || b.tournament));
+      setSyncStatus(
+        hasPendingDiffs ? 'agent' : 'synced',
+        hasPendingDiffs ? 'Review proposed edit' : 'Saved & Audited'
+      );
       updateHeaderTelemetry();
       if (!state.activeBlockId) {
         renderCanvas();
@@ -718,6 +981,7 @@ export async function pollDiskNow() {
   }
   runtime.isPollingDisk = true;
   try {
+    const hasPendingDiffs = state.blocks.some((b) => Boolean(b.diff));
     const currentMd = state.lastDiskContent || serializeBlocksToMarkdown(state.blocks);
     const res = await apiPost('/api/doc/poll', {
       path: state.filePath,
@@ -725,6 +989,7 @@ export async function pollDiskNow() {
       conversationId: window.sidecar?.conversationId || '',
       knownMtimeMs: state.mtimeMs,
       currentContent: currentMd,
+      hasPendingDiffs,
       docType: state.docType,
       keyword: state.keyword,
     });
@@ -744,21 +1009,39 @@ export async function pollDiskNow() {
     if (res?.changed && typeof res.content === 'string') {
       state.lastDiskContent = res.content;
       state.activeBlockId = null;
-      state.blocks = parseDocumentIntoBlocks(res.content);
-      recomputeBlockLineNumbers();
-      state.audit = res.audit;
-      state.metrics = res.metrics || state.metrics;
-      state.spans = buildAmbientSpansFromAudit(res.audit);
-      if (state.studioMode === 'raw') {
-        const rawEditor = document.getElementById('raw-markdown-editor');
-        if (rawEditor) {
-          rawEditor.value = res.content;
-        }
+      const hadBaselineMismatch =
+        !state.blocks.some((b) => Boolean(b.diff)) &&
+        typeof res.baselineContent === 'string' &&
+        res.baselineContent.replace(/\r\n/g, '\n') !== res.content.replace(/\r\n/g, '\n');
+      if (hadBaselineMismatch) {
+        state.blocks = parseDocumentIntoBlocks(res.baselineContent);
+        recomputeBlockLineNumbers();
       }
-      recordHistorySnapshot('Synced external disk update');
-      setSyncStatus('synced', 'Synced from disk');
-      updateHeaderTelemetry();
-      renderCanvas();
+      if (state.blocks.length > 0) {
+        reconcileExternalDiskUpdate(res.content, res.audit, res.metrics, {
+          fromDisk: true,
+          source: '✨ Proposed Agent Edit',
+        });
+        if (hadBaselineMismatch && !state.blocks.some((b) => Boolean(b.diff))) {
+          await syncDocumentToDisk('user', 'Normalized baseline');
+        }
+      } else {
+        state.blocks = parseDocumentIntoBlocks(res.content);
+        recomputeBlockLineNumbers();
+        state.audit = res.audit;
+        state.metrics = res.metrics || state.metrics;
+        state.spans = buildAmbientSpansFromAudit(res.audit);
+        if (state.studioMode === 'raw') {
+          const rawEditor = document.getElementById('raw-markdown-editor');
+          if (rawEditor) {
+            rawEditor.value = res.content;
+          }
+        }
+        recordHistorySnapshot('Synced external disk update');
+        setSyncStatus('synced', 'Synced from disk');
+        updateHeaderTelemetry();
+        renderCanvas();
+      }
     }
   } catch (err) {
     showError(`Live file poll failed: ${err.message}`);

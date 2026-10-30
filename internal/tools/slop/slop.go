@@ -180,27 +180,27 @@ var (
 )
 
 var (
-	lexicalSlopRegex   = buildLexicalRegex()
-	structuralRegex    = regexp.MustCompile(strings.Join(append(clichePatterns, analogyBridges...), "|"))
-	bridgeRegexes      = buildBridgeRegexes()
-	passiveVoiceRegex  = regexp.MustCompile(`(?i)\b(?:is|are|was|were|be|been|being)\s+(?:[a-z]+ly\s+)?([a-z]{4,}ed|written|built|made|done|given|taken|shown|known|seen|found|sent|kept|held|brought|thought|bought|caught|taught|sold|told|paid|laid|driven|broken|chosen|spoken|stolen|woven|frozen|forgotten|forgiven|hidden|ridden|risen|shaken|fallen|beaten|eaten|bitten|drawn|blown|grown|thrown|flown|worn|torn|sworn|borne|begun|drunk|shrunk|sung|sunk|sprung|stung|swung|wrung|clung|flung|slung|spun|strung|hung|dug|stuck|struck)\b`)
-	frontmatterRegex   = regexp.MustCompile(`(?m)\A(?:\s*\n)*(?:---[\s\S]*?^(?:---|\.\.\.)|\+\+\+[\s\S]*?^\+\+\+)`)
-	codeBlockRegex     = regexp.MustCompile("(?s)(?:```[\\s\\S]*?```|~~~[\\s\\S]*?~~~)")
-	htmlCommentRegex   = regexp.MustCompile(`(?s)<!--.*?-->`)
-	mdTableSepRegex    = regexp.MustCompile(`(?m)^\s*\|?(?:\s*:?-{2,}:?\s*\|)+\s*:?-{2,}:?\s*\|?\s*$`)
-	hrLineRegex           = regexp.MustCompile(`^(?:\*\s*){3,}$|^(?:-\s*){3,}$|^(?:_\s*){3,}$`)
-	mdHugoImageRegex      = regexp.MustCompile(`(?s)!\[([^\]]*)\]\(\s*\{\{.*?\}\}\s*\)`)
-	mdHugoLinkRegex       = regexp.MustCompile(`(?s)\[([^\]]+)\]\(\s*\{\{.*?\}\}\s*\)`)
-	mdHugoLinkURLSpanRe   = regexp.MustCompile(`(?s)\]\(\s*\{\{.*?\}\}\s*\)`)
-	mdImageRegex          = regexp.MustCompile(`!\[([^\]]*)\]\([^\)]+\)`)
-	mdLinkRegex           = regexp.MustCompile(`\[([^\]]+)\]\([^\)]+\)`)
-	mdLinkURLSpanRegex    = regexp.MustCompile(`\]\([^\)]+\)`)
-	inlineCodeRegex       = regexp.MustCompile("`([^`]+)`")
-	shortcodeRegex        = regexp.MustCompile(`(?s)\{\{.*?\}\}`)
-	htmlTagRegex          = regexp.MustCompile(`(?s)<[^>]*>`)
-	nonAlphaNumRegex   = regexp.MustCompile(`(?i)[^a-z0-9\s]`)
-	sentenceSplitRe    = regexp.MustCompile(`[.!?]+(?:\s+|$)`)
-	multiSpaceCollapse = regexp.MustCompile(`\s{2,}`)
+	lexicalSlopRegex    = buildLexicalRegex()
+	structuralRegex     = regexp.MustCompile(strings.Join(append(clichePatterns, analogyBridges...), "|"))
+	bridgeRegexes       = buildBridgeRegexes()
+	passiveVoiceRegex   = regexp.MustCompile(`(?i)\b(?:is|are|was|were|be|been|being)\s+(?:[a-z]+ly\s+)?([a-z]{4,}ed|written|built|made|done|given|taken|shown|known|seen|found|sent|kept|held|brought|thought|bought|caught|taught|sold|told|paid|laid|driven|broken|chosen|spoken|stolen|woven|frozen|forgotten|forgiven|hidden|ridden|risen|shaken|fallen|beaten|eaten|bitten|drawn|blown|grown|thrown|flown|worn|torn|sworn|borne|begun|drunk|shrunk|sung|sunk|sprung|stung|swung|wrung|clung|flung|slung|spun|strung|hung|dug|stuck|struck)\b`)
+	frontmatterRegex    = regexp.MustCompile(`(?m)\A(?:\s*\n)*(?:---[\s\S]*?^(?:---|\.\.\.)|\+\+\+[\s\S]*?^\+\+\+)`)
+	codeBlockRegex      = regexp.MustCompile("(?s)(?:```[\\s\\S]*?```|~~~[\\s\\S]*?~~~)")
+	htmlCommentRegex    = regexp.MustCompile(`(?s)<!--.*?-->`)
+	mdTableSepRegex     = regexp.MustCompile(`(?m)^\s*\|?(?:\s*:?-{2,}:?\s*\|)+\s*:?-{2,}:?\s*\|?\s*$`)
+	hrLineRegex         = regexp.MustCompile(`^(?:\*\s*){3,}$|^(?:-\s*){3,}$|^(?:_\s*){3,}$`)
+	mdHugoImageRegex    = regexp.MustCompile(`(?s)!\[([^\]]*)\]\(\s*\{\{.*?\}\}\s*\)`)
+	mdHugoLinkRegex     = regexp.MustCompile(`(?s)\[([^\]]+)\]\(\s*\{\{.*?\}\}\s*\)`)
+	mdHugoLinkURLSpanRe = regexp.MustCompile(`(?s)\]\(\s*\{\{.*?\}\}\s*\)`)
+	mdImageRegex        = regexp.MustCompile(`!\[([^\]]*)\]\([^\)]+\)`)
+	mdLinkRegex         = regexp.MustCompile(`\[([^\]]+)\]\([^\)]+\)`)
+	mdLinkURLSpanRegex  = regexp.MustCompile(`\]\([^\)]+\)`)
+	inlineCodeRegex     = regexp.MustCompile("`([^`]+)`")
+	shortcodeRegex      = regexp.MustCompile(`(?s)\{\{.*?\}\}`)
+	htmlTagRegex        = regexp.MustCompile(`(?s)<[^>]*>`)
+	nonAlphaNumRegex    = regexp.MustCompile(`(?i)[^a-z0-9\s]`)
+	sentenceSplitRe     = regexp.MustCompile(`[.!?]+(?:\s+|$)`)
+	multiSpaceCollapse  = regexp.MustCompile(`\s{2,}`)
 
 	newProseDocument = func(text string) (*prose.Document, error) {
 		return prose.NewDocument(text)
@@ -851,7 +851,11 @@ func Calculate(rawText string) (SlopResult, error) {
 	words := strings.Fields(nonAlphaNumRegex.ReplaceAllString(text, ""))
 	totalW := float64(len(words))
 	if totalW == 0 {
-		return SlopResult{}, nil
+		return SlopResult{
+			Findings:       []SlopFinding{},
+			SentenceRhythm: []SentenceRhythmItem{},
+			Paragraphs:     []ParagraphSlop{},
+		}, nil
 	}
 
 	lowerText := strings.ToLower(text)
@@ -1016,9 +1020,6 @@ func handleSlop(cfg Config, input SlopParams) (*mcp.CallToolResult, *SlopResult,
 	text, err := resolveContent(cfg, input.Text, input.Path)
 	if err != nil {
 		return nil, nil, err
-	}
-	if text == "" {
-		return nil, nil, fmt.Errorf("text cannot be empty")
 	}
 
 	res, err := Calculate(text)

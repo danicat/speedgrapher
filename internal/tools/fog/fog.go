@@ -136,20 +136,32 @@ func handleFog(cfg Config, input FogParams) (*mcp.CallToolResult, *FogResult, er
 	if err != nil {
 		return nil, nil, err
 	}
-	if rawText == "" {
-		return nil, nil, newError("text cannot be empty")
-	}
 
 	proseText := stripMarkdownForMetrics(rawText)
-	index, err := CalculateFogIndex(proseText)
-	if err != nil {
-		return nil, nil, err
-	}
 	totalWords, complexWords := CountWords(proseText)
-	totalSentences := CountSentences(proseText)
+	if totalWords == 0 {
+		return nil, &FogResult{
+			FogIndex:               0,
+			Classification:         FogCategorySimplistic,
+			TotalWords:             0,
+			TotalSentences:         0,
+			AverageSentenceLength:  0,
+			PercentageComplexWords: 0,
+			ComplexWords:           0,
+			Findings:               []FogFinding{},
+			Paragraphs:             []ParagraphFog{},
+		}, nil
+	}
 
-	averageSentenceLength := float64(totalWords) / float64(totalSentences)
+	totalSentences := CountSentences(proseText)
+	effectiveSentences := totalSentences
+	if effectiveSentences == 0 {
+		effectiveSentences = 1
+	}
+
+	averageSentenceLength := float64(totalWords) / float64(effectiveSentences)
 	percentageComplexWords := 100 * (float64(complexWords) / float64(totalWords))
+	index := math.Round(0.4*(averageSentenceLength+percentageComplexWords)*100) / 100
 
 	classification := ClassifyFogIndex(index)
 	pctRounded := math.Round(percentageComplexWords*100) / 100

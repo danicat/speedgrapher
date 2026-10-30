@@ -173,6 +173,79 @@ func TestRun_Audit(t *testing.T) {
 			t.Errorf("expected 3 blocks in auditResult, got %d: %+v", len(got.Blocks), got.Blocks)
 		}
 	})
+
+	t.Run("audit 0-byte empty file on disk", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		emptyFile := filepath.Join(tmpDir, "empty.md")
+		if err := os.WriteFile(emptyFile, []byte(""), 0644); err != nil {
+			t.Fatalf("failed to write empty file: %v", err)
+		}
+
+		reqBytes, err := json.Marshal(auditParams{Path: emptyFile})
+		if err != nil {
+			t.Fatalf("failed to marshal params: %v", err)
+		}
+
+		var stdout, stderr bytes.Buffer
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		if err := run(ctx, []string{"audit"}, bytes.NewReader(reqBytes), &stdout, &stderr); err != nil {
+			t.Fatalf("unexpected error auditing empty file: %v", err)
+		}
+
+		var got auditResult
+		if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+			t.Fatalf("failed to decode audit JSON output: %v", err)
+		}
+		if got.Fog == nil || got.Slop == nil || got.Vale == nil || got.SEO == nil {
+			t.Fatalf("expected all 4 analyzer results in auditResult, got: %+v", got)
+		}
+		if got.Fog.FogIndex != 0 {
+			t.Errorf("expected FogIndex 0 for empty file, got %f", got.Fog.FogIndex)
+		}
+		if got.Slop.OverallScore != 0 {
+			t.Errorf("expected OverallScore 0 for empty file, got %f", got.Slop.OverallScore)
+		}
+	})
+
+	t.Run("audit frontmatter-only markdown", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		payload := `{"text":"---\ntitle: \"Generative UI\"\nslug: \"generative-ui\"\n---\n\n","doc_type":"doc"}`
+		if err := run(ctx, []string{"audit", payload}, strings.NewReader(""), &stdout, &stderr); err != nil {
+			t.Fatalf("unexpected error auditing frontmatter-only markdown: %v", err)
+		}
+
+		var got auditResult
+		if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+			t.Fatalf("failed to decode audit JSON output: %v", err)
+		}
+		if got.Fog == nil || got.Fog.FogIndex != 0 {
+			t.Errorf("expected FogIndex 0 for frontmatter-only markdown, got %+v", got.Fog)
+		}
+	})
+
+	t.Run("audit heading-only markdown without sentence punctuation", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		payload := `{"text":"# Draft Heading\n\n","doc_type":"doc"}`
+		if err := run(ctx, []string{"audit", payload}, strings.NewReader(""), &stdout, &stderr); err != nil {
+			t.Fatalf("unexpected error auditing heading-only markdown: %v", err)
+		}
+
+		var got auditResult
+		if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+			t.Fatalf("failed to decode audit JSON output: %v", err)
+		}
+		if got.Fog == nil || got.Fog.FogIndex <= 0 {
+			t.Errorf("expected positive FogIndex for heading-only markdown, got %+v", got.Fog)
+		}
+	})
 }
 
 func TestRun_ErrorCases(t *testing.T) {

@@ -38,6 +38,7 @@ const GOBIN_PATH = join(homedir(), 'go', 'bin', BIN_NAME);
 export const SESSION_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/;
 export const ALLOWED_MD_EXTENSIONS = new Set(['.md', '.markdown']);
 export const allowedSessionFiles = new Set();
+export const allowedSessionDirs = new Set();
 
 let registeredSidecarApp = null;
 
@@ -114,6 +115,13 @@ export function getSettingsDir() {
   const settingsDir = join(resolve(dataDir), 'studio-state');
   mkdirSync(settingsDir, { recursive: true, mode: 0o700 });
   return settingsDir;
+}
+
+export function getBaselinesDir() {
+  const settingsDir = getSettingsDir();
+  const baselinesDir = join(settingsDir, 'baselines');
+  mkdirSync(baselinesDir, { recursive: true, mode: 0o700 });
+  return baselinesDir;
 }
 
 export function findHugoRoot(startDir) {
@@ -484,8 +492,9 @@ export function validateAllowedMarkdownPath(targetPath, workspaceDir = '', conve
   const inWorkspace = info.workspaceDir ? isPathInsideDir(canonicalPath, info.workspaceDir) : false;
   const inSession = sessionArtifactDir ? isPathInsideDir(canonicalPath, sessionArtifactDir) : false;
   const inAllowedSessionFiles = allowedSessionFiles.has(canonicalPath);
+  const inAllowedSessionDirs = Array.from(allowedSessionDirs).some((dir) => isPathInsideDir(canonicalPath, dir));
 
-  if (!inWorkspace && !inSession && !inAllowedSessionFiles) {
+  if (!inWorkspace && !inSession && !inAllowedSessionFiles && !inAllowedSessionDirs) {
     const err = new Error(
       `Access denied: "${canonicalPath}" is outside the active workspace and session artifact directory.`
     );
@@ -724,6 +733,7 @@ export function handleListDirectory(data) {
   } catch (err) {
     return jsonError(`Failed to resolve directory "${targetDir}": ${err.message}`, 400);
   }
+  allowedSessionDirs.add(canonicalDir);
 
   let dirents;
   try {
@@ -799,121 +809,5 @@ export function handleListDirectory(data) {
     sessionDir: info.sessionDir || '',
     directories,
     files,
-  };
-}
-
-export function handleOpenFileDialog(data) {
-  const requestedDir = typeof data?.workspaceUri === 'string' ? data.workspaceUri : '';
-  const requestedConvId = typeof data?.conversationId === 'string' ? data.conversationId : '';
-  const currentFilePath =
-    (typeof data?.currentFilePath === 'string' && data.currentFilePath.trim()) ||
-    (typeof data?.startDir === 'string' && data.startDir.trim()) ||
-    '';
-
-  let info;
-  try {
-    info = resolveActiveWorkspaceAndSession(requestedConvId, requestedDir);
-  } catch (err) {
-    return jsonError(`Failed to resolve workspace directory: ${err.message}`, 400);
-  }
-
-  let defaultDir = homedir();
-  if (currentFilePath) {
-    try {
-      const normCurrent = normalizeTargetPath(currentFilePath, '', info.workspaceDir || '');
-      const candidateDir =
-        existsSync(normCurrent) && statSync(normCurrent).isDirectory() ? normCurrent : dirname(normCurrent);
-      if (candidateDir && existsSync(candidateDir) && statSync(candidateDir).isDirectory()) {
-        defaultDir = candidateDir;
-      }
-    } catch {}
-  } else if (info.workspaceDir && existsSync(info.workspaceDir) && statSync(info.workspaceDir).isDirectory()) {
-    defaultDir = info.workspaceDir;
-  } else if (info.sessionDir && existsSync(info.sessionDir) && statSync(info.sessionDir).isDirectory()) {
-    defaultDir = info.sessionDir;
-  }
-
-  let chosenPath = '';
-  try {
-    if (process.platform === 'darwin') {
-      const script = [
-        'on run argv',
-        '  set defaultDir to item 1 of argv',
-        '  activate',
-        '  set chosenFile to choose file of type {"md", "markdown", "dyn.ah62d4rv4ge8043a", "net.daringfireball.markdown", "public.plain-text"} with prompt "Select a Markdown file (.md) to open in Speedgrapher:" default location (POSIX file defaultDir)',
-        '  return POSIX path of chosenFile',
-        'end run',
-      ].join('\n');
-      chosenPath = execFileSync('osascript', ['-e', script, defaultDir], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-        timeout: 60_000,
-      }).trim();
-    } else if (process.platform === 'win32') {
-      const psScript = [
-        'Add-Type -AssemblyName System.Windows.Forms;',
-        '$dlg = New-Object System.Windows.Forms.OpenFileDialog;',
-        '$dlg.Title = "Select a Markdown file (.md) to open in Speedgrapher";',
-        `$dlg.InitialDirectory = ${JSON.stringify(defaultDir)};`,
-        '$dlg.Filter = "Markdown files (*.md;*.markdown)|*.md;*.markdown";',
-        'if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dlg.FileName }',
-      ].join(' ');
-      chosenPath = execFileSync('powershell', ['-NoProfile', '-Sta', '-Command', psScript], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-        timeout: 60_000,
-      }).trim();
-      if (!chosenPath) {
-        return { canceled: true, path: '' };
-      }
-    } else {
-      chosenPath = execFileSync(
-        'zenity',
-        [
-          '--file-selection',
-          '--title=Select a Markdown file (.md) to open in Speedgrapher',
-          `--filename=${join(defaultDir, '/')}`,
-          '--file-filter=Markdown files (*.md, *.markdown) | *.md *.markdown',
-        ],
-        {
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'pipe'],
-          timeout: 60_000,
-        }
-      ).trim();
-    }
-  } catch (err) {
-    const stderrText = String(err.stderr || err.message || '');
-    if (
-      err.status === 1 &&
-      (process.platform === 'linux' || /User canceled|-128/i.test(stderrText))
-    ) {
-      return { canceled: true, path: '' };
-    }
-    return jsonError(`System file dialog failed: ${stderrText || err.message}`, 500);
-  }
-
-  if (!chosenPath) {
-    return { canceled: true, path: '' };
-  }
-
-  if (!existsSync(chosenPath) || !statSync(chosenPath).isFile()) {
-    return jsonError(`Selected file does not exist on disk: ${chosenPath}`, 404);
-  }
-
-  const ext = extname(chosenPath).toLowerCase();
-  if (!ALLOWED_MD_EXTENSIONS.has(ext)) {
-    return jsonError(
-      `Unsupported file extension "${ext || '(none)'}" for "${chosenPath}". Only .md and .markdown files are allowed.`,
-      400
-    );
-  }
-
-  const canonicalPath = realpathSync(chosenPath);
-  allowedSessionFiles.add(canonicalPath);
-
-  return {
-    canceled: false,
-    path: canonicalPath,
   };
 }

@@ -36,16 +36,30 @@ install-plugin: build
 		TMP_VOCAB=$$(mktemp); \
 		cp "$(PLUGIN_DIR)/styles/config/vocabularies/Speedgrapher/accept.txt" "$$TMP_VOCAB"; \
 	fi; \
+	TMP_VALE=""; \
+	if [ -f "$(PLUGIN_DIR)/.vale.ini" ]; then \
+		TMP_VALE=$$(mktemp); \
+		cp "$(PLUGIN_DIR)/.vale.ini" "$$TMP_VALE"; \
+	fi; \
 	rsync -a --delete \
 		--exclude='.git/' \
 		--exclude='dist/' \
 		--exclude='.gemini/' \
+		--exclude='.godoctor/' \
 		--exclude='coverage.out' \
 		./ $(PLUGIN_DIR)/; \
 	if [ -n "$$TMP_VOCAB" ] && [ -f "$$TMP_VOCAB" ]; then \
 		awk 'NF && !seen[$$0]++' "$(PLUGIN_DIR)/styles/config/vocabularies/Speedgrapher/accept.txt" "$$TMP_VOCAB" > "$$TMP_VOCAB.merged" && \
 		mv "$$TMP_VOCAB.merged" "$(PLUGIN_DIR)/styles/config/vocabularies/Speedgrapher/accept.txt"; \
 		rm -f "$$TMP_VOCAB"; \
+	fi; \
+	if [ -n "$$TMP_VALE" ] && [ -f "$$TMP_VALE" ]; then \
+		cp "$$TMP_VALE" "$(PLUGIN_DIR)/.vale.ini"; \
+		rm -f "$$TMP_VALE"; \
+	fi
+	@SIDECAR_PID=$$(lsof -a -d cwd -c "Antigravity" 2>/dev/null | grep "speedgrapher/sidecars/panel" | awk '{print $$2}'); \
+	if [ -n "$$SIDECAR_PID" ]; then \
+		kill $$SIDECAR_PID 2>/dev/null && echo "Restarted Speedgrapher sidecar process (PID $$SIDECAR_PID)."; \
 	fi
 	@if [ -n "$$ANTIGRAVITY_LS_ADDRESS" ] && [ -n "$$ANTIGRAVITY_CSRF_TOKEN" ]; then \
 		curl -sS -X POST "http://$$ANTIGRAVITY_LS_ADDRESS/exa.language_server_pb.LanguageServerService/JetboxWriteState" \

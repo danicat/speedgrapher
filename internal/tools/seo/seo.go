@@ -822,10 +822,10 @@ func convertHugoMarkdownToHTML(ctx context.Context, markdown string, workspaceDi
 		return "", fmt.Errorf("invalid frontmatter slug/url %q: path escapes Hugo output directory", targetSlug)
 	}
 
-	// Run hugo with --buildDrafts so draft posts render properly
+	// Run hugo with --buildDrafts, --buildFuture, and --buildExpired so draft and scheduled posts render properly
 	hugoCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(hugoCtx, "hugo", "--buildDrafts", "--destination", tempOut, "--quiet")
+	cmd := exec.CommandContext(hugoCtx, "hugo", "--buildDrafts", "--buildFuture", "--buildExpired", "--destination", tempOut, "--quiet")
 	cmd.Dir = root
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("hugo failed: %s (error: %w)", string(out), err)

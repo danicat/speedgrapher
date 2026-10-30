@@ -1,6 +1,6 @@
 {
   "name": "speedgrapher-panel",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "private": true,
   "type": "module",
   "description": "Side panel for the Speedgrapher UI extension."

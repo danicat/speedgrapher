@@ -180,12 +180,9 @@ func checkValeDir(dir string) (string, string, bool) {
 	return "", iniCandidate, false
 }
 
-// setupValeConfig resolves a valid .vale.ini (with an adjacent styles/ directory) deterministically.
-// It checks searchDirs in order (walking up parent directories), then the current working directory,
-// then the plugin's bundled .vale.ini relative to the executable, and finally the standard installed
-// Antigravity plugin directory (~/.gemini/config/plugins/speedgrapher).
-// If no valid .vale.ini is found, it fails fast listing all checked locations.
-func setupValeConfig(searchDirs ...string) (string, error) {
+// resolveGlobalAndLocalValeConfigs returns the global plugin .vale.ini path (if available)
+// and the local workspace/file .vale.ini path (if available).
+func resolveGlobalAndLocalValeConfigs(searchDirs ...string) (globalIni string, localIni string, err error) {
 	var checked []string
 	seen := make(map[string]bool)
 
@@ -209,48 +206,72 @@ func setupValeConfig(searchDirs ...string) (string, error) {
 		if dir == "" {
 			continue
 		}
-		if found, err := findValeConfigUp(dir); err == nil {
-			return found, nil
+		if found, findErr := findValeConfigUp(dir); findErr == nil {
+			localIni = found
+			break
 		}
-		if absDir, err := filepath.Abs(dir); err == nil {
+		if absDir, absErr := filepath.Abs(dir); absErr == nil {
 			_, entry, _ := checkValeDir(absDir)
 			recordChecked(entry)
 		}
 	}
 
-	if cwd, err := os.Getwd(); err == nil {
-		if found, err := findValeConfigUp(cwd); err == nil {
-			return found, nil
-		}
-		if absCwd, err := filepath.Abs(cwd); err == nil {
-			_, entry, _ := checkValeDir(absCwd)
-			recordChecked(entry)
+	if localIni == "" {
+		if cwd, cwdErr := os.Getwd(); cwdErr == nil {
+			if found, findErr := findValeConfigUp(cwd); findErr == nil {
+				localIni = found
+			} else if absCwd, absErr := filepath.Abs(cwd); absErr == nil {
+				_, entry, _ := checkValeDir(absCwd)
+				recordChecked(entry)
+			}
 		}
 	}
 
-	if exePath, err := executablePathFunc(); err == nil && exePath != "" {
-		if absExePath, err := filepath.Abs(exePath); err == nil {
+	if exePath, exeErr := executablePathFunc(); exeErr == nil && exePath != "" {
+		if absExePath, absErr := filepath.Abs(exePath); absErr == nil {
 			exeDir := filepath.Dir(absExePath)
 			if found, ok := checkCandidateDir(exeDir); ok {
-				return found, nil
-			}
-			parentDir := filepath.Dir(exeDir)
-			if parentDir != exeDir {
-				if found, ok := checkCandidateDir(parentDir); ok {
-					return found, nil
+				globalIni = found
+			} else {
+				parentDir := filepath.Dir(exeDir)
+				if parentDir != exeDir {
+					if foundParent, okParent := checkCandidateDir(parentDir); okParent {
+						globalIni = foundParent
+					}
 				}
 			}
 		}
 	}
 
-	if homeDir, err := userHomeDirFunc(); err == nil && homeDir != "" {
-		pluginDir := filepath.Join(homeDir, ".gemini", "config", "plugins", "speedgrapher")
-		if found, ok := checkCandidateDir(pluginDir); ok {
-			return found, nil
+	if globalIni == "" {
+		if homeDir, homeErr := userHomeDirFunc(); homeErr == nil && homeDir != "" {
+			pluginDir := filepath.Join(homeDir, ".gemini", "config", "plugins", "speedgrapher")
+			if found, ok := checkCandidateDir(pluginDir); ok {
+				globalIni = found
+			}
 		}
 	}
 
-	return "", fmt.Errorf("no valid .vale.ini with styles/ directory found (checked: %s)", strings.Join(checked, ", "))
+	if localIni == "" && globalIni == "" {
+		return "", "", fmt.Errorf("no valid .vale.ini with styles/ directory found (checked: %s)", strings.Join(checked, ", "))
+	}
+	return globalIni, localIni, nil
+}
+
+// setupValeConfig resolves a valid .vale.ini (with an adjacent styles/ directory) deterministically.
+// It checks searchDirs in order (walking up parent directories), then the current working directory,
+// then the plugin's bundled .vale.ini relative to the executable, and finally the standard installed
+// Antigravity plugin directory (~/.gemini/config/plugins/speedgrapher).
+// If no valid .vale.ini is found, it fails fast listing all checked locations.
+func setupValeConfig(searchDirs ...string) (string, error) {
+	globalIni, localIni, err := resolveGlobalAndLocalValeConfigs(searchDirs...)
+	if err != nil {
+		return "", err
+	}
+	if localIni != "" {
+		return localIni, nil
+	}
+	return globalIni, nil
 }
 
 // findValeConfigUp searches for a valid .vale.ini (with adjacent styles/ directory)
@@ -367,13 +388,31 @@ func valeHandler(ctx context.Context, _ *mcp.CallToolRequest, input ValeParams, 
 		return nil, nil, err
 	}
 
-	iniPath, err := setupValeConfig(targetFileDir, cfg.WorkspaceDir)
+	globalIni, localIni, err := resolveGlobalAndLocalValeConfigs(targetFileDir, cfg.WorkspaceDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("vale config error: %w", err)
 	}
+	iniPath := localIni
+	if iniPath == "" {
+		iniPath = globalIni
+	}
+
+	if strings.TrimSpace(text) == "" {
+		return nil, &ValeResult{Output: `{"stdin.md": []}`, ConfigPath: iniPath}, nil
+	}
+
+	execIniPath := iniPath
+	if globalIni != "" && localIni != "" && filepath.Clean(globalIni) != filepath.Clean(localIni) {
+		mergedIni, cleanup, mergeErr := buildMergedValeConfig(globalIni, localIni)
+		if mergeErr != nil {
+			return nil, nil, fmt.Errorf("failed to merge global and local vale configs: %w", mergeErr)
+		}
+		defer cleanup()
+		execIniPath = mergedIni
+	}
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, valePath, "--no-exit", "--config", iniPath, "--ext", ".md", "--output=JSON")
+	cmd := exec.CommandContext(ctx, valePath, "--no-exit", "--config", execIniPath, "--ext", ".md", "--output=JSON")
 	cmd.Stdin = strings.NewReader(maskHugoShortcodesForVale(text))
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

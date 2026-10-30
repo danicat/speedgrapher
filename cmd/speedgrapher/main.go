@@ -341,6 +341,10 @@ func runAudit(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 		return err
 	}
 
+	if params.Text == "" && params.Path == "" {
+		return fmt.Errorf("audit requires non-empty 'text' or 'path' in JSON input")
+	}
+
 	text := params.Text
 	var absPath string
 	if params.Path != "" {
@@ -360,10 +364,6 @@ func runAudit(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 			}
 			text = string(data)
 		}
-	}
-
-	if text == "" {
-		return fmt.Errorf("audit requires non-empty 'text' or 'path' in JSON input")
 	}
 
 	fogRes, err := fog.Analyze(fog.FogParams{Text: text, Path: absPath}, fog.Config{WorkspaceDir: workspaceDir})

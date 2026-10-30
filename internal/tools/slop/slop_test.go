@@ -296,9 +296,12 @@ func TestHandleSlop(t *testing.T) {
 
 		cfg := Config{}
 		params := SlopParams{Path: filePath}
-		_, _, err := handleSlop(cfg, params)
-		if err == nil {
-			t.Error("expected error for empty file, got nil")
+		_, res, err := handleSlop(cfg, params)
+		if err != nil {
+			t.Fatalf("unexpected error for empty file: %v", err)
+		}
+		if res == nil || res.OverallScore != 0 {
+			t.Errorf("expected zeroed SlopResult for empty file, got %+v", res)
 		}
 	})
 

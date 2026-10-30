@@ -50,24 +50,56 @@
         </div>
 
         <div class="file-selector-wrap">
-          <button id="btn-open-file" class="file-picker-btn" type="button" data-tooltip="Open file" data-tooltip-pos="right" aria-haspopup="dialog" aria-expanded="false">
+          <button id="btn-new-file" class="file-action-icon-btn" type="button" data-tooltip="New File (⌘N)" data-tooltip-pos="right" aria-label="New File">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="12" y1="18" x2="12" y2="12" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+            </svg>
+          </button>
+          <button id="btn-open-file" class="file-action-icon-btn" type="button" data-tooltip="Open File… (⌘O)" aria-label="Open File" aria-haspopup="dialog" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          </button>
+          <button id="btn-save-file" class="file-action-icon-btn" type="button" disabled data-tooltip="Save (⌘S)" aria-label="Save">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" />
+            </svg>
+          </button>
+          <button id="btn-save-as-file" class="file-action-icon-btn" type="button" disabled data-tooltip="Save As… (⇧⌘S)" aria-label="Save As">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4z" />
+              <polyline points="7 3 7 8 15 8" />
+              <line x1="12" y1="12" x2="12" y2="18" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+            </svg>
+          </button>
+          <div id="active-file-pill" class="active-file-pill hidden" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />
             </svg>
-            <span id="active-file-label">Open .md file…</span>
-          </button>
-          <button id="btn-close-file" class="file-close-btn hidden" type="button" hidden data-tooltip="Close" aria-label="Close document">×</button>
+            <span id="active-file-label">Untitled</span>
+            <button id="btn-close-file" class="file-close-btn" type="button" data-tooltip="Close file" aria-label="Close document">×</button>
+          </div>
 
           <!-- Instant Single-Directory Markdown File Browser Popover -->
-          <div id="file-browser-popover" class="file-browser-popover hidden" hidden role="dialog" aria-label="Open Markdown File">
+          <div id="file-browser-popover" class="file-browser-popover hidden" hidden role="dialog" aria-label="Open or Save Markdown File">
             <div class="fb-header-row">
               <div class="fb-roots-bar" role="group" aria-label="Quick Locations">
                 <button id="fb-root-workspace" class="fb-root-pill" type="button" title="Jump to Workspace root">Workspace</button>
                 <button id="fb-root-session" class="fb-root-pill hidden" type="button" hidden title="Jump to Active Session Artifacts">Session</button>
                 <button id="fb-root-home" class="fb-root-pill" type="button" title="Jump to Home directory">Home</button>
               </div>
-              <button id="fb-btn-system-dialog" class="fb-sys-btn" type="button" title="Open native OS file dialog">System Dialog…</button>
+            </div>
+            <div id="fb-new-file-bar" class="fb-new-file-bar hidden" hidden>
+              <input id="fb-new-file-input" class="fb-new-file-input" type="text" placeholder="filename.md" autocomplete="off" spellcheck="false" />
+              <button id="fb-btn-create-confirm" class="btn-primary fb-create-btn" type="button">Save</button>
+              <button id="fb-btn-create-cancel" class="btn-secondary fb-create-btn" type="button">Cancel</button>
             </div>
             <div class="fb-nav-row">
               <button id="fb-btn-up" class="fb-up-btn" type="button" title="Go to parent folder (↑)">
@@ -157,8 +189,8 @@
             </button>
           </div>
 
-          <button id="btn-ask-agent-top" class="tool-icon-btn accent-glow editor-only hidden" hidden type="button" data-tooltip="AI rewrite" data-tooltip-pos="left" aria-label="Ask Agent">
-            <svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+          <button id="btn-send-chat-top" class="tool-icon-btn accent-glow hidden" hidden type="button" data-tooltip="Send to chat" data-tooltip-pos="left" aria-label="Send to chat">
+            <svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
           </button>
 
           <button id="btn-settings" class="tool-icon-btn" type="button" data-tooltip="Settings" data-tooltip-pos="left" aria-label="Settings">
@@ -193,10 +225,10 @@
             <svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
           </div>
           <h2>Speedgrapher</h2>
-          <p id="empty-state-subtitle">Select a Markdown file from your workspace or start a new draft.</p>
+          <p id="empty-state-subtitle">Create a new file or open an existing Markdown file.</p>
           <div class="empty-state-actions">
-            <button id="btn-empty-open-file" class="btn-primary" type="button">Open File…</button>
-            <button id="btn-empty-add-block" class="btn-secondary" type="button">New Draft</button>
+            <button id="btn-empty-new-file" class="btn-primary" type="button">New File</button>
+            <button id="btn-empty-open-file" class="btn-secondary" type="button">Open File…</button>
           </div>
         </div>
 
@@ -274,12 +306,13 @@
       </div>
     </section>
 
-    <!-- Floating Popover 2: Compact Free-Style Ask Agent (#cmd-palette) -->
-    <section id="cmd-palette" class="floating-popover hidden" hidden aria-label="Ask Agent">
+    <!-- Floating Popover 2: Compact AI Rewrite & Send to Chat (#cmd-palette) -->
+    <section id="cmd-palette" class="floating-popover hidden" hidden aria-label="AI Rewrite or Send to Chat">
       <div class="panel-head">
         <div class="panel-head-title">
-          <svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
-          <span id="cmd-title-label">Ask Agent</span>
+          <svg id="cmd-title-icon-ai" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+          <svg id="cmd-title-icon-chat" class="hidden" hidden viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+          <span id="cmd-title-label">AI Rewrite</span>
         </div>
         <div style="display: flex; align-items: center; gap: 6px;">
           <span id="cmd-scope-badge" class="cmd-row-badge">Full Doc</span>
@@ -289,16 +322,13 @@
         </div>
       </div>
 
-      <!-- Free-Style Instruction Input -->
+      <!-- Free-Style Instruction / Comment Input -->
       <div class="cmd-input-box">
-        <input id="cmd-input" type="text" placeholder="Describe how to edit this passage or document…" autocomplete="off" />
-        <button id="btn-cmd-submit" class="btn-primary" type="button" style="white-space: nowrap;" data-tooltip="Stage diff" data-tooltip-pos="left">Stage Diff</button>
-        <button id="btn-cmd-send-chat" class="btn-secondary btn-icon-only" type="button" data-tooltip="Send to chat" data-tooltip-pos="left" aria-label="Send to main chat">
-          <svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
-        </button>
+        <input id="cmd-input" type="text" placeholder="Describe how to rewrite this passage…" autocomplete="off" />
+        <button id="btn-cmd-submit" class="btn-primary" type="button" style="white-space: nowrap;" data-tooltip="Rewrite with AI" data-tooltip-pos="left">✨ Rewrite</button>
       </div>
 
-      <!-- Attached Paragraph Telemetry & Findings Summary -->
+      <!-- Attached Paragraph / Selection / Document Preview -->
       <div id="cmd-context-preview" class="cmd-context-preview"></div>
     </section>
 
@@ -387,6 +417,16 @@
 
       <!-- Tab 2: Vale Rules -->
       <div id="settings-tab-vale" class="settings-tab-pane hidden" hidden>
+        <div class="segmented-row">
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Rule Scope</span>
+          <div class="segmented-control" role="group" aria-label="Vale Configuration Scope">
+            <button class="seg-btn vale-scope-btn active" type="button" data-vale-scope="global">Global (Account)</button>
+            <button class="seg-btn vale-scope-btn" type="button" data-vale-scope="local">Project (Local)</button>
+          </div>
+        </div>
+        <div style="font-size: 10.5px; color: var(--text-muted); line-height: 1.35;">
+          Global rules apply to your entire account. Project rules override Global rules for the active workspace.
+        </div>
         <div style="display: flex; gap: 6px; align-items: center;">
           <input id="vale-rules-search" class="text-input" type="text" placeholder="Search Vale rules (e.g. Google.Headings)…" autocomplete="off" />
           <button id="vale-filter-active-btn" class="btn-secondary" type="button" style="white-space: nowrap;">Active in Doc</button>
@@ -397,9 +437,17 @@
 
       <!-- Tab 3: Vocabulary -->
       <div id="settings-tab-vocab" class="settings-tab-pane hidden" hidden>
-        <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
-          Accepted technical terms and product names in <code>accept.txt</code> are never flagged as spelling or jargon errors.
+        <div class="segmented-row">
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Vocabulary Scope</span>
+          <div class="segmented-control" role="group" aria-label="Vocabulary Scope">
+            <button class="seg-btn vale-scope-btn active" type="button" data-vale-scope="global">Global (Account)</button>
+            <button class="seg-btn vale-scope-btn" type="button" data-vale-scope="local">Project (Local)</button>
+          </div>
         </div>
+        <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+          Global and Project vocabularies are merged automatically so your shared account vocabulary works across every project.
+        </div>
+        <div id="vocab-config-path-badge" style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);"></div>
         <div style="display: flex; gap: 6px;">
           <input id="vocab-new-term-input" class="text-input" type="text" placeholder="Add accepted term (e.g. Ebitengine, Genkit)…" autocomplete="off" />
           <button id="btn-vocab-add" class="btn-primary" type="button" style="white-space: nowrap;">+ Add Term</button>

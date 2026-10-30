@@ -52,15 +52,23 @@ export const state = {
 
   // Vale rules & accept.txt vocabulary state
   valeRulesData: {
+    scope: 'global', // 'global' | 'local'
     configPath: '',
+    globalConfigPath: '',
+    localConfigPath: '',
+    hasLocalConfig: false,
     rules: [],
     vocabTerms: [],
+    globalVocabTerms: [],
+    localVocabTerms: [],
+    mergedVocabTerms: [],
     filterQuery: '',
     onlyActiveInDoc: false,
   },
 
   blocks: [],
   activeBlockId: null,
+  highlightedBlockId: null,
 
   // Inline paragraph review commenting state (<!-- review: ... -->)
   activeCommentBlockId: null,
@@ -76,7 +84,7 @@ export const state = {
   popoverPinned: false,
 
   cmdOpen: false,
-  cmdMode: 'default', // 'default' | 'reviews'
+  cmdMode: 'default', // 'default' | 'reviews' | 'chat'
   cmdSkill: 'draft',
   cmdBlockId: null,
   cmdReviewId: null,
@@ -98,6 +106,9 @@ export const fileBrowserState = {
   files: [],
   filterText: '',
   selectedIndex: 0,
+  creatingNewFile: false,
+  saveDraftMode: false,
+  newFileName: '',
 };
 
 export const runtime = {

@@ -630,6 +630,119 @@ tokens:
 	}
 }
 
+func TestManageRules_GlobalAndLocalHierarchy(t *testing.T) {
+	fakeHome := t.TempDir()
+	globalPluginDir := filepath.Join(fakeHome, ".gemini", "config", "plugins", "speedgrapher")
+	if err := os.MkdirAll(filepath.Join(globalPluginDir, "styles", "Google"), 0755); err != nil {
+		t.Fatalf("failed to create global styles dir: %v", err)
+	}
+	weRule := `extends: existence
+message: "Try to avoid using first-person plural like '%s'."
+level: warning
+tokens:
+  - we
+`
+	if err := os.WriteFile(filepath.Join(globalPluginDir, "styles", "Google", "We.yml"), []byte(weRule), 0644); err != nil {
+		t.Fatalf("failed to write global We.yml: %v", err)
+	}
+	globalVocabDir := filepath.Join(globalPluginDir, "styles", "config", "vocabularies", "Speedgrapher")
+	if err := os.MkdirAll(globalVocabDir, 0755); err != nil {
+		t.Fatalf("failed to create global vocab dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(globalVocabDir, "accept.txt"), []byte("GlobalTerm\n"), 0644); err != nil {
+		t.Fatalf("failed to write global accept.txt: %v", err)
+	}
+	globalIni := "StylesPath = styles\nMinAlertLevel = suggestion\nVocab = Speedgrapher\n\n[*.md]\nBasedOnStyles = Vale, Google, proselint, write-good\nGoogle.We = NO\n"
+	if err := os.WriteFile(filepath.Join(globalPluginDir, ".vale.ini"), []byte(globalIni), 0644); err != nil {
+		t.Fatalf("failed to write global .vale.ini: %v", err)
+	}
+
+	localWs := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(localWs, "styles", "Google"), 0755); err != nil {
+		t.Fatalf("failed to create local styles dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(localWs, "styles", "Google", "We.yml"), []byte(weRule), 0644); err != nil {
+		t.Fatalf("failed to write local We.yml: %v", err)
+	}
+	localVocabDir := filepath.Join(localWs, "styles", "config", "vocabularies", "Speedgrapher")
+	if err := os.MkdirAll(localVocabDir, 0755); err != nil {
+		t.Fatalf("failed to create local vocab dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(localVocabDir, "accept.txt"), []byte("LocalTerm\n"), 0644); err != nil {
+		t.Fatalf("failed to write local accept.txt: %v", err)
+	}
+	localIni := "StylesPath = styles\nMinAlertLevel = suggestion\nVocab = Speedgrapher\n\n[*.md]\nBasedOnStyles = Vale, Google, proselint, write-good\n"
+	if err := os.WriteFile(filepath.Join(localWs, ".vale.ini"), []byte(localIni), 0644); err != nil {
+		t.Fatalf("failed to write local .vale.ini: %v", err)
+	}
+
+	origExe := executablePathFunc
+	origHome := userHomeDirFunc
+	defer func() {
+		executablePathFunc = origExe
+		userHomeDirFunc = origHome
+	}()
+	executablePathFunc = func() (string, error) { return "", os.ErrNotExist }
+	userHomeDirFunc = func() (string, error) { return fakeHome, nil }
+
+	cfg := Config{WorkspaceDir: localWs}
+
+	// 1. Local inherits Google.We = NO from global
+	state, err := ManageRules(ValeRuleActionParams{Action: "list", Scope: "local"}, cfg)
+	if err != nil {
+		t.Fatalf("ManageRules(list) error: %v", err)
+	}
+	if !state.HasLocalConfig {
+		t.Fatal("expected HasLocalConfig = true")
+	}
+	if len(state.MergedVocabTerms) != 2 {
+		t.Errorf("expected 2 merged vocab terms (GlobalTerm + LocalTerm), got %v", state.MergedVocabTerms)
+	}
+	for _, r := range state.Rules {
+		if r.ID == "Google.We" {
+			if r.Enabled || r.ScopeSource != "global" {
+				t.Errorf("expected Google.We inherited as disabled from global, got %+v", r)
+			}
+		}
+	}
+
+	// 2. Local override enables Google.We for this project while global remains disabled
+	enable := true
+	state, err = ManageRules(ValeRuleActionParams{
+		Action:  "set_rule",
+		Scope:   "local",
+		RuleID:  "Google.We",
+		Enabled: &enable,
+	}, cfg)
+	if err != nil {
+		t.Fatalf("ManageRules(set_rule local enable) error: %v", err)
+	}
+	for _, r := range state.Rules {
+		if r.ID == "Google.We" {
+			if !r.Enabled || r.ScopeSource != "local" || r.GlobalEnabled {
+				t.Errorf("expected Google.We locally enabled while globally disabled, got %+v", r)
+			}
+		}
+	}
+
+	// 3. Resetting local override restores inheritance from global
+	state, err = ManageRules(ValeRuleActionParams{
+		Action: "reset_rule",
+		Scope:  "local",
+		RuleID: "Google.We",
+	}, cfg)
+	if err != nil {
+		t.Fatalf("ManageRules(reset_rule) error: %v", err)
+	}
+	for _, r := range state.Rules {
+		if r.ID == "Google.We" {
+			if r.Enabled || r.ScopeSource != "global" {
+				t.Errorf("expected Google.We reset to inherit global disabled state, got %+v", r)
+			}
+		}
+	}
+}
+
 func TestMaskHugoShortcodesForVale(t *testing.T) {
 	input := `In the [previous article]({{< ref "/posts/20261006-building-agentic-backends-with-genkit-go" >}}), we built a Go agent. Also see {{< youtube "dQw4w9WgXcQ" >}} here.`
 	masked := maskHugoShortcodesForVale(input)

@@ -38,6 +38,7 @@ import {
   toggleSettingsPopover,
   renderSeoAndGeoPopover,
   switchSettingsTab,
+  setValeSettingsScope,
   renderValeRulesTab,
   addTermToValeVocab,
   renderSettingsPopover,
@@ -52,6 +53,7 @@ import {
   openReviewResolutionPrompt,
   sendAnnotatedReviewFileToChat,
   openCommandPaletteForBlock,
+  openSendToChatPopover,
   dispatchScopedAgentSkill,
   sendContextToMainChat,
 } from './modules/ai.js';
@@ -64,13 +66,19 @@ import {
   exitBlockEditMode,
 } from './modules/canvas.js';
 import {
+  updateFilePickerLabel,
+  startNewFile,
   closeFileBrowserPopover,
   toggleFileBrowserPopover,
+  toggleNewFileBar,
+  openNewFilePrompt,
+  openSaveDraftPrompt,
+  openSaveAsPrompt,
+  createNewDocument,
   loadFileBrowserDirectory,
   getFilteredFileBrowserEntries,
   renderFileBrowserPopover,
   activateFileBrowserEntry,
-  openSystemFileDialog,
   scanWorkspaceAndSessionFiles,
   closeCurrentDocument,
   navigateToLinkedDocument,
@@ -172,7 +180,11 @@ function initStudioEvents() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         flushPendingHistorySnapshot('Saved Raw Markdown');
-        syncDocumentToDisk('user', 'Saved Raw Markdown');
+        if (!state.filePath) {
+          openSaveDraftPrompt();
+        } else {
+          syncDocumentToDisk('user', 'Saved Raw Markdown');
+        }
       }
     });
   }
@@ -185,18 +197,69 @@ function initStudioEvents() {
     navigateForwardDocument();
   });
 
+  document.getElementById('btn-new-file')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startNewFile();
+  });
+
   document.getElementById('btn-open-file')?.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleFileBrowserPopover();
   });
 
-  document.getElementById('btn-close-file')?.addEventListener('click', () => {
+  document.getElementById('btn-save-file')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    flushPendingHistorySnapshot('Saved');
+    if (!state.filePath) {
+      openSaveDraftPrompt();
+    } else {
+      syncDocumentToDisk('user', 'Saved');
+    }
+  });
+
+  document.getElementById('btn-save-as-file')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    flushPendingHistorySnapshot('Save As');
+    openSaveAsPrompt();
+  });
+
+  document.getElementById('btn-close-file')?.addEventListener('click', (e) => {
+    e.stopPropagation();
     closeCurrentDocument();
   });
 
   document.getElementById('btn-empty-open-file')?.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleFileBrowserPopover(true);
+  });
+
+  document.getElementById('btn-empty-new-file')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startNewFile();
+  });
+
+  document.getElementById('fb-btn-create-confirm')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const inputEl = document.getElementById('fb-new-file-input');
+    createNewDocument(inputEl?.value || '', fileBrowserState.currentDir);
+  });
+
+  document.getElementById('fb-btn-create-cancel')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleNewFileBar(false);
+  });
+
+  const fbNewInput = document.getElementById('fb-new-file-input');
+  fbNewInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      createNewDocument(fbNewInput.value, fileBrowserState.currentDir);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleNewFileBar(false);
+    }
   });
 
   document.getElementById('fb-btn-up')?.addEventListener('click', () => {
@@ -221,11 +284,6 @@ function initStudioEvents() {
     if (fileBrowserState.homeDir) {
       loadFileBrowserDirectory(fileBrowserState.homeDir);
     }
-  });
-
-  document.getElementById('fb-btn-system-dialog')?.addEventListener('click', () => {
-    closeFileBrowserPopover();
-    openSystemFileDialog();
   });
 
   const fbInput = document.getElementById('fb-filter-input');
@@ -318,9 +376,27 @@ function initStudioEvents() {
     performRedo();
   });
 
-  document.getElementById('btn-ask-agent-top')?.addEventListener('click', () => {
-    if (state.cmdOpen) closeAllPopovers();
-    else openCommandPaletteForBlock(state.activeBlockId);
+  document.getElementById('btn-send-chat-top')?.addEventListener('click', () => {
+    if (state.cmdOpen && state.cmdMode === 'chat') {
+      closeAllPopovers();
+      return;
+    }
+    let selText = '';
+    if (state.studioMode === 'raw') {
+      const rawTa = document.getElementById('raw-markdown-editor');
+      if (rawTa && typeof rawTa.selectionStart === 'number' && rawTa.selectionEnd > rawTa.selectionStart) {
+        selText = rawTa.value.slice(rawTa.selectionStart, rawTa.selectionEnd).trim();
+      }
+    } else if (state.activeBlockId) {
+      const activeTa = document.querySelector(`.block-editor-textarea[data-block-id="${state.activeBlockId}"]`);
+      if (activeTa && typeof activeTa.selectionStart === 'number' && activeTa.selectionEnd > activeTa.selectionStart) {
+        selText = activeTa.value.slice(activeTa.selectionStart, activeTa.selectionEnd).trim();
+      }
+    }
+    if (!selText) {
+      selText = window.getSelection()?.toString().trim() || '';
+    }
+    openSendToChatPopover(null, selText);
   });
 
   document.getElementById('btn-settings')?.addEventListener('click', () => {
@@ -336,6 +412,12 @@ function initStudioEvents() {
   document.querySelectorAll('.settings-tab-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       switchSettingsTab(btn.dataset.settingsTab);
+    });
+  });
+
+  document.querySelectorAll('.vale-scope-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setValeSettingsScope(btn.dataset.valeScope);
     });
   });
 
@@ -435,20 +517,6 @@ function initStudioEvents() {
     openCommandPaletteForBlock(null, '', seoPrompt, 'publish');
   });
 
-  document.getElementById('btn-empty-add-block')?.addEventListener('click', () => {
-    const initialDraft =
-      '# Draft Title\n\nClick any paragraph to edit inline, or press ⌘K to orchestrate with an AI editorial skill.\n';
-    state.filePath = '';
-    state.blocks = parseDocumentIntoBlocks(initialDraft);
-    recomputeBlockLineNumbers();
-    resetHistoryForDocument(initialDraft, 'New blank draft');
-    setStudioMode('editor');
-    updateHeaderTelemetry();
-    renderCanvas();
-    enterBlockEditMode('b-1');
-    scheduleDebouncedSync('user', 'New blank draft');
-  });
-
   const pop = document.getElementById('lens-popover');
   if (pop) {
     pop.addEventListener('mouseenter', () => {
@@ -461,6 +529,30 @@ function initStudioEvents() {
   }
 
   const cmdInput = document.getElementById('cmd-input');
+  const submitCmdPalette = () => {
+    const mode = state.cmdMode;
+    const skill = state.cmdSkill || 'draft';
+    const blockId = state.cmdBlockId;
+    const reviewId = state.cmdReviewId;
+    const selectedText = state.cmdSelectedText || '';
+    const block = state.blocks.find((b) => b.id === blockId) || null;
+    const rawText = cmdInput?.value.trim() || '';
+
+    if (mode === 'chat') {
+      closeAllPopovers();
+      sendContextToMainChat(block, rawText, selectedText);
+      return;
+    }
+
+    const customText = rawText || 'Review and improve this passage.';
+    closeAllPopovers();
+    if (mode === 'reviews') {
+      dispatchReviewCommentsToAgent({ instruction: customText, blockId, reviewId });
+    } else {
+      dispatchScopedAgentSkill(skill, block, customText);
+    }
+  };
+
   cmdInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -469,48 +561,13 @@ function initStudioEvents() {
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      const customText = cmdInput.value.trim();
-      if (!customText) return;
-      const mode = state.cmdMode;
-      const skill = state.cmdSkill || 'draft';
-      const blockId = state.cmdBlockId;
-      const reviewId = state.cmdReviewId;
-      const block = state.blocks.find((b) => b.id === blockId) || null;
-      closeAllPopovers();
-      if (mode === 'reviews') {
-        dispatchReviewCommentsToAgent({ instruction: customText, blockId, reviewId });
-      } else {
-        dispatchScopedAgentSkill(skill, block, customText);
-      }
+      if (state.cmdMode !== 'chat' && !cmdInput.value.trim()) return;
+      submitCmdPalette();
     }
   });
 
   document.getElementById('btn-cmd-submit')?.addEventListener('click', () => {
-    const mode = state.cmdMode;
-    const skill = state.cmdSkill || 'draft';
-    const blockId = state.cmdBlockId;
-    const reviewId = state.cmdReviewId;
-    const block = state.blocks.find((b) => b.id === blockId) || null;
-    const customText = cmdInput?.value.trim() || 'Review and improve this passage.';
-    closeAllPopovers();
-    if (mode === 'reviews') {
-      dispatchReviewCommentsToAgent({ instruction: customText, blockId, reviewId });
-    } else {
-      dispatchScopedAgentSkill(skill, block, customText);
-    }
-  });
-
-  document.getElementById('btn-cmd-send-chat')?.addEventListener('click', () => {
-    const mode = state.cmdMode;
-    const blockId = state.cmdBlockId;
-    const block = state.blocks.find((b) => b.id === blockId) || null;
-    const customText = cmdInput?.value.trim() || '';
-    closeAllPopovers();
-    if (mode === 'reviews' && !block) {
-      sendAnnotatedReviewFileToChat();
-    } else {
-      sendContextToMainChat(block, customText);
-    }
+    submitCmdPalette();
   });
 
   document.getElementById('canvas-scroll')?.addEventListener('mousedown', (e) => {
@@ -566,13 +623,24 @@ function initStudioEvents() {
       }
       const selText = window.getSelection()?.toString().trim() || '';
       openCommandPaletteForBlock(state.activeBlockId, selText);
+    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      startNewFile();
     } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o') {
       e.preventDefault();
       toggleFileBrowserPopover(true);
+    } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      flushPendingHistorySnapshot('Save As');
+      openSaveAsPrompt();
     } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
       flushPendingHistorySnapshot('Saved');
-      syncDocumentToDisk('user', 'Saved');
+      if (!state.filePath) {
+        openSaveDraftPrompt();
+      } else {
+        syncDocumentToDisk('user', 'Saved');
+      }
     } else if (e.key === 'Escape') {
       if (state.activeBlockId) {
         exitBlockEditMode(state.activeBlockId);

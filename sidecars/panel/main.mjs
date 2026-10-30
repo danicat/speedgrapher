@@ -24,6 +24,7 @@ import {
   handleTournament,
 } from './server/ai.mjs';
 import {
+  createAndOpenDocument,
   handleAudit,
   handleValeRules,
   openAndAuditDocument,
@@ -34,7 +35,6 @@ import {
   handleGetFiles,
   handleGetImage,
   handleListDirectory,
-  handleOpenFileDialog,
   PLUGIN_ROOT,
   setSidecarApp,
 } from './server/paths.mjs';
@@ -122,9 +122,9 @@ app.api(
 app.api('/api/image', handleGetImage, 'GET');
 app.api('/api/files', handleGetFiles, 'POST');
 app.api('/api/fs/list-dir', handleListDirectory, 'POST');
-app.api('/api/dialog/open-file', handleOpenFileDialog, 'POST');
 
 app.api('/api/doc/open', openAndAuditDocument, 'POST');
+app.api('/api/doc/create', createAndOpenDocument, 'POST');
 app.api('/api/doc/sync', syncAndAuditDocument, 'POST');
 app.api('/api/doc/poll', pollDocument, 'POST');
 app.api('/api/audit', handleAudit, 'POST');

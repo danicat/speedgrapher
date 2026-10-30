@@ -64,13 +64,14 @@ import {
 } from './comments.js';
 import {
   openCommandPaletteForBlock,
+  openSendToChatPopover,
   launchVariantTournamentForBlock,
-  sendContextToMainChat,
 } from './ai.js';
 import {
   handleMarkdownLinkClick,
   scheduleDebouncedSync,
   syncDocumentToDisk,
+  openSaveDraftPrompt,
 } from './sync.js';
 
 export function setStudioMode(mode) {
@@ -108,13 +109,13 @@ export function setStudioMode(mode) {
 
   const showLenses = next === 'editor' || next === 'reviewer';
   const showUndoRedo = next === 'editor' || next === 'reviewer' || next === 'raw';
-  const showAgent = next === 'editor' || next === 'reviewer';
+  const hasDoc = Boolean(state.filePath || state.blocks.length > 0);
 
   setHidden('editor-lens-cluster', !showLenses);
   setHidden('btn-seo-geo', !showLenses);
   setHidden('btn-undo', !showUndoRedo);
   setHidden('btn-redo', !showUndoRedo);
-  setHidden('btn-ask-agent-top', !showAgent);
+  setHidden('btn-send-chat-top', !hasDoc);
 
   const modeLabels = {
     reader: 'Reader Mode',
@@ -129,11 +130,11 @@ export function setStudioMode(mode) {
 
   if (next === 'reader' || next === 'raw') {
     hideLensPopover();
-    if (state.seoPopoverOpen || state.cmdOpen) {
+    if (state.seoPopoverOpen || (state.cmdOpen && state.cmdMode !== 'chat')) {
       closeAllPopovers();
     }
   }
-  if (next !== 'reader' && next !== 'editor' && next !== 'reviewer') {
+  if (next !== 'editor' && next !== 'reviewer') {
     closeCommentPopover();
   }
 
@@ -143,7 +144,11 @@ export function setStudioMode(mode) {
 
 function restoreHistorySnapshot(snap, actionLabel) {
   if (!snap) return;
-  state.blocks = parseDocumentIntoBlocks(snap.markdown);
+  if (Array.isArray(snap.blocks) && snap.blocks.length > 0) {
+    state.blocks = JSON.parse(JSON.stringify(snap.blocks));
+  } else {
+    state.blocks = parseDocumentIntoBlocks(snap.markdown);
+  }
   state.activeBlockId = snap.activeBlockId || null;
   recomputeBlockLineNumbers();
   state.metrics.words = countWordsInText(snap.markdown);
@@ -190,9 +195,20 @@ export function renderEmptyState() {
   const subtitleEl = document.getElementById('empty-state-subtitle');
   if (subtitleEl) {
     subtitleEl.innerHTML = state.workspacePath
-      ? `Workspace: <code>${escapeHtml(pathBasename(state.workspacePath) || state.workspacePath)}</code> · Open a Markdown file or start a blank draft.`
-      : 'Open a Markdown file or start a blank draft.';
+      ? `Workspace: <code>${escapeHtml(pathBasename(state.workspacePath) || state.workspacePath)}</code> · Create a new file or open an existing Markdown file.`
+      : 'Create a new file or open an existing Markdown file.';
   }
+}
+
+export function setHighlightedBlock(blockId) {
+  if (state.studioMode === 'reader') return;
+  const nextId = blockId || null;
+  if (state.highlightedBlockId === nextId) return;
+  state.highlightedBlockId = nextId;
+  document.querySelectorAll('#block-canvas .doc-block').forEach((el) => {
+    const isMatch = el.dataset.blockId === nextId || el.classList.contains('is-editing');
+    el.classList.toggle('is-highlighted', isMatch);
+  });
 }
 
 export function renderCanvas() {
@@ -200,6 +216,13 @@ export function renderCanvas() {
   const rawWrapEl = document.getElementById('raw-editor-wrap');
   const rawTextareaEl = document.getElementById('raw-markdown-editor');
   if (!canvasEl) return;
+
+  if (!canvasEl.dataset.hoverBound) {
+    canvasEl.dataset.hoverBound = '1';
+    canvasEl.addEventListener('mouseleave', () => {
+      setHighlightedBlock(state.activeBlockId || null);
+    });
+  }
 
   if (!state.filePath && state.blocks.length === 0) {
     setHidden('canvas-empty', false);
@@ -243,15 +266,33 @@ export function renderCanvas() {
   setHidden('sheet-footer', false);
   canvasEl.innerHTML = '';
 
+  if (
+    state.highlightedBlockId &&
+    !state.blocks.some((b) => b.id === state.highlightedBlockId)
+  ) {
+    state.highlightedBlockId = state.activeBlockId || (state.blocks[0]?.id ?? null);
+  }
+
   state.blocks.forEach((block, blockIdx) => {
+    if (isReader && /^(?:<!--[\s\S]*?-->\s*)+$/.test(block.raw.trim())) {
+      return;
+    }
     const isEditing = isEditor && state.activeBlockId === block.id;
+    const isHighlighted = !isReader && (state.highlightedBlockId === block.id || isEditing);
     const article = document.createElement('article');
     article.className = 'doc-block';
     article.dataset.blockId = block.id;
     article.dataset.type = block.type;
     if (block.level) article.dataset.level = String(block.level);
     if (isEditing) article.classList.add('is-editing');
+    if (isHighlighted) article.classList.add('is-highlighted');
     if (block.busy) article.classList.add('is-busy');
+
+    if (!isReader) {
+      article.addEventListener('mouseenter', () => {
+        setHighlightedBlock(block.id);
+      });
+    }
 
     if (block.type === 'blockquote' && /^\s*>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i.test(block.raw)) {
       article.dataset.alert = 'true';
@@ -262,13 +303,16 @@ export function renderCanvas() {
       article.dataset.heatmap = diag.health;
     }
 
-    const hoverPill = document.createElement('div');
-    hoverPill.className = 'block-hover-pill';
+    if (!isReader) {
+      const hoverPill = document.createElement('div');
+      hoverPill.className = 'block-hover-pill';
     const revCount = Array.isArray(block.reviews) ? block.reviews.length : 0;
 
     const chatDispatchIconSvg = `<svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
     const commentIconSvg = `<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
     const dragGripIconSvg = `<svg viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>`;
+    const aiSparkleIconSvg = `<svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>`;
+    const tourneyIconSvg = `<svg viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>`;
 
     const formatDiagPillLabel = (d) => {
       const parts = [`Fog ${d.fog}`];
@@ -282,57 +326,51 @@ export function renderCanvas() {
         ? `<button class="block-comment-trigger" type="button" data-action="comment" data-tooltip="Comments" data-tooltip-pos="top">${commentIconSvg}<span>${revCount}</span></button>`
         : `<button class="block-mini-icon" type="button" data-action="comment" data-tooltip="Comment" data-tooltip-pos="top">${commentIconSvg}</button>`;
 
-    if (isReader) {
+    const diagPillHtml = diag
+      ? `<button class="block-heatmap-pill" type="button" data-action="block-diag" data-health="${diag.health}" data-tooltip="Diagnostics" data-tooltip-pos="top">${formatDiagPillLabel(diag)}</button>`
+      : '';
+
+    if (isReviewer) {
       hoverPill.innerHTML = `
-        ${commentTriggerHtml}
-        <button class="block-mini-icon" type="button" data-action="send-chat" data-tooltip="Send to chat" data-tooltip-pos="top">
-          ${chatDispatchIconSvg}
-        </button>
-      `;
-    } else if (isEditing) {
-      hoverPill.innerHTML = `
-        <span class="block-tag-label">L${block.startLine}</span>
-        <button class="block-done-btn" type="button" data-action="done-edit" data-tooltip="Done" data-tooltip-pos="top">Done</button>
-        <button class="block-mini-icon" type="button" data-action="send-chat" data-tooltip="Send to chat" data-tooltip-pos="top">
-          ${chatDispatchIconSvg}
-        </button>
-        <button class="block-mini-icon" type="button" data-action="cmd" data-tooltip="AI rewrite" data-tooltip-pos="top">
-          <svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
-        </button>
-      `;
-    } else if (isReviewer) {
-      const diagPillHtml = diag
-        ? `<button class="block-heatmap-pill" type="button" data-action="block-diag" data-health="${diag.health}" data-tooltip="Diagnostics" data-tooltip-pos="top">${formatDiagPillLabel(diag)}</button>`
-        : `<span class="block-tag-label">L${block.startLine}</span>`;
-      hoverPill.innerHTML = `
-        ${diagPillHtml}
-        ${commentTriggerHtml}
-        <button class="block-mini-icon" type="button" data-action="send-chat" data-tooltip="Send to chat" data-tooltip-pos="top">
-          ${chatDispatchIconSvg}
-        </button>
-        <button class="block-mini-icon" type="button" data-action="cmd" data-tooltip="AI rewrite" data-tooltip-pos="top">
-          <svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
-        </button>
+        <div class="block-header-left">
+          <span class="block-tag-label">L${block.startLine}</span>
+          ${diagPillHtml}
+        </div>
+        <div class="block-header-right">
+          ${commentTriggerHtml}
+          <button class="block-mini-icon" type="button" data-action="send-chat" data-tooltip="Send to chat" data-tooltip-pos="top">
+            ${chatDispatchIconSvg}
+          </button>
+          <button class="block-mini-icon" type="button" data-action="cmd" data-tooltip="AI rewrite" data-tooltip-pos="top">
+            ${aiSparkleIconSvg}
+          </button>
+        </div>
       `;
     } else {
-      const diagPillHtml = diag
-        ? `<button class="block-heatmap-pill" type="button" data-action="block-diag" data-health="${diag.health}" data-tooltip="Diagnostics" data-tooltip-pos="top">${formatDiagPillLabel(diag)}</button>`
-        : `<span class="block-tag-label">L${block.startLine}</span>`;
+      const doneBtnHtml = isEditing
+        ? `<button class="block-done-btn" type="button" data-action="done-edit" data-tooltip="Done (Esc)" data-tooltip-pos="top">Done</button>`
+        : '';
       hoverPill.innerHTML = `
-        <button class="block-mini-icon block-drag-handle" type="button" draggable="true" data-action="drag-handle" aria-label="Reorder" data-tooltip="Reorder" data-tooltip-pos="top">
-          ${dragGripIconSvg}
-        </button>
-        ${diagPillHtml}
-        ${commentTriggerHtml}
-        <button class="block-mini-icon" type="button" data-action="send-chat" data-tooltip="Send to chat" data-tooltip-pos="top">
-          ${chatDispatchIconSvg}
-        </button>
-        <button class="block-mini-icon" type="button" data-action="cmd" data-tooltip="AI rewrite" data-tooltip-pos="top">
-          <svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
-        </button>
-        <button class="block-mini-icon" type="button" data-action="tourney" data-tooltip="3 Angles" data-tooltip-pos="left">
-          <svg viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
-        </button>
+        <div class="block-header-left">
+          <button class="block-mini-icon block-drag-handle" type="button" draggable="${isEditing ? 'false' : 'true'}" data-action="drag-handle" aria-label="Reorder" data-tooltip="Reorder" data-tooltip-pos="top">
+            ${dragGripIconSvg}
+          </button>
+          <span class="block-tag-label">L${block.startLine}</span>
+          ${diagPillHtml}
+        </div>
+        <div class="block-header-right">
+          ${doneBtnHtml}
+          ${commentTriggerHtml}
+          <button class="block-mini-icon" type="button" data-action="send-chat" data-tooltip="Send to chat" data-tooltip-pos="top">
+            ${chatDispatchIconSvg}
+          </button>
+          <button class="block-mini-icon" type="button" data-action="cmd" data-tooltip="AI rewrite" data-tooltip-pos="top">
+            ${aiSparkleIconSvg}
+          </button>
+          <button class="block-mini-icon" type="button" data-action="tourney" data-tooltip="3 Angles" data-tooltip-pos="left">
+            ${tourneyIconSvg}
+          </button>
+        </div>
       `;
     }
 
@@ -348,11 +386,8 @@ export function renderCanvas() {
     });
     hoverPill.querySelector('[data-action="send-chat"]')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      const btn = e.currentTarget;
       const selText = window.getSelection()?.toString().trim() || '';
-      sendContextToMainChat(block, '', selText);
-      btn.classList.add('is-sent');
-      setTimeout(() => btn.classList.remove('is-sent'), 1200);
+      openSendToChatPopover(block.id, selText);
     });
     hoverPill.querySelector('[data-action="block-diag"]')?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -410,19 +445,20 @@ export function renderCanvas() {
         }
       });
 
-      article.addEventListener('drop', (e) => {
-        if (!state.draggedBlockId || state.draggedBlockId === block.id) return;
-        e.preventDefault();
-        const draggedId = state.draggedBlockId;
-        state.draggedBlockId = null;
-        const rect = article.getBoundingClientRect();
-        const placeBefore = e.clientY < rect.top + rect.height / 2;
-        article.classList.remove('drop-target-above', 'drop-target-below');
-        reorderBlockByDrag(draggedId, block.id, placeBefore);
-      });
-    }
+        article.addEventListener('drop', (e) => {
+          if (!state.draggedBlockId || state.draggedBlockId === block.id) return;
+          e.preventDefault();
+          const draggedId = state.draggedBlockId;
+          state.draggedBlockId = null;
+          const rect = article.getBoundingClientRect();
+          const placeBefore = e.clientY < rect.top + rect.height / 2;
+          article.classList.remove('drop-target-above', 'drop-target-below');
+          reorderBlockByDrag(draggedId, block.id, placeBefore);
+        });
+      }
 
-    article.appendChild(hoverPill);
+      article.appendChild(hoverPill);
+    }
 
     const surface = document.createElement('div');
     surface.className = 'block-surface';
@@ -445,6 +481,10 @@ export function renderCanvas() {
       ta.addEventListener('input', () => {
         if (state.activeBlockId !== block.id) return;
         block.raw = ta.value.replace(/\r\n/g, '\n');
+        if (block.diff) {
+          block.diff = null;
+          article.querySelector('.block-diff-card')?.remove();
+        }
         autoResizeBlockTextarea(ta);
         if (/^(#{1,6})\s+/.test(block.raw)) {
           block.type = 'heading';
@@ -463,6 +503,9 @@ export function renderCanvas() {
 
       surface.appendChild(ta);
       setTimeout(() => autoResizeBlockTextarea(ta), 0);
+    } else if (block.diff?.isInsertion) {
+      surface.hidden = true;
+      surface.classList.add('hidden');
     } else {
       surface.innerHTML = renderBlockWithAmbientSpans(block);
     }
@@ -487,9 +530,12 @@ export function renderCanvas() {
       });
 
       surface.querySelectorAll('input.md-task-checkbox').forEach((chk) => {
+        if (isReader) {
+          chk.disabled = true;
+          return;
+        }
         chk.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (isReader) return;
           const lineIdx = Number(chk.dataset.lineIdx);
           const rawLines = block.raw.split('\n');
           if (lineIdx >= 0 && lineIdx < rawLines.length) {
@@ -499,6 +545,7 @@ export function renderCanvas() {
               (_, pre, cur, post) => `${pre}${cur.toLowerCase() === 'x' ? ' ' : 'x'}${post}`
             );
             block.raw = rawLines.join('\n');
+            block.diff = null;
             recordHistorySnapshot(`Toggled task on L${block.startLine + lineIdx}`);
             renderCanvas();
             syncDocumentToDisk('user', `Toggled task list item`, { immediate: true, forceRender: true });
@@ -559,6 +606,38 @@ export function renderCanvas() {
 
     canvasEl.appendChild(article);
   });
+
+  const hasOnlyFrontmatter =
+    state.blocks.length > 0 && state.blocks.every((b) => b.type === 'frontmatter');
+  if (!isReader && (state.blocks.length === 0 || hasOnlyFrontmatter)) {
+    const emptyBlockPrompt = document.createElement('div');
+    emptyBlockPrompt.className = 'doc-empty-placeholder';
+    emptyBlockPrompt.textContent = hasOnlyFrontmatter
+      ? 'No body text yet — click here to start writing below frontmatter…'
+      : 'Empty file — click here to start writing Markdown…';
+    emptyBlockPrompt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const newId = `b-${state.blocks.length}-${Date.now().toString(36)}`;
+      const lastLine =
+        state.blocks.length > 0 ? state.blocks[state.blocks.length - 1].endLine + 1 : 1;
+      state.blocks.push({
+        id: newId,
+        type: 'paragraph',
+        level: 0,
+        raw: '',
+        startLine: lastLine,
+        endLine: lastLine,
+        trailingBlankLines: 1,
+        reviews: [],
+        diff: null,
+        tournament: null,
+        busy: false,
+      });
+      recomputeBlockLineNumbers();
+      enterBlockEditMode(newId, undefined, undefined, 0);
+    });
+    canvasEl.appendChild(emptyBlockPrompt);
+  }
 
   if (showDiagnostics) {
     bindLensSpanHoverEvents();
@@ -765,6 +844,7 @@ export function enterBlockEditMode(blockId, _clientX = undefined, _clientY = und
   recordHistorySnapshot('Before block edit');
   const targetBlock = state.blocks.find((b) => b.id === blockId);
   state.activeBlockId = blockId;
+  state.highlightedBlockId = blockId;
   state.activeBlockOriginalRaw = targetBlock ? targetBlock.raw : null;
   renderCanvas();
   const ta = document.querySelector(`.block-editor-textarea[data-block-id="${blockId}"]`);
@@ -836,7 +916,11 @@ function handleBlockKeydown(e, block, blockIdx, textareaEl) {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     flushPendingHistorySnapshot('Saved');
-    syncDocumentToDisk('user', 'Saved', { immediate: true, forceRender: true });
+    if (!state.filePath) {
+      openSaveDraftPrompt();
+    } else {
+      syncDocumentToDisk('user', 'Saved', { immediate: true, forceRender: true });
+    }
     return;
   }
   if (e.key === 'Escape') {
@@ -1132,6 +1216,7 @@ export function createTournamentCard(block) {
     recordHistorySnapshot(`Before Variant Tournament on ${block.id}`);
     const chosen = (tourney.compositeRaw || '').trim();
     if (chosen) block.raw = chosen;
+    block.diff = null;
     block.tournament = null;
     state.spans = state.spans.filter((s) => s.blockId !== block.id);
     recomputeBlockLineNumbers();
@@ -1158,6 +1243,7 @@ export function applySpanInstantReplacement(span) {
   }
 
   recordHistorySnapshot(`Before fix (${span.rule})`);
+  block.diff = null;
 
   if (span.isWholeBlockReplacement) {
     block.raw = span.replacement;

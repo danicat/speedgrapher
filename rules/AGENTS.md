@@ -11,9 +11,9 @@ Whenever a user creates, edits, or reviews a `*.md` file, surface a pill in chat
 
 You can switch between four workspace modes in the side panel:
 
-1. In **Reader mode** (`Reader`), you read the final rendered Markdown without body highlights or inline comment threads. Click `💬 Comment` on any paragraph to open the comment popup window, or click `Send Comments` to resolve comments with the built-in panel AI.
-2. In **Editor mode** (`Editor`), you click any block to edit its Markdown in place with `⌘Z` and `⌘Y` (`⇧⌘Z`) undo and redo, toggle four **Editorial Lenses** (`Heatmap`, `Slop`, `Vale`, and `Fog`), and inspect **Before and after fix previews**. You can also run `✨ Rewrite with AI`, compare a `3-Angle Variant Tournament`, review staged `✓ Accept Change` and `✕ Reject` diff cards, manage AI provider and Vale rules in `⚙️` Settings, and open the `SEO & GEO` popover.
-3. In **Reviewer mode** (`Reviewer`), direct text editing locks while all `<!-- review: ... -->` threads render inline below their paragraphs alongside the diagnostic lenses (`Heatmap`, `Slop`, `Vale`, and `Fog`).
+1. In **Reader mode** (`Reader`), you read a clean, read-only view of the rendered Markdown without body highlights, hover bars, or inline comment threads.
+2. In **Editor mode** (`Editor`), you click any block to edit its Markdown in place with `⌘Z` and `⌘Y` (`⇧⌘Z`) undo and redo, toggle four **Editorial Lenses** (`Heatmap`, `Slop`, `Vale`, and `Fog`), and inspect **Before and after fix previews**. Each active paragraph shows a docked header bar with its score pill, `Comment`, `Send to chat`, `AI Rewrite`, and `3-Angle Variant Tournament` actions. You can also review staged `✓ Accept Change` and `✕ Reject` diff cards, manage AI provider and project or global Vale rules in `⚙️` Settings, and open the `SEO & GEO` popover.
+3. In **Reviewer mode** (`Reviewer`), direct text editing locks while all `<!-- review: ... -->` threads render inline below their paragraphs alongside the diagnostic lenses (`Heatmap`, `Slop`, `Vale`, and `Fog`). You can add or resolve review comments or dispatch them to the panel AI or main chat.
 4. In **Raw mode** (`Raw`), you edit the full Markdown source in a single plain-text buffer with `⌘Z` and `⌘Y` (`⇧⌘Z`) undo and redo.
 
 ## Inline review comments and panel AI vs. main chat

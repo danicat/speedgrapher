@@ -50,17 +50,15 @@ Switch between four views with the **`[ Reader | Editor | Reviewer | Raw ]`** to
 
 ### 1. Reader mode
 
-Reader mode is the default view when you open a file. It renders images, tables, code blocks, alerts, task lists, math, and YAML or TOML front matter cards without highlights or inline notes in the body.
-
-Hover over any paragraph and click **`💬 Comment`** to open the comment popup window. If that paragraph already has notes, the popup loads them so you can edit or resolve them. On disk, `Speedgrapher` writes notes right below the paragraph as `<!-- review: ... -->` HTML comments so your feedback travels with Git commits. Click **`Send Comments`** in the top bar to stage AI rewrites in the panel, or click **`💬 Send to Main Chat`** when you want your main chat agent to read the text.
+Reader mode is the default read-only view when you open a file. It renders images, tables, code blocks, alerts, task lists, math, and YAML or TOML front matter cards without hover bars, highlights, or inline notes in the body.
 
 ### 2. Editor mode
 
-Click any block in Editor mode to edit its Markdown in place. Press `⌘Z` to undo, or press `⌘Y` and `⇧⌘Z` to redo your changes.
+Use the top toolbar icons to start a **New File** (`⌘N`), **Open File** (`⌘O`), **Save** (`⌘S`), or **Save As** (`⇧⌘S`). Click any block in Editor mode to edit its Markdown in place. Press `⌘Z` to undo, or press `⌘Y` and `⇧⌘Z` to redo your changes.
 
-Toggle the four **Editorial Lenses** in the center toolbar to view `Heatmap`, `Slop`, `Vale`, and `Fog` highlights. When `Heatmap` is on, paragraph backgrounds tint across a seven-color scale from `pristine` green to `bad` red based on their combined scores. Click any paragraph's score pill to inspect a breakdown for that block.
+Toggle the four **Editorial Lenses** in the center toolbar to view `Heatmap`, `Slop`, `Vale`, and `Fog` highlights. When `Heatmap` is on, paragraph backgrounds tint across a seven-color scale from `pristine` green to `bad` red based on their combined scores. Each active paragraph displays a docked header bar with its score pill, **`Comment`**, **`Send to chat`**, **`AI Rewrite`**, and **`3-Angle Variant Tournament`** actions.
 
-Hover over any highlighted phrase to open a **Before and after fix preview**. From that card, you can apply a suggested fix in one click, run **`✨ Rewrite with AI`**, or compare three rewrites in a **`3-Angle Variant Tournament`**. In-panel AI actions use `Speedgrapher`'s built-in Gemini or Vertex AI client and stage **`✓ Accept Change`** and **`✕ Reject`** diff cards in memory without writing to disk until you accept a change. If a [Vale](https://vale.sh) rule is too noisy for your project, click **`Mute Rule`** or **`+ Add to Vocab`** on the alert card, or open **`⚙️` Settings** to manage AI models, rules, and custom vocabulary terms.
+Hover over any highlighted phrase to open a **Before and after fix preview**. From that card, you can apply a suggested fix in one click, run **`✨ Rewrite with AI`**, or compare three rewrites in a **`3-Angle Variant Tournament`**. In-panel AI actions use `Speedgrapher`'s built-in Gemini or Vertex AI client and stage **`✓ Accept Change`** and **`✕ Reject`** diff cards in memory without writing to disk until you accept a change. If a [Vale](https://vale.sh) rule is too noisy, click **`Mute Rule`** or **`+ Add to Vocab`** on the alert card, or open **`⚙️` Settings** to manage AI models, project or global account Vale rules, and custom vocabulary terms.
 
 For blog posts and web docs, click **`SEO & GEO`** in the top bar to open the search audit popover. You can compare your human `summary` teaser against your search `description` tag, switch between `Auto`, `Doc`, and `Web Page` profiles, inspect the SEO and GEO checklists, and run **`Fix SEO`** to stage front matter updates.
 

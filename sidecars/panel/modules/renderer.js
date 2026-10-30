@@ -112,7 +112,7 @@ export function renderPlainWithWordSpans(plainText, plainAbsOffset, wordSpans = 
 export function renderInlineMarkdownTokens(segmentText, segmentAbsOffset = 0, wordSpans = []) {
   if (!segmentText) return '';
   const tokenRe =
-    /(`+[^`\n]+`+|`{2,})|(!\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+"([^"]*)")?\))|(<img\b[^>]*>)|(\[((?:`+[^`\n]*`+|!\[[^\]\n]*\]\([^)\s]+(?:\s+"[^"]*")?\)|[^\[\]\n])+)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+"([^"]*)")?\))|(\$\$([^$\n]+)\$\$)|((?<!\$)\$(?!\$)([^$\n]+?)\$(?!\d))|(\*\*\*(?!\s)((?:(?!\*\*\*)[^\n])*?\S)\*\*\*)|(\*\*(?!\s)((?:(?!\*\*)[^\n])*?\S)\*\*)|(__(?!\s)((?:(?!__)[^\n])*?\S)__)|((?<!\*)\*(?![*\s])((?:(?!\*)[^\n])*?[^\s*])\*(?!\*))|((?<![_\w])_(?![_\s])((?:(?!_)[^\n])*?[^\s_])_(?![_\w]))|(~~(?!\s)((?:(?!~~)[^\n])*?\S)~~)/gi;
+    /(`+[^`\n]+`+|`{2,})|(!\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+"([^"]*)")?\))|(<img\b[^>]*>)|(\[((?:`+[^`\n]*`+|!\[[^\]\n]*\]\([^)\s]+(?:\s+"[^"]*")?\)|[^\[\]\n])+)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+"([^"]*)")?\))|(\$\$([^$\n]+)\$\$)|((?<!\$)\$(?!\$)([^$\n]+?)\$(?!\d))|(\*\*\*(?!\s)((?:(?!\*\*\*)[^\n])*?\S)\*\*\*)|(\*\*(?!\s)((?:(?!\*\*)[^\n])*?\S)\*\*)|(__(?!\s)((?:(?!__)[^\n])*?\S)__)|((?<!\*)\*(?![*\s])((?:(?!\*)[^\n])*?[^\s*])\*(?!\*))|((?<![_\w])_(?![_\s])((?:(?!_)[^\n])*?[^\s_])_(?![_\w]))|(~~(?!\s)((?:(?!~~)[^\n])*?\S)~~)|(<!--[\s\S]*?-->)/gi;
 
   let out = '';
   let lastIndex = 0;
@@ -181,6 +181,8 @@ export function renderInlineMarkdownTokens(segmentText, segmentAbsOffset = 0, wo
     } else if (m[25]) {
       const inner = m[26];
       out += `<del>${renderInlineMarkdownTokens(inner, tokStart + 2, wordSpans)}</del>`;
+    } else if (m[27]) {
+      // Hide inline HTML comments (<!-- ... -->) in rendered view
     } else {
       out += renderPlainWithWordSpans(full, tokStart, wordSpans);
     }
@@ -799,13 +801,16 @@ export function renderBlockWithAmbientSpans(block) {
       } else if (line.trim()) {
         const leadSpaces = (line.match(/^\s*/) || [''])[0].length;
         const body = line.slice(leadSpaces);
-        if (itemsHtml.length > 0) {
-          itemsHtml[itemsHtml.length - 1] = itemsHtml[itemsHtml.length - 1].replace(
-            /<\/li>$/,
-            ` ${renderRichSliceWithSpans(body, lineOffset + leadSpaces, activeSpans)}</li>`
-          );
-        } else {
-          itemsHtml.push(`<li class="md-list-item">${renderRichSliceWithSpans(body, lineOffset + leadSpaces, activeSpans)}</li>`);
+        const renderedBody = renderRichSliceWithSpans(body, lineOffset + leadSpaces, activeSpans);
+        if (renderedBody.trim()) {
+          if (itemsHtml.length > 0) {
+            itemsHtml[itemsHtml.length - 1] = itemsHtml[itemsHtml.length - 1].replace(
+              /<\/li>$/,
+              ` ${renderedBody}</li>`
+            );
+          } else {
+            itemsHtml.push(`<li class="md-list-item">${renderedBody}</li>`);
+          }
         }
       }
       lineOffset += line.length + 1;

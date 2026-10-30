@@ -45,6 +45,7 @@ import {
 import {
   getEditorialRuleExplanation,
   computeBlockDiagnostics,
+  buildAmbientSpansFromAudit,
 } from './diagnostics.js';
 import {
   updateHeaderTelemetry,
@@ -63,6 +64,8 @@ export function openReviewResolutionPrompt(blockId = null, reviewId = null) {
   const titleLabel = document.getElementById('cmd-title-label');
   const submitBtn = document.getElementById('btn-cmd-submit');
   const previewEl = document.getElementById('cmd-context-preview');
+  const iconAi = document.getElementById('cmd-title-icon-ai');
+  const iconChat = document.getElementById('cmd-title-icon-chat');
   if (!input) return;
 
   const targetBlocks = state.blocks.filter((b) => {
@@ -85,6 +88,8 @@ export function openReviewResolutionPrompt(blockId = null, reviewId = null) {
   state.cmdSelectedText = '';
 
   document.getElementById('btn-send-review-agent')?.classList.add('active');
+  setHidden(iconAi, false);
+  setHidden(iconChat, true);
 
   let totalTargetReviews = 0;
   const reviewItemsHtml = [];
@@ -103,7 +108,8 @@ export function openReviewResolutionPrompt(blockId = null, reviewId = null) {
     titleLabel.textContent = 'Resolve Comments with AI';
   }
   if (submitBtn) {
-    submitBtn.textContent = targetBlocks.length > 1 ? `Stage Diffs (${targetBlocks.length})` : 'Stage Diff';
+    submitBtn.textContent = targetBlocks.length > 1 ? `✨ Resolve (${targetBlocks.length})` : '✨ Resolve';
+    submitBtn.setAttribute('data-tooltip', 'Resolve comments with AI');
   }
   if (scopeBadge) {
     scopeBadge.textContent =
@@ -117,7 +123,7 @@ export function openReviewResolutionPrompt(blockId = null, reviewId = null) {
     previewEl.innerHTML = `
       <div class="cmd-context-preview-head">
         <span>Comments to Resolve (${totalTargetReviews})</span>
-        <span>Stages per-block diffs (Accept / Reject)</span>
+        <span>Proposes per-block rewrites (Accept / Reject)</span>
       </div>
       <ul class="cmd-context-findings">${reviewItemsHtml.slice(0, 6).join('')}${
         reviewItemsHtml.length > 6 ? `<li>…and ${reviewItemsHtml.length - 6} more comment(s)</li>` : ''
@@ -126,6 +132,7 @@ export function openReviewResolutionPrompt(blockId = null, reviewId = null) {
   }
 
   setHidden('cmd-palette', false);
+  input.placeholder = 'Describe how to resolve these comments…';
   input.value = 'Address each reviewer comment while preserving technical accuracy and author voice.';
   setTimeout(() => {
     input.focus();
@@ -624,6 +631,8 @@ export function openCommandPaletteForBlock(blockId = null, selectedText = '', in
   const scopeBadge = document.getElementById('cmd-scope-badge');
   const titleLabel = document.getElementById('cmd-title-label');
   const submitBtn = document.getElementById('btn-cmd-submit');
+  const iconAi = document.getElementById('cmd-title-icon-ai');
+  const iconChat = document.getElementById('cmd-title-icon-chat');
   if (!input) return;
 
   const targetBlock = state.blocks.find((b) => b.id === (blockId || state.activeBlockId)) || null;
@@ -634,13 +643,15 @@ export function openCommandPaletteForBlock(blockId = null, selectedText = '', in
   state.cmdReviewId = null;
   state.cmdBlockId = targetBlock ? targetBlock.id : null;
   state.cmdSelectedText = selectedText || '';
-  document.getElementById('btn-ask-agent-top')?.classList.add('active');
+  setHidden(iconAi, false);
+  setHidden(iconChat, true);
 
   if (titleLabel) {
-    titleLabel.textContent = 'Ask Agent';
+    titleLabel.textContent = 'AI Rewrite';
   }
   if (submitBtn) {
-    submitBtn.textContent = 'Stage Diff';
+    submitBtn.textContent = '✨ Rewrite';
+    submitBtn.setAttribute('data-tooltip', 'Rewrite with AI');
   }
 
   if (scopeBadge) {
@@ -655,12 +666,94 @@ export function openCommandPaletteForBlock(blockId = null, selectedText = '', in
 
   renderCommandPaletteContextPreview(targetBlock, state.cmdSelectedText);
   setHidden('cmd-palette', false);
+  input.placeholder = 'Describe how to rewrite this passage…';
   input.value = initialPrompt || '';
   setTimeout(() => {
     input.focus();
     if (initialPrompt) {
       input.select();
     }
+  }, 10);
+}
+
+export function openSendToChatPopover(blockId = null, selectedText = '') {
+  const input = document.getElementById('cmd-input');
+  const scopeBadge = document.getElementById('cmd-scope-badge');
+  const titleLabel = document.getElementById('cmd-title-label');
+  const submitBtn = document.getElementById('btn-cmd-submit');
+  const previewEl = document.getElementById('cmd-context-preview');
+  const iconAi = document.getElementById('cmd-title-icon-ai');
+  const iconChat = document.getElementById('cmd-title-icon-chat');
+  if (!input) return;
+
+  const targetBlock = blockId ? state.blocks.find((b) => b.id === blockId) || null : null;
+  const cleanSelection = (selectedText || '').trim();
+
+  closeCommentPopover();
+  closeAllPopovers();
+  state.cmdOpen = true;
+  state.cmdMode = 'chat';
+  state.cmdSkill = 'draft';
+  state.cmdReviewId = null;
+  state.cmdBlockId = targetBlock ? targetBlock.id : null;
+  state.cmdSelectedText = cleanSelection;
+
+  if (!targetBlock) {
+    document.getElementById('btn-send-chat-top')?.classList.add('active');
+  }
+  setHidden(iconAi, true);
+  setHidden(iconChat, false);
+
+  if (titleLabel) {
+    titleLabel.textContent = 'Send to Chat';
+  }
+  if (submitBtn) {
+    submitBtn.textContent = 'Send to Chat';
+    submitBtn.setAttribute('data-tooltip', 'Send to main chat');
+  }
+
+  if (scopeBadge) {
+    if (cleanSelection) {
+      scopeBadge.textContent = targetBlock
+        ? `Selection (${countWordsInText(cleanSelection)}w) · L${targetBlock.startLine}–${targetBlock.endLine}`
+        : `Selection (${countWordsInText(cleanSelection)}w)`;
+    } else if (targetBlock) {
+      scopeBadge.textContent = `Paragraph · L${targetBlock.startLine}–${targetBlock.endLine} (${countWordsInText(targetBlock.raw)}w)`;
+    } else {
+      scopeBadge.textContent = `Full Doc (${state.metrics.words}w)`;
+    }
+  }
+
+  if (previewEl) {
+    setHidden(previewEl, false);
+    const fullDocMd =
+      state.studioMode === 'raw'
+        ? document.getElementById('raw-markdown-editor')?.value || ''
+        : serializeBlocksToMarkdown(state.blocks);
+    const previewSource = cleanSelection || (targetBlock ? targetBlock.raw : fullDocMd);
+    const snippet = previewSource.length > 260 ? `${previewSource.slice(0, 260)}…` : previewSource;
+    const headLabel = cleanSelection
+      ? 'Selected Text to Send'
+      : targetBlock
+      ? `Paragraph · L${targetBlock.startLine}–${targetBlock.endLine}`
+      : `Full Document · ${state.filePath ? pathBasename(state.filePath) : 'Unsaved Draft'}`;
+
+    previewEl.innerHTML = `
+      <div class="cmd-context-preview-head">
+        <span>${escapeHtml(headLabel)}</span>
+        <span>${countWordsInText(previewSource)} words</span>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:11px;white-space:pre-wrap;color:var(--fg);line-height:1.45;">${escapeHtml(
+        snippet || '(empty)'
+      )}</div>
+    `;
+  }
+
+  setHidden('cmd-palette', false);
+  input.placeholder = 'Add an optional comment or instruction (or press Enter to send as-is)…';
+  input.value = '';
+  setTimeout(() => {
+    input.focus();
   }, 10);
 }
 
@@ -852,40 +945,51 @@ export async function dispatchScopedAgentSkill(skillName, blockOrId, instruction
   }
 }
 
-export async function sendContextToMainChat(block, instruction, quote = '') {
+export async function sendContextToMainChat(block, instruction = '', quote = '') {
   if (!window.sidecar?.conversationId || !window.sidecar?.agent?.sendMessage) {
     showError(
-      'No active Antigravity conversation is connected to this panel. Open Speedgrapher from an active chat session to send context to the main chat.'
+      'No active Antigravity conversation is connected to this panel. Open Speedgrapher from an active chat session to send to the main chat.'
     );
     return;
   }
 
-  const fileLabel = state.filePath || 'the active draft in Speedgrapher';
+  const fileLabel = state.filePath ? `\`${state.filePath}\`` : 'unsaved draft in Speedgrapher';
   const effectiveQuote = (quote || state.cmdSelectedText || '').trim();
-  const selectedFocus = effectiveQuote
-    ? `### Highlighted Selection:\n\`\`\`text\n${effectiveQuote}\n\`\`\``
-    : '';
+  const cleanInstruction = (instruction || '').trim();
   state.cmdSelectedText = '';
 
-  const targetSnippet = block
-    ? `### Passage Context (${fileLabel} · Lines ${block.startLine}–${block.endLine}):\n\`\`\`markdown\n${block.raw}\n\`\`\``
-    : `### Document Context (${fileLabel}):\n${buildParagraphContextTelemetryMarkdown(null)}`;
+  let contentSection = '';
+  if (effectiveQuote && block) {
+    contentSection = [
+      `### Selected Excerpt (${fileLabel} · Lines ${block.startLine}–${block.endLine}):`,
+      `\`\`\`markdown\n${effectiveQuote}\n\`\`\``,
+      `### Full Paragraph (${fileLabel} · Lines ${block.startLine}–${block.endLine}):`,
+      `\`\`\`markdown\n${block.raw}\n\`\`\``,
+    ].join('\n');
+  } else if (effectiveQuote) {
+    contentSection = `### Selected Text (${fileLabel}):\n\`\`\`markdown\n${effectiveQuote}\n\`\`\``;
+  } else if (block) {
+    contentSection = `### Passage (${fileLabel} · Lines ${block.startLine}–${block.endLine}):\n\`\`\`markdown\n${block.raw}\n\`\`\``;
+  } else {
+    const fullDocMd =
+      state.studioMode === 'raw'
+        ? document.getElementById('raw-markdown-editor')?.value || ''
+        : serializeBlocksToMarkdown(state.blocks);
+    contentSection = `### Document (${fileLabel}):\n\`\`\`markdown\n${fullDocMd}\n\`\`\``;
+  }
 
   const prompt = [
-    `Sharing passage context from Speedgrapher (\`${fileLabel}\`) for our chat conversation:`,
-    instruction ? `### User Note / Question:\n${instruction}` : '',
-    selectedFocus,
-    targetSnippet,
-    `*(Shared for main chat awareness and discussion — do NOT edit \`${fileLabel}\` on disk unless explicitly asked in chat.)*`,
+    cleanInstruction ? cleanInstruction : '',
+    contentSection,
   ]
     .filter(Boolean)
     .join('\n\n');
 
   try {
-    setSyncStatus('agent', 'Sent context to chat');
+    setSyncStatus('agent', 'Sent to chat');
     await window.sidecar.agent.sendMessage(prompt);
   } catch (err) {
-    showError(`Failed to send context to main chat: ${err.message}`);
+    showError(`Failed to send to main chat: ${err.message}`);
   }
 }
 
@@ -1025,10 +1129,7 @@ function alignGapBlocksDP(oldSlice, newSlice, fromDisk, sourceLabel) {
       cur.trailingBlankLines = inc.trailingBlankLines;
       if (inc.tournament) {
         cur.tournament = inc.tournament;
-      } else if (
-        inc.raw !== cur.raw ||
-        JSON.stringify(inc.reviews || []) !== JSON.stringify(cur.reviews || [])
-      ) {
+      } else if (inc.raw !== cur.raw) {
         cur.diff = {
           oldRaw: cur.raw,
           newRaw: inc.raw,
@@ -1039,6 +1140,9 @@ function alignGapBlocksDP(oldSlice, newSlice, fromDisk, sourceLabel) {
           acceptLabel: 'Accept',
           rejectLabel: 'Reject',
         };
+      } else if (JSON.stringify(inc.reviews || []) !== JSON.stringify(cur.reviews || [])) {
+        cur.reviews = inc.reviews || [];
+        cur.comments = cur.reviews;
       }
       result.push(cur);
       i++;
@@ -1115,7 +1219,7 @@ function alignGapBlocksDP(oldSlice, newSlice, fromDisk, sourceLabel) {
   return result;
 }
 
-export function reconcileExternalDiskUpdate(newDiskMarkdown, _proposedAudit, _proposedMetrics, options = {}) {
+export function reconcileExternalDiskUpdate(newDiskMarkdown, proposedAudit, proposedMetrics, options = {}) {
   const newDiskBlocks = parseDocumentIntoBlocks(newDiskMarkdown);
   const fromDisk = options.fromDisk !== undefined ? Boolean(options.fromDisk) : true;
   const sourceLabel = options.source || '✨ Proposed Agent Edit';
@@ -1132,6 +1236,7 @@ export function reconcileExternalDiskUpdate(newDiskMarkdown, _proposedAudit, _pr
         b.raw = b.diff.oldRaw;
         if (Array.isArray(b.diff.oldReviews)) {
           b.reviews = b.diff.oldReviews;
+          b.comments = b.reviews;
         }
         b.diff = null;
       }
@@ -1197,10 +1302,7 @@ export function reconcileExternalDiskUpdate(newDiskMarkdown, _proposedAudit, _pr
       cur.trailingBlankLines = inc.trailingBlankLines;
       if (inc.tournament) {
         cur.tournament = inc.tournament;
-      } else if (
-        inc.raw !== cur.raw ||
-        JSON.stringify(inc.reviews || []) !== JSON.stringify(cur.reviews || [])
-      ) {
+      } else if (inc.raw !== cur.raw) {
         cur.diff = {
           oldRaw: cur.raw,
           newRaw: inc.raw,
@@ -1211,14 +1313,39 @@ export function reconcileExternalDiskUpdate(newDiskMarkdown, _proposedAudit, _pr
           acceptLabel: 'Accept',
           rejectLabel: 'Reject',
         };
+      } else if (JSON.stringify(inc.reviews || []) !== JSON.stringify(cur.reviews || [])) {
+        cur.reviews = inc.reviews || [];
+        cur.comments = cur.reviews;
       }
       reconciled.push(cur);
     }
   }
 
+  if (reconciled.length > 0 && newDiskBlocks.length > 0) {
+    reconciled[0].leadingBlankLines = newDiskBlocks[0].leadingBlankLines || 0;
+  }
+
   state.blocks = reconciled;
   recomputeBlockLineNumbers();
-  setSyncStatus('agent', 'Review proposed edit');
+  if (proposedAudit !== undefined && proposedAudit !== null) {
+    state.audit = proposedAudit;
+  }
+  if (proposedMetrics !== undefined && proposedMetrics !== null) {
+    state.metrics = proposedMetrics;
+  }
+  state.spans = buildAmbientSpansFromAudit(state.audit);
+  if (state.studioMode === 'raw') {
+    const rawEditor = document.getElementById('raw-markdown-editor');
+    if (rawEditor && document.activeElement !== rawEditor) {
+      rawEditor.value = newDiskMarkdown;
+    }
+  }
+  recordHistorySnapshot(fromDisk ? 'Proposed external disk edit' : 'Proposed AI rewrite');
+  const hasPendingDiffs = state.blocks.some((b) => Boolean(b.diff || b.tournament));
+  setSyncStatus(
+    hasPendingDiffs ? 'agent' : 'synced',
+    hasPendingDiffs ? 'Review proposed edit' : 'Synced from disk'
+  );
   updateHeaderTelemetry();
   renderCanvas();
 }

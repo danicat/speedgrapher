@@ -466,17 +466,25 @@ export function switchSettingsTab(tabName) {
   }
 }
 
-export async function loadValeRulesAndVocab() {
+export async function loadValeRulesAndVocab(scopeOverride = undefined) {
+  const targetScope =
+    scopeOverride === 'global' || scopeOverride === 'local'
+      ? scopeOverride
+      : state.valeRulesData.scope === 'local'
+      ? 'local'
+      : 'global';
+  state.valeRulesData.scope = targetScope;
+  renderValeRulesTab();
+  renderVocabTab();
   try {
     const res = await apiPost('/api/vale/rules', {
       action: 'list',
+      scope: targetScope,
       path: state.filePath || '',
       workspacePath: state.workspacePath || '',
       conversationId: window.sidecar?.conversationId || '',
     });
-    state.valeRulesData.configPath = res.config_path || '';
-    state.valeRulesData.rules = Array.isArray(res.rules) ? res.rules : [];
-    state.valeRulesData.vocabTerms = Array.isArray(res.vocab_terms) ? res.vocab_terms : [];
+    updateValeStateFromResponse(res, targetScope);
     renderValeRulesTab();
     renderVocabTab();
   } catch (err) {
@@ -484,7 +492,50 @@ export async function loadValeRulesAndVocab() {
   }
 }
 
-export async function setValeRuleEnabled(ruleId, enabled) {
+function updateValeStateFromResponse(res, requestedScope = undefined) {
+  if (!res || typeof res !== 'object') return;
+  if (requestedScope === 'global' || requestedScope === 'local') {
+    state.valeRulesData.scope = requestedScope;
+  } else if (res.scope === 'global' || res.scope === 'local') {
+    state.valeRulesData.scope = res.scope;
+  }
+  state.valeRulesData.configPath = res.config_path || '';
+  state.valeRulesData.globalConfigPath = res.global_config_path || '';
+  state.valeRulesData.localConfigPath = res.local_config_path || '';
+  state.valeRulesData.hasLocalConfig = Boolean(res.has_local_config);
+  if (Array.isArray(res.rules)) {
+    state.valeRulesData.rules = res.rules;
+  }
+  if (Array.isArray(res.vocab_terms)) {
+    state.valeRulesData.vocabTerms = res.vocab_terms;
+  }
+  if (Array.isArray(res.global_vocab_terms)) {
+    state.valeRulesData.globalVocabTerms = res.global_vocab_terms;
+  }
+  if (Array.isArray(res.local_vocab_terms)) {
+    state.valeRulesData.localVocabTerms = res.local_vocab_terms;
+  }
+  if (Array.isArray(res.merged_vocab_terms)) {
+    state.valeRulesData.mergedVocabTerms = res.merged_vocab_terms;
+  }
+}
+
+export async function setValeSettingsScope(scope) {
+  const nextScope = scope === 'local' ? 'local' : 'global';
+  state.valeRulesData.scope = nextScope;
+  document.querySelectorAll('.vale-scope-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.valeScope === nextScope);
+  });
+  await loadValeRulesAndVocab(nextScope);
+}
+
+export async function setValeRuleEnabled(ruleId, enabled, scopeOverride = undefined) {
+  const targetScope =
+    scopeOverride === 'global' || scopeOverride === 'local'
+      ? scopeOverride
+      : state.valeRulesData.scope === 'local'
+      ? 'local'
+      : 'global';
   try {
     clearError();
     if (!enabled) {
@@ -497,28 +548,56 @@ export async function setValeRuleEnabled(ruleId, enabled) {
     }
     const res = await apiPost('/api/vale/rules', {
       action: 'set_rule',
+      scope: targetScope,
       path: state.filePath || '',
       workspacePath: state.workspacePath || '',
       conversationId: window.sidecar?.conversationId || '',
       rule_id: ruleId,
       enabled: Boolean(enabled),
     });
-    if (Array.isArray(res.rules)) {
-      state.valeRulesData.rules = res.rules;
-    } else {
-      const existing = state.valeRulesData.rules.find((r) => r.id === ruleId);
-      if (existing) existing.enabled = Boolean(enabled);
-    }
+    updateValeStateFromResponse(res, targetScope);
     renderValeRulesTab();
-    await syncDocumentToDisk('user', `${enabled ? 'Enabled' : 'Muted'} Vale rule ${ruleId}`, { forceRender: true });
+    await syncDocumentToDisk(
+      'user',
+      `${enabled ? 'Enabled' : 'Muted'} Vale rule ${ruleId} (${targetScope})`,
+      { forceRender: true }
+    );
   } catch (err) {
     showError(`Failed to update Vale rule "${ruleId}": ${err.message}`);
   }
 }
 
-export async function addTermToValeVocab(term) {
+export async function resetValeRuleToGlobal(ruleId) {
+  const currentScope = state.valeRulesData.scope === 'local' ? 'local' : 'global';
+  try {
+    clearError();
+    const res = await apiPost('/api/vale/rules', {
+      action: 'reset_rule',
+      scope: 'local',
+      path: state.filePath || '',
+      workspacePath: state.workspacePath || '',
+      conversationId: window.sidecar?.conversationId || '',
+      rule_id: ruleId,
+    });
+    updateValeStateFromResponse(res, currentScope);
+    renderValeRulesTab();
+    await syncDocumentToDisk('user', `Reset project override for Vale rule ${ruleId}`, {
+      forceRender: true,
+    });
+  } catch (err) {
+    showError(`Failed to reset Vale rule "${ruleId}": ${err.message}`);
+  }
+}
+
+export async function addTermToValeVocab(term, scopeOverride = undefined) {
   const clean = (term || '').trim();
   if (!clean) return;
+  const targetScope =
+    scopeOverride === 'global' || scopeOverride === 'local'
+      ? scopeOverride
+      : state.valeRulesData.scope === 'local'
+      ? 'local'
+      : 'global';
   try {
     clearError();
     const lowerClean = clean.toLowerCase();
@@ -533,43 +612,42 @@ export async function addTermToValeVocab(term) {
 
     const res = await apiPost('/api/vale/rules', {
       action: 'add_vocab',
+      scope: targetScope,
       path: state.filePath || '',
       workspacePath: state.workspacePath || '',
       conversationId: window.sidecar?.conversationId || '',
       term: clean,
       case_insensitive: true,
     });
-    if (Array.isArray(res.vocab_terms)) {
-      state.valeRulesData.vocabTerms = res.vocab_terms;
-    } else if (!state.valeRulesData.vocabTerms.includes(clean)) {
-      state.valeRulesData.vocabTerms.push(clean);
-    }
+    updateValeStateFromResponse(res, targetScope);
     renderVocabTab();
-    await syncDocumentToDisk('user', `Added "${clean}" to vocabulary`, { forceRender: true });
+    await syncDocumentToDisk('user', `Added "${clean}" to ${targetScope} vocabulary`, { forceRender: true });
   } catch (err) {
     showError(`Failed to add "${clean}" to vocabulary: ${err.message}`);
   }
 }
 
-export async function removeTermFromValeVocab(term) {
+export async function removeTermFromValeVocab(term, scopeOverride = undefined) {
   const clean = (term || '').trim();
   if (!clean) return;
+  const uiScope = state.valeRulesData.scope === 'local' ? 'local' : 'global';
+  const targetScope =
+    scopeOverride === 'global' || scopeOverride === 'local'
+      ? scopeOverride
+      : uiScope;
   try {
     clearError();
     const res = await apiPost('/api/vale/rules', {
       action: 'remove_vocab',
+      scope: targetScope,
       path: state.filePath || '',
       workspacePath: state.workspacePath || '',
       conversationId: window.sidecar?.conversationId || '',
       term: clean,
     });
-    if (Array.isArray(res.vocab_terms)) {
-      state.valeRulesData.vocabTerms = res.vocab_terms;
-    } else {
-      state.valeRulesData.vocabTerms = state.valeRulesData.vocabTerms.filter((t) => t !== clean);
-    }
+    updateValeStateFromResponse(res, uiScope);
     renderVocabTab();
-    await syncDocumentToDisk('user', `Removed "${clean}" from vocabulary`, { forceRender: true });
+    await syncDocumentToDisk('user', `Removed "${clean}" from ${targetScope} vocabulary`, { forceRender: true });
   } catch (err) {
     showError(`Failed to remove "${clean}" from vocabulary: ${err.message}`);
   }
@@ -581,8 +659,16 @@ export function renderValeRulesTab() {
   const filterBtn = document.getElementById('vale-filter-active-btn');
   if (!listEl) return;
 
+  const activeScope = state.valeRulesData.scope === 'local' ? 'local' : 'global';
+  document.querySelectorAll('.vale-scope-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.valeScope === activeScope);
+  });
+
   if (pathBadge) {
-    pathBadge.textContent = state.valeRulesData.configPath ? `Config: ${state.valeRulesData.configPath}` : '';
+    const scopePrefix = activeScope === 'local' ? 'Project Config' : 'Global Config';
+    pathBadge.textContent = state.valeRulesData.configPath
+      ? `${scopePrefix}: ${state.valeRulesData.configPath}`
+      : '';
   }
   if (filterBtn) {
     filterBtn.classList.toggle('active', state.valeRulesData.onlyActiveInDoc);
@@ -621,30 +707,60 @@ export function renderValeRulesTab() {
 
   for (const r of filtered) {
     const ruleId = String(r.id || '');
-    const enabled = r.enabled !== false && String(r.level || '').toUpperCase() !== 'NO';
+    const enabled =
+      activeScope === 'global'
+        ? r.global_enabled !== undefined
+          ? Boolean(r.global_enabled)
+          : r.enabled !== false && String(r.effective_level || r.level || '').toUpperCase() !== 'NO'
+        : r.enabled !== false && String(r.effective_level || r.level || '').toUpperCase() !== 'NO';
     const docHits = activeDocRuleCounts.get(ruleId) || 0;
+    const hasLocalOverride = Boolean(r.local_override);
+    const hasGlobalOverride = Boolean(r.global_override);
+
+    let sourceBadgeHtml = '';
+    if (hasLocalOverride) {
+      sourceBadgeHtml = `<span class="cmd-row-badge" style="color:var(--accent);">Project override</span>`;
+    } else if (hasGlobalOverride) {
+      sourceBadgeHtml = `<span class="cmd-row-badge">Global</span>`;
+    }
+
+    const resetBtnHtml =
+      activeScope === 'local' && hasLocalOverride
+        ? `<button class="btn-secondary" type="button" data-action="reset-rule" title="Remove local override and inherit from Global" style="padding:2px 6px;font-size:9.5px;">Reset</button>`
+        : '';
 
     const row = document.createElement('div');
     row.className = 'vale-rule-row';
     row.innerHTML = `
       <div class="vale-rule-info">
-        <div style="display:flex;align-items:center;gap:6px;">
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;">
           <span class="vale-rule-id">${escapeHtml(ruleId)}</span>
+          ${sourceBadgeHtml}
           ${docHits > 0 ? `<span class="cmd-row-badge" style="color:var(--col-vale);">${docHits} in doc</span>` : ''}
         </div>
         ${r.description ? `<span class="vale-rule-desc">${escapeHtml(r.description)}</span>` : ''}
       </div>
-      <div class="segmented-control" role="group">
-        <button class="seg-btn ${enabled ? 'active' : ''}" type="button" data-enable="true">On</button>
-        <button class="seg-btn ${!enabled ? 'active' : ''}" type="button" data-enable="false">Off</button>
+      <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+        ${resetBtnHtml}
+        <div class="segmented-control" role="group">
+          <button class="seg-btn ${enabled ? 'active' : ''}" type="button" data-enable="true">On</button>
+          <button class="seg-btn ${!enabled ? 'active' : ''}" type="button" data-enable="false">Off</button>
+        </div>
       </div>
     `;
 
     row.querySelector('[data-enable="true"]')?.addEventListener('click', () => {
-      if (!enabled) setValeRuleEnabled(ruleId, true);
+      if (!enabled || (activeScope === 'local' && !hasLocalOverride)) {
+        setValeRuleEnabled(ruleId, true, activeScope);
+      }
     });
     row.querySelector('[data-enable="false"]')?.addEventListener('click', () => {
-      if (enabled) setValeRuleEnabled(ruleId, false);
+      if (enabled || (activeScope === 'local' && !hasLocalOverride)) {
+        setValeRuleEnabled(ruleId, false, activeScope);
+      }
+    });
+    row.querySelector('[data-action="reset-rule"]')?.addEventListener('click', () => {
+      resetValeRuleToGlobal(ruleId);
     });
 
     listEl.appendChild(row);
@@ -656,21 +772,63 @@ export function renderVocabTab() {
   if (!listEl) return;
   listEl.innerHTML = '';
 
-  const terms = state.valeRulesData.vocabTerms || [];
-  if (terms.length === 0) {
+  const activeScope = state.valeRulesData.scope === 'local' ? 'local' : 'global';
+  document.querySelectorAll('.vale-scope-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.valeScope === activeScope);
+  });
+
+  const vocabInput = document.getElementById('vocab-new-term-input');
+  if (vocabInput) {
+    vocabInput.placeholder =
+      activeScope === 'local'
+        ? 'Add term to project vocabulary (e.g. Sidecar, Blowfish)…'
+        : 'Add term to shared global vocabulary (e.g. Ebitengine, Genkit)…';
+  }
+
+  const globalTerms = Array.isArray(state.valeRulesData.globalVocabTerms)
+    ? state.valeRulesData.globalVocabTerms
+    : state.valeRulesData.vocabTerms || [];
+  const localTerms = Array.isArray(state.valeRulesData.localVocabTerms)
+    ? state.valeRulesData.localVocabTerms
+    : [];
+
+  const items = [];
+  if (activeScope === 'global') {
+    for (const t of globalTerms) {
+      items.push({ term: t, termScope: 'global' });
+    }
+    for (const t of localTerms) {
+      if (!globalTerms.some((g) => g.toLowerCase() === t.toLowerCase())) {
+        items.push({ term: t, termScope: 'local' });
+      }
+    }
+  } else {
+    for (const t of localTerms) {
+      items.push({ term: t, termScope: 'local' });
+    }
+    for (const t of globalTerms) {
+      if (!localTerms.some((l) => l.toLowerCase() === t.toLowerCase())) {
+        items.push({ term: t, termScope: 'global' });
+      }
+    }
+  }
+
+  if (items.length === 0) {
     listEl.innerHTML = `<div style="font-size:11px;color:var(--text-muted);padding:6px 2px;">No custom vocabulary terms in accept.txt yet.</div>`;
     return;
   }
 
-  for (const term of terms) {
+  for (const { term, termScope } of items) {
     const pill = document.createElement('span');
     pill.className = 'vocab-term-pill';
+    const badgeLabel = termScope === 'local' ? 'Project' : 'Global';
     pill.innerHTML = `
       <span>${escapeHtml(term)}</span>
-      <button class="vocab-remove-btn" type="button" title="Remove ${escapeHtml(term)}">×</button>
+      <span class="cmd-row-badge" style="font-size:8.5px;padding:1px 4px;">${badgeLabel}</span>
+      <button class="vocab-remove-btn" type="button" title="Remove ${escapeHtml(term)} from ${badgeLabel} vocabulary">×</button>
     `;
     pill.querySelector('button').addEventListener('click', () => {
-      removeTermFromValeVocab(term);
+      removeTermFromValeVocab(term, termScope);
     });
     listEl.appendChild(pill);
   }
@@ -714,11 +872,12 @@ export function updateHeaderTelemetry() {
 
   updateFilePickerLabel();
 
+  const isReaderMode = state.studioMode === 'reader';
   const totalReviews = getTotalReviewComments();
   const revBtn = document.getElementById('btn-send-review-agent');
   const revLabel = document.getElementById('review-count-label');
   const flash = state.reviewDispatchConfirmation;
-  if (flash && flash.count > 0) {
+  if (!isReaderMode && flash && flash.count > 0) {
     if (revLabel) {
       revLabel.textContent = `${flash.count}…`;
     }
@@ -735,13 +894,13 @@ export function updateHeaderTelemetry() {
       revBtn.disabled = totalReviews === 0;
       revBtn.classList.remove('is-dispatched');
     }
-    setHidden('btn-send-review-agent', totalReviews === 0);
+    setHidden('btn-send-review-agent', isReaderMode || totalReviews === 0);
   }
 
   const chatRevBtn = document.getElementById('btn-send-review-chat');
   const chatRevLabel = document.getElementById('review-chat-count-label');
   const chatFlash = state.reviewChatDispatchConfirmation;
-  if (chatFlash && chatFlash.count > 0) {
+  if (!isReaderMode && chatFlash && chatFlash.count > 0) {
     if (chatRevLabel) {
       chatRevLabel.textContent = `✓ ${chatFlash.count}`;
     }
@@ -758,7 +917,7 @@ export function updateHeaderTelemetry() {
       chatRevBtn.disabled = totalReviews === 0;
       chatRevBtn.classList.remove('is-dispatched');
     }
-    setHidden('btn-send-review-chat', totalReviews === 0);
+    setHidden('btn-send-review-chat', isReaderMode || totalReviews === 0);
   }
 
   document.querySelectorAll('.lens-chip').forEach((btn) => {
@@ -791,7 +950,7 @@ export function closeAllPopovers() {
   setHidden('panel-seo', true);
   setHidden('panel-settings', true);
   closeFileBrowserPopover();
-  document.getElementById('btn-ask-agent-top')?.classList.remove('active');
+  document.getElementById('btn-send-chat-top')?.classList.remove('active');
   document.getElementById('btn-send-review-agent')?.classList.remove('active');
   document.getElementById('btn-seo-geo')?.classList.remove('active');
   document.getElementById('btn-settings')?.classList.remove('active');

@@ -13,13 +13,18 @@
 // limitations under the License.
 
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, extname, join } from 'node:path';
+import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import {
   ALLOWED_MD_EXTENSIONS,
+  allowedSessionDirs,
   allowedSessionFiles,
   buildSubprocessEnv,
+  getBaselinesDir,
   getBinaryPath,
+  getSessionArtifactDir,
+  isPathInsideDir,
   jsonError,
   normalizeTargetPath,
   resolveActiveWorkspaceAndSession,
@@ -27,7 +32,48 @@ import {
 } from './paths.mjs';
 
 const AUDIT_SUBPROCESS_TIMEOUT_MS = 15_000;
-const VALID_VALE_RULE_ACTIONS = new Set(['list', 'set_rule', 'add_vocab', 'remove_vocab']);
+const VALID_VALE_RULE_ACTIONS = new Set(['list', 'set_rule', 'reset_rule', 'add_vocab', 'remove_vocab']);
+
+function getBaselineFilePath(canonicalPath) {
+  const hash = createHash('sha256').update(canonicalPath).digest('hex').slice(0, 32);
+  return join(getBaselinesDir(), `${hash}.json`);
+}
+
+export function readBaselineForPath(canonicalPath) {
+  try {
+    const file = getBaselineFilePath(canonicalPath);
+    if (!existsSync(file)) return null;
+    const parsed = JSON.parse(readFileSync(file, 'utf8'));
+    if (parsed && typeof parsed.baselineContent === 'string') {
+      return parsed.baselineContent;
+    }
+  } catch (err) {
+    console.warn(`[speedgrapher] Failed to read baseline for "${canonicalPath}": ${err.message}`);
+  }
+  return null;
+}
+
+export function writeBaselineForPath(canonicalPath, baselineContent) {
+  if (typeof baselineContent !== 'string') return;
+  try {
+    const file = getBaselineFilePath(canonicalPath);
+    writeFileSync(
+      file,
+      JSON.stringify(
+        {
+          path: canonicalPath,
+          baselineContent,
+          updatedAt: new Date().toISOString(),
+        },
+        null,
+        2
+      ),
+      { encoding: 'utf8', mode: 0o600 }
+    );
+  } catch (err) {
+    console.warn(`[speedgrapher] Failed to write baseline for "${canonicalPath}": ${err.message}`);
+  }
+}
 
 export function executeSpeedgrapherAudit({ filePath, text, keyword, docType, workspaceDir }) {
   const binPath = getBinaryPath();
@@ -213,6 +259,11 @@ export function openAndAuditDocument(data) {
     }
 
     const content = readFileSync(canonicalPath, 'utf8');
+    let baselineContent = readBaselineForPath(canonicalPath);
+    if (typeof baselineContent !== 'string') {
+      baselineContent = content;
+      writeBaselineForPath(canonicalPath, content);
+    }
     const requestedDocType = typeof data?.docType === 'string' && data.docType.trim() ? data.docType.trim() : 'auto';
     const requestedKeyword = typeof data?.keyword === 'string' ? data.keyword.trim() : '';
 
@@ -228,6 +279,148 @@ export function openAndAuditDocument(data) {
     return {
       path: canonicalPath,
       content,
+      baselineContent,
+      mtimeMs: st.mtimeMs,
+      size: st.size,
+      docType: requestedDocType,
+      keyword: requestedKeyword,
+      workspacePath: resolvedWorkspace,
+      conversationId: info.conversationId,
+      audit,
+      metrics,
+    };
+  } catch (err) {
+    return jsonError(err.message, err.statusCode || 500);
+  }
+}
+
+export function createAndOpenDocument(data) {
+  const rawFilename = typeof data?.filename === 'string' ? data.filename.trim() : '';
+  const rawInputPath = typeof data?.path === 'string' ? data.path.trim() : '';
+  const rawDir = typeof data?.dir === 'string' ? data.dir.trim() : '';
+  const workspacePath = typeof data?.workspacePath === 'string' ? data.workspacePath : '';
+  const conversationId = typeof data?.conversationId === 'string' ? data.conversationId : '';
+  const baseDocPath = typeof data?.baseDocPath === 'string' ? data.baseDocPath : '';
+
+  if (!rawFilename && !rawInputPath) {
+    return jsonError('Missing required "filename" or "path" parameter to create document.', 400);
+  }
+
+  let info;
+  try {
+    info = resolveActiveWorkspaceAndSession(conversationId, workspacePath);
+  } catch (err) {
+    return jsonError(`Failed to resolve active workspace: ${err.message}`, 400);
+  }
+  const resolvedWorkspace = info.workspaceDir || workspacePath || '';
+
+  let baseDir = '';
+  if (rawDir) {
+    try {
+      baseDir = normalizeTargetPath(rawDir, baseDocPath, resolvedWorkspace);
+    } catch (err) {
+      return jsonError(`Invalid directory path "${rawDir}": ${err.message}`, 400);
+    }
+  } else if (baseDocPath) {
+    try {
+      const normBase = normalizeTargetPath(baseDocPath, '', resolvedWorkspace);
+      baseDir = existsSync(normBase) && statSync(normBase).isDirectory() ? normBase : dirname(normBase);
+    } catch {}
+  }
+  if (!baseDir) {
+    if (resolvedWorkspace && existsSync(resolvedWorkspace)) {
+      baseDir = resolvedWorkspace;
+    } else if (info.sessionDir && existsSync(info.sessionDir)) {
+      baseDir = info.sessionDir;
+    } else {
+      return jsonError('Cannot determine target directory for new file; specify a valid directory.', 400);
+    }
+  }
+
+  let targetPath = '';
+  const inputRelOrAbs = rawFilename || rawInputPath;
+  if (inputRelOrAbs.includes('\0')) {
+    return jsonError('Invalid filename: null byte detected.', 400);
+  }
+  const segments = inputRelOrAbs.split(/[/\\]+/).filter(Boolean);
+  if (segments.length === 0 || segments.some((seg) => seg === '..' || seg === '.')) {
+    return jsonError(`Invalid filename "${inputRelOrAbs}": relative traversal segments ("." or "..") are not allowed.`, 400);
+  }
+
+  try {
+    if (isAbsolute(inputRelOrAbs) || inputRelOrAbs.startsWith('~/') || inputRelOrAbs.startsWith('file://')) {
+      targetPath = normalizeTargetPath(inputRelOrAbs, baseDir, resolvedWorkspace);
+    } else {
+      targetPath = resolve(baseDir, inputRelOrAbs);
+    }
+  } catch (err) {
+    return jsonError(`Invalid file path "${inputRelOrAbs}": ${err.message}`, 400);
+  }
+
+  const currentExt = extname(targetPath).toLowerCase();
+  if (!currentExt) {
+    targetPath = `${targetPath}.md`;
+  } else if (!ALLOWED_MD_EXTENSIONS.has(currentExt)) {
+    return jsonError(
+      `Unsupported file extension "${currentExt}" for "${targetPath}". Only .md and .markdown files are allowed.`,
+      400
+    );
+  }
+
+  if (existsSync(targetPath)) {
+    return jsonError(`File already exists on disk: ${targetPath}`, 409);
+  }
+
+  // Verify the deepest existing ancestor directory is inside an allowed root before creating directories
+  let existingAncestor = dirname(targetPath);
+  while (existingAncestor && !existsSync(existingAncestor)) {
+    const parent = dirname(existingAncestor);
+    if (parent === existingAncestor) break;
+    existingAncestor = parent;
+  }
+  if (!existingAncestor || !existsSync(existingAncestor) || !statSync(existingAncestor).isDirectory()) {
+    return jsonError(`Parent directory does not exist on disk: ${dirname(targetPath)}`, 400);
+  }
+
+  const canonicalAncestor = realpathSync(existingAncestor);
+  const sessionArtifactDir = info.sessionDir || getSessionArtifactDir(info.conversationId);
+  const ancestorAllowed =
+    (resolvedWorkspace ? isPathInsideDir(canonicalAncestor, resolvedWorkspace) : false) ||
+    (sessionArtifactDir ? isPathInsideDir(canonicalAncestor, sessionArtifactDir) : false) ||
+    Array.from(allowedSessionDirs).some((dir) => isPathInsideDir(canonicalAncestor, dir));
+
+  if (!ancestorAllowed) {
+    return jsonError(
+      `Access denied: "${targetPath}" is outside the active workspace and session artifact directory.`,
+      403
+    );
+  }
+
+  const initialContent = typeof data?.content === 'string' ? data.content : '';
+  const requestedDocType = typeof data?.docType === 'string' && data.docType.trim() ? data.docType.trim() : 'auto';
+  const requestedKeyword = typeof data?.keyword === 'string' ? data.keyword.trim() : '';
+
+  try {
+    mkdirSync(dirname(targetPath), { recursive: true });
+    writeFileSync(targetPath, initialContent, 'utf8');
+    const canonicalPath = realpathSync(targetPath);
+    allowedSessionFiles.add(canonicalPath);
+    writeBaselineForPath(canonicalPath, initialContent);
+    const st = statSync(canonicalPath);
+
+    const audit = executeSpeedgrapherAudit({
+      filePath: canonicalPath,
+      text: initialContent,
+      keyword: requestedKeyword,
+      docType: requestedDocType,
+      workspaceDir: resolvedWorkspace,
+    });
+    const metrics = extractPillMetrics(initialContent, audit);
+
+    return {
+      path: canonicalPath,
+      content: initialContent,
+      baselineContent: initialContent,
       mtimeMs: st.mtimeMs,
       size: st.size,
       docType: requestedDocType,
@@ -286,6 +479,9 @@ export function syncAndAuditDocument(data) {
       writeFileSync(canonicalPath, content, 'utf8');
       allowedSessionFiles.add(realpathSync(canonicalPath));
     }
+    const baselineToSave =
+      typeof data?.baselineContent === 'string' ? data.baselineContent : content;
+    writeBaselineForPath(canonicalPath, baselineToSave);
     const st = existsSync(canonicalPath)
       ? statSync(canonicalPath)
       : { mtimeMs: Date.now(), size: Buffer.byteLength(content, 'utf8') };
@@ -339,8 +535,22 @@ export function pollDocument(data) {
 
   try {
     const st = statSync(canonicalPath);
+    const proposedContent = readFileSync(canonicalPath, 'utf8');
+    const normalizedDisk = proposedContent.replace(/\r\n/g, '\n');
+    const baselineContent = readBaselineForPath(canonicalPath);
+    const hasPendingDiffs = Boolean(data?.hasPendingDiffs);
+    const hasUnreconciledBaseline =
+      !hasPendingDiffs &&
+      typeof baselineContent === 'string' &&
+      baselineContent.replace(/\r\n/g, '\n') !== normalizedDisk;
+
     const knownMtimeMs = typeof data?.knownMtimeMs === 'number' ? data.knownMtimeMs : 0;
-    if (typeof knownMtimeMs === 'number' && knownMtimeMs > 0 && Math.abs(st.mtimeMs - knownMtimeMs) < 1) {
+    if (
+      !hasUnreconciledBaseline &&
+      typeof knownMtimeMs === 'number' &&
+      knownMtimeMs > 0 &&
+      Math.abs(st.mtimeMs - knownMtimeMs) < 1
+    ) {
       return {
         changed: false,
         filePath: canonicalPath,
@@ -351,9 +561,7 @@ export function pollDocument(data) {
     }
 
     const hasCurrentContent = typeof data?.currentContent === 'string';
-    const proposedContent = readFileSync(canonicalPath, 'utf8');
-    if (hasCurrentContent) {
-      const normalizedDisk = proposedContent.replace(/\r\n/g, '\n');
+    if (hasCurrentContent && !hasUnreconciledBaseline) {
       const normalizedMem = data.currentContent.replace(/\r\n/g, '\n');
       if (normalizedDisk === normalizedMem) {
         return {
@@ -384,6 +592,7 @@ export function pollDocument(data) {
       mtimeMs: st.mtimeMs,
       size: st.size,
       content: proposedContent,
+      baselineContent: typeof baselineContent === 'string' ? baselineContent : undefined,
       audit,
       metrics,
     };
@@ -404,16 +613,18 @@ export function handleAudit(data) {
       return jsonError(`Invalid file path "${rawInputPath}": ${err.message}`, 400);
     }
   }
-  const text = typeof data?.text === 'string' ? data.text : '';
+  const hasText = typeof data?.text === 'string';
+  const text = hasText ? data.text : '';
   const keyword = typeof data?.keyword === 'string' ? data.keyword.trim() : '';
   const docType = typeof data?.docType === 'string' && data.docType.trim() ? data.docType.trim() : 'auto';
 
-  if (!text && !filePath) {
-    return jsonError('Audit requires either non-empty "text" or a valid file "path".', 400);
+  if (!hasText && !filePath) {
+    return jsonError('Audit requires either "text" or a valid file "path".', 400);
   }
 
   try {
-    const audit = executeSpeedgrapherAudit({ filePath, text, keyword, docType, workspaceDir });
+    const auditText = !filePath && text === '' ? '\n' : text;
+    const audit = executeSpeedgrapherAudit({ filePath, text: auditText, keyword, docType, workspaceDir });
     const metrics = extractPillMetrics(text, audit);
     return { audit, metrics };
   } catch (err) {
@@ -453,11 +664,12 @@ export function handleValeRules(data) {
   const ruleId = typeof data?.rule_id === 'string' ? data.rule_id.trim() : '';
   const level = typeof data?.level === 'string' && data.level.trim() ? data.level.trim() : '';
   const term = typeof data?.term === 'string' ? data.term.trim() : '';
+  const scope = typeof data?.scope === 'string' && data.scope.trim() ? data.scope.trim().toLowerCase() : '';
   const enabled = typeof data?.enabled === 'boolean' ? data.enabled : undefined;
   const caseInsensitive = typeof data?.case_insensitive === 'boolean' ? data.case_insensitive : undefined;
 
-  if (action === 'set_rule' && !ruleId) {
-    return jsonError('Missing required "rule_id" parameter for "set_rule" action.', 400);
+  if ((action === 'set_rule' || action === 'reset_rule') && !ruleId) {
+    return jsonError(`Missing required "rule_id" parameter for "${action}" action.`, 400);
   }
   if ((action === 'add_vocab' || action === 'remove_vocab') && !term) {
     return jsonError(`Missing required "term" parameter for "${action}" action.`, 400);
@@ -482,6 +694,7 @@ export function handleValeRules(data) {
     const binPath = getBinaryPath();
     const payload = {
       action,
+      scope: scope || undefined,
       path: targetPath || workingDir,
       rule_id: ruleId || undefined,
       enabled,

@@ -99,7 +99,8 @@ export function isIndentedContinuationMarker(trimmed) {
     /^#{1,6}\s+/.test(trimmed) ||
     /^>\s?/.test(trimmed) ||
     /^(-{3,}|\*{3,}|_{3,})$/.test(trimmed) ||
-    /^\|/.test(trimmed)
+    /^\|/.test(trimmed) ||
+    /^<!--/.test(trimmed)
   );
 }
 
@@ -193,7 +194,8 @@ export function parseDocumentIntoBlocks(rawText) {
         lookahead++;
       }
       if (lookahead >= lines.length) break;
-      const parsedRev = parseReviewCommentLine(lines[lookahead].trim());
+      const candidate = lines[lookahead].trim().replace(/^>\s?/, '').trim();
+      const parsedRev = parseReviewCommentLine(candidate);
       if (!parsedRev) break;
       if (parsedRev.text) {
         block.reviews.push(parsedRev);
@@ -377,6 +379,10 @@ export function parseDocumentIntoBlocks(rawText) {
     if (/^>\s?/.test(trimmed)) {
       const blockLines = [];
       while (i < lines.length && /^>\s?/.test(lines[i].trim())) {
+        const bqInner = lines[i].trim().replace(/^>\s?/, '').trim();
+        if (parseReviewCommentLine(bqInner) !== null) {
+          break;
+        }
         blockLines.push(lines[i]);
         i++;
       }
@@ -541,18 +547,26 @@ export function parseDocumentIntoBlocks(rawText) {
 
 export function serializeBlocksToMarkdown(blocks) {
   if (!blocks || blocks.length === 0) return '';
+  const activeBlocks = blocks.filter((b) => {
+    if (b.diff && b.diff.isInsertion && b.diff.fromDisk === false) return false;
+    if (b.diff && b.diff.isDeletion && b.diff.fromDisk !== false) return false;
+    return true;
+  });
+  if (activeBlocks.length === 0) return '';
   let out = '';
-  for (let idx = 0; idx < blocks.length; idx++) {
-    const b = blocks[idx];
-    if (b.diff && b.diff.isInsertion && b.diff.fromDisk === false) {
-      continue;
-    }
+  for (let idx = 0; idx < activeBlocks.length; idx++) {
+    const b = activeBlocks[idx];
     if (idx === 0 && typeof b.leadingBlankLines === 'number' && b.leadingBlankLines > 0) {
       out += '\n'.repeat(b.leadingBlankLines);
     }
-    let blockOut = b.raw;
-    const reviewItems =
-      Array.isArray(b.reviews) && b.reviews.length > 0
+    const useDiskProposal =
+      Boolean(b.diff) && !b.diff.isInsertion && !b.diff.isDeletion && b.diff.fromDisk !== false;
+    let blockOut = useDiskProposal ? b.diff.newRaw : b.raw;
+    const reviewItems = useDiskProposal
+      ? Array.isArray(b.diff.newReviews)
+        ? b.diff.newReviews
+        : []
+      : Array.isArray(b.reviews) && b.reviews.length > 0
         ? b.reviews
         : Array.isArray(b.comments)
           ? b.comments
@@ -567,10 +581,52 @@ export function serializeBlocksToMarkdown(blocks) {
     const blanks =
       typeof b.trailingBlankLines === 'number' && b.trailingBlankLines >= 0
         ? b.trailingBlankLines
-        : idx < blocks.length - 1
+        : idx < activeBlocks.length - 1
           ? 1
           : 0;
-    if (idx < blocks.length - 1) {
+    if (idx < activeBlocks.length - 1) {
+      out += '\n'.repeat(blanks + 1);
+    } else if (blanks > 0) {
+      out += '\n'.repeat(blanks);
+    }
+  }
+  return out;
+}
+
+export function serializeBaselineBlocksToMarkdown(blocks) {
+  if (!blocks || blocks.length === 0) return '';
+  const baselineBlocks = blocks.filter((b) => !(b.diff && b.diff.isInsertion));
+  if (baselineBlocks.length === 0) return '';
+  let out = '';
+  for (let idx = 0; idx < baselineBlocks.length; idx++) {
+    const b = baselineBlocks[idx];
+    if (idx === 0 && typeof b.leadingBlankLines === 'number' && b.leadingBlankLines > 0) {
+      out += '\n'.repeat(b.leadingBlankLines);
+    }
+    const hasPendingEdit = Boolean(b.diff) && !b.diff.isInsertion && !b.diff.isDeletion;
+    let blockOut = hasPendingEdit && typeof b.diff.oldRaw === 'string' ? b.diff.oldRaw : b.raw;
+    const reviewItems =
+      hasPendingEdit && Array.isArray(b.diff.oldReviews)
+        ? b.diff.oldReviews
+        : Array.isArray(b.reviews) && b.reviews.length > 0
+          ? b.reviews
+          : Array.isArray(b.comments)
+            ? b.comments
+            : [];
+    if (reviewItems.length > 0) {
+      const commentLines = reviewItems.map((r) => formatReviewCommentHtml(r)).filter(Boolean);
+      if (commentLines.length > 0) {
+        blockOut += '\n' + commentLines.join('\n');
+      }
+    }
+    out += blockOut;
+    const blanks =
+      typeof b.trailingBlankLines === 'number' && b.trailingBlankLines >= 0
+        ? b.trailingBlankLines
+        : idx < baselineBlocks.length - 1
+          ? 1
+          : 0;
+    if (idx < baselineBlocks.length - 1) {
       out += '\n'.repeat(blanks + 1);
     } else if (blanks > 0) {
       out += '\n'.repeat(blanks);
@@ -662,7 +718,7 @@ export function computeWordDiffHtml(oldText, newText) {
   const m = a.length;
   const n = b.length;
   if (m * n > 90000) {
-    return `<del>${escapeHtml(oldText)}</del> <ins>${escapeHtml(newText)}</ins>`;
+    return `<del class="diff-del">${escapeHtml(oldText)}</del> <ins class="diff-ins">${escapeHtml(newText)}</ins>`;
   }
 
   const dp = Array.from({ length: m + 1 }, () => new Int32Array(n + 1));
@@ -702,8 +758,8 @@ export function computeWordDiffHtml(oldText, newText) {
       k++;
     }
     if (type === 'eq') html += escapeHtml(chunk);
-    else if (type === 'del') html += `<del>${escapeHtml(chunk)}</del>`;
-    else html += `<ins>${escapeHtml(chunk)}</ins>`;
+    else if (type === 'del') html += `<del class="diff-del">${escapeHtml(chunk)}</del>`;
+    else html += `<ins class="diff-ins">${escapeHtml(chunk)}</ins>`;
   }
   return html;
 }
@@ -761,6 +817,7 @@ export function captureSnapshot(label = 'Edit') {
   }
   return {
     markdown,
+    blocks: JSON.parse(JSON.stringify(state.blocks)),
     blockProposals,
     label,
     timestamp: Date.now(),
@@ -790,7 +847,15 @@ export function resetHistoryForDocument(rawMarkdown, label = 'Initial document')
     runtime.typingHistoryTimer = null;
   }
   const markdown = (rawMarkdown || '').replace(/\r\n/g, '\n');
-  runtime.undoStack = [{ markdown, blockProposals: {}, label, timestamp: Date.now() }];
+  runtime.undoStack = [
+    {
+      markdown,
+      blocks: state.blocks.length > 0 ? JSON.parse(JSON.stringify(state.blocks)) : null,
+      blockProposals: {},
+      label,
+      timestamp: Date.now(),
+    },
+  ];
   runtime.redoStack = [];
   updateUndoRedoButtons();
 }

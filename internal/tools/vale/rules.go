@@ -17,6 +17,7 @@ package vale
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -31,35 +32,48 @@ var validVocabNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // ValeRuleActionParams defines the input parameters for ManageRules.
 type ValeRuleActionParams struct {
-	Action          string `json:"action" jsonschema:"The action to perform: 'list', 'set_rule', 'add_vocab', or 'remove_vocab'."`
+	Action          string `json:"action" jsonschema:"The action to perform: 'list', 'set_rule', 'reset_rule', 'add_vocab', or 'remove_vocab'."`
+	Scope           string `json:"scope,omitempty" jsonschema:"Configuration scope: 'global' (account-wide plugin config) or 'local' (project workspace config)."`
 	Path            string `json:"path,omitempty" jsonschema:"Optional file or directory path to resolve the active .vale.ini."`
-	RuleID          string `json:"rule_id,omitempty" jsonschema:"The rule ID (e.g., 'Google.We' or 'Vale.Spelling') when action is 'set_rule'."`
+	RuleID          string `json:"rule_id,omitempty" jsonschema:"The rule ID (e.g., 'Google.We' or 'Vale.Spelling') when action is 'set_rule' or 'reset_rule'."`
 	Enabled         *bool  `json:"enabled,omitempty" jsonschema:"Optional boolean to enable (true) or disable (false) the rule when action is 'set_rule'."`
-	Level           string `json:"level,omitempty" jsonschema:"Optional severity level ('suggestion', 'warning', 'error', or 'NO') when action is 'set_rule'."`
+	Level           string `json:"level,omitempty" jsonschema:"Optional severity level ('suggestion', 'warning', 'error', 'YES', or 'NO') when action is 'set_rule'."`
 	Term            string `json:"term,omitempty" jsonschema:"The vocabulary term to add or remove when action is 'add_vocab' or 'remove_vocab'."`
 	CaseInsensitive bool   `json:"case_insensitive,omitempty" jsonschema:"When true for 'add_vocab', formats terms starting with an ASCII letter as [Tt]erm."`
 }
 
-// ValeRuleInfo describes a single Vale rule and its effective state in .vale.ini.
+// ValeRuleInfo describes a single Vale rule and its effective state across global and local .vale.ini files.
 type ValeRuleInfo struct {
 	ID             string `json:"id"`
 	Style          string `json:"style"`
 	Name           string `json:"name"`
 	Description    string `json:"description"`
 	DefaultLevel   string `json:"default_level"`
+	GlobalLevel    string `json:"global_level"`
+	GlobalEnabled  bool   `json:"global_enabled"`
+	GlobalOverride string `json:"global_override,omitempty"`
+	LocalOverride  string `json:"local_override,omitempty"`
 	EffectiveLevel string `json:"effective_level"`
 	Enabled        bool   `json:"enabled"`
+	ScopeSource    string `json:"scope_source"`
 	Link           string `json:"link,omitempty"`
 }
 
 // ValeConfigState represents the active Vale configuration, rules catalog, and custom vocabulary.
 type ValeConfigState struct {
-	ConfigPath string         `json:"config_path"`
-	StylesPath string         `json:"styles_path"`
-	VocabName  string         `json:"vocab_name"`
-	VocabPath  string         `json:"vocab_path"`
-	VocabTerms []string       `json:"vocab_terms"`
-	Rules      []ValeRuleInfo `json:"rules"`
+	Scope            string         `json:"scope"`
+	ConfigPath       string         `json:"config_path"`
+	GlobalConfigPath string         `json:"global_config_path,omitempty"`
+	LocalConfigPath  string         `json:"local_config_path,omitempty"`
+	HasLocalConfig   bool           `json:"has_local_config"`
+	StylesPath       string         `json:"styles_path"`
+	VocabName        string         `json:"vocab_name"`
+	VocabPath        string         `json:"vocab_path"`
+	VocabTerms       []string       `json:"vocab_terms"`
+	GlobalVocabTerms []string       `json:"global_vocab_terms"`
+	LocalVocabTerms  []string       `json:"local_vocab_terms"`
+	MergedVocabTerms []string       `json:"merged_vocab_terms"`
+	Rules            []ValeRuleInfo `json:"rules"`
 }
 
 type valeRuleYAML struct {
@@ -100,7 +114,7 @@ var builtinValeRules = []ValeRuleInfo{
 	},
 }
 
-// ManageRules executes a Vale rule or vocabulary management action ("list", "set_rule", "add_vocab", "remove_vocab").
+// ManageRules executes a Vale rule or vocabulary management action ("list", "set_rule", "reset_rule", "add_vocab", "remove_vocab").
 func ManageRules(input ValeRuleActionParams, cfg ...Config) (*ValeConfigState, error) {
 	var c Config
 	if len(cfg) > 0 {
@@ -124,7 +138,7 @@ func ManageRules(input ValeRuleActionParams, cfg ...Config) (*ValeConfigState, e
 		}
 	}
 
-	iniPath, err := setupValeConfig(searchDir, c.WorkspaceDir)
+	globalIni, localIni, err := resolveGlobalAndLocalValeConfigs(searchDir, c.WorkspaceDir)
 	if err != nil {
 		return nil, fmt.Errorf("vale config error: %w", err)
 	}
@@ -134,16 +148,54 @@ func ManageRules(input ValeRuleActionParams, cfg ...Config) (*ValeConfigState, e
 		action = "list"
 	}
 
+	scope := strings.ToLower(strings.TrimSpace(input.Scope))
+	if scope != "" && scope != "global" && scope != "local" {
+		return nil, fmt.Errorf("invalid scope %q (expected 'global' or 'local')", input.Scope)
+	}
+	if scope == "" {
+		if localIni != "" {
+			scope = "local"
+		} else {
+			scope = "global"
+		}
+	}
+
+	// If the user explicitly performs a write action in "local" scope in a project that
+	// does not yet have its own .vale.ini, initialize one in the project directory.
+	if scope == "local" && action != "list" && (localIni == "" || (globalIni != "" && filepath.Clean(localIni) == filepath.Clean(globalIni))) {
+		projectDir := c.WorkspaceDir
+		if projectDir == "" {
+			projectDir = searchDir
+		}
+		if projectDir != "" && globalIni != "" {
+			absProj, absErr := filepath.Abs(projectDir)
+			if absErr == nil && filepath.Clean(absProj) != filepath.Clean(filepath.Dir(globalIni)) {
+				initIni, initErr := initializeProjectValeConfig(absProj, globalIni)
+				if initErr != nil {
+					return nil, initErr
+				}
+				localIni = initIni
+			}
+		}
+	}
+
+	targetIni := localIni
+	if scope == "global" && globalIni != "" {
+		targetIni = globalIni
+	} else if targetIni == "" {
+		targetIni = globalIni
+	}
+
 	switch action {
 	case "list":
-		return loadValeConfigState(iniPath)
+		return loadDualValeConfigState(globalIni, localIni, scope)
 
 	case "set_rule":
 		ruleID := strings.TrimSpace(input.RuleID)
 		if ruleID == "" {
 			return nil, fmt.Errorf("rule_id is required for set_rule action")
 		}
-		state, err := loadValeConfigState(iniPath)
+		state, err := loadDualValeConfigState(globalIni, localIni, scope)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +215,7 @@ func ManageRules(input ValeRuleActionParams, cfg ...Config) (*ValeConfigState, e
 			upper := strings.ToUpper(level)
 			lower := strings.ToLower(level)
 			if upper != "NO" && upper != "YES" && lower != "suggestion" && lower != "warning" && lower != "error" {
-				return nil, fmt.Errorf("invalid level %q for rule %q (expected suggestion, warning, error, or NO)", input.Level, ruleID)
+				return nil, fmt.Errorf("invalid level %q for rule %q (expected suggestion, warning, error, YES, or NO)", input.Level, ruleID)
 			}
 		}
 		if input.Enabled == nil && level == "" {
@@ -176,51 +228,108 @@ func ManageRules(input ValeRuleActionParams, cfg ...Config) (*ValeConfigState, e
 			desiredOverride = "NO"
 		} else if level != "" && !strings.EqualFold(level, "YES") && !strings.EqualFold(level, "NO") {
 			desiredOverride = strings.ToLower(level)
+		} else if scope == "local" && state.HasLocalConfig && !targetRule.GlobalEnabled {
+			// Enabling a globally disabled rule in local scope requires an explicit local override.
+			desiredOverride = "YES"
 		} else {
-			// Removing "<RuleID> = NO" restores the rule's default severity
+			// Removing "<RuleID> = NO" restores the rule's inherited or default severity
 			desiredOverride = ""
 		}
 
-		if err := updateValeIniRule(iniPath, ruleID, desiredOverride); err != nil {
+		if err := updateValeIniRule(targetIni, ruleID, desiredOverride); err != nil {
 			return nil, err
 		}
-		return loadValeConfigState(iniPath)
+		return loadDualValeConfigState(globalIni, localIni, scope)
+
+	case "reset_rule":
+		ruleID := strings.TrimSpace(input.RuleID)
+		if ruleID == "" {
+			return nil, fmt.Errorf("rule_id is required for reset_rule action")
+		}
+		if err := updateValeIniRule(targetIni, ruleID, ""); err != nil {
+			return nil, err
+		}
+		return loadDualValeConfigState(globalIni, localIni, scope)
 
 	case "add_vocab":
 		rawTerm := strings.TrimSpace(input.Term)
 		if rawTerm == "" {
 			return nil, fmt.Errorf("term is required for add_vocab action")
 		}
-		state, err := loadValeConfigState(iniPath)
+		targetState, err := loadValeConfigState(targetIni)
 		if err != nil {
 			return nil, err
 		}
-		if err := ensureValeIniVocab(iniPath, state.VocabName); err != nil {
+		if err := ensureValeIniVocab(targetIni, targetState.VocabName); err != nil {
 			return nil, err
 		}
 		formattedTerm := formatVocabTerm(rawTerm, input.CaseInsensitive)
-		if err := addTermToVocabFile(state.VocabPath, rawTerm, formattedTerm); err != nil {
+		if err := addTermToVocabFile(targetState.VocabPath, rawTerm, formattedTerm); err != nil {
 			return nil, err
 		}
-		return loadValeConfigState(iniPath)
+		return loadDualValeConfigState(globalIni, localIni, scope)
 
 	case "remove_vocab":
 		rawTerm := strings.TrimSpace(input.Term)
 		if rawTerm == "" {
 			return nil, fmt.Errorf("term is required for remove_vocab action")
 		}
-		state, err := loadValeConfigState(iniPath)
+		targetState, err := loadValeConfigState(targetIni)
 		if err != nil {
 			return nil, err
 		}
-		if err := removeTermFromVocabFile(state.VocabPath, rawTerm); err != nil {
+		if err := removeTermFromVocabFile(targetState.VocabPath, rawTerm); err != nil {
 			return nil, err
 		}
-		return loadValeConfigState(iniPath)
+		return loadDualValeConfigState(globalIni, localIni, scope)
 
 	default:
-		return nil, fmt.Errorf("unknown vale_rules action %q (expected list, set_rule, add_vocab, or remove_vocab)", input.Action)
+		return nil, fmt.Errorf("unknown vale_rules action %q (expected list, set_rule, reset_rule, add_vocab, or remove_vocab)", input.Action)
 	}
+}
+
+func initializeProjectValeConfig(projectDir, globalIni string) (string, error) {
+	globalStylesRel, _, _, err := parseValeIni(globalIni)
+	if err != nil {
+		return "", err
+	}
+	globalStylesPath := globalStylesRel
+	if !filepath.IsAbs(globalStylesPath) {
+		globalStylesPath = filepath.Join(filepath.Dir(globalIni), globalStylesPath)
+	}
+	globalStylesPath = filepath.Clean(globalStylesPath)
+
+	localStylesDir := filepath.Join(projectDir, "styles")
+	if err := os.MkdirAll(localStylesDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create project styles directory %s: %w", localStylesDir, err)
+	}
+	for _, styleName := range []string{"Google", "proselint", "write-good"} {
+		src := filepath.Join(globalStylesPath, styleName)
+		dst := filepath.Join(localStylesDir, styleName)
+		if _, statErr := os.Lstat(dst); os.IsNotExist(statErr) {
+			if _, srcErr := os.Stat(src); srcErr == nil {
+				_ = os.Symlink(src, dst)
+			}
+		}
+	}
+	vocabAccept := filepath.Join(localStylesDir, "config", "vocabularies", "Speedgrapher", "accept.txt")
+	if err := os.MkdirAll(filepath.Dir(vocabAccept), 0755); err != nil {
+		return "", fmt.Errorf("failed to create project vocabulary directory: %w", err)
+	}
+	if _, statErr := os.Stat(vocabAccept); os.IsNotExist(statErr) {
+		if err := os.WriteFile(vocabAccept, []byte(""), 0644); err != nil {
+			return "", fmt.Errorf("failed to create project accept.txt: %w", err)
+		}
+	}
+
+	localIni := filepath.Join(projectDir, ".vale.ini")
+	if _, statErr := os.Stat(localIni); os.IsNotExist(statErr) {
+		content := "StylesPath = styles\nMinAlertLevel = suggestion\nVocab = Speedgrapher\n\n[*.md]\nBasedOnStyles = Vale, Google, proselint, write-good\n"
+		if err := os.WriteFile(localIni, []byte(content), 0644); err != nil {
+			return "", fmt.Errorf("failed to create project .vale.ini: %w", err)
+		}
+	}
+	return localIni, nil
 }
 
 func parseValeIni(iniPath string) (stylesRel string, vocabName string, mdOverrides map[string]string, err error) {
@@ -365,6 +474,252 @@ func loadValeConfigState(iniPath string) (*ValeConfigState, error) {
 		VocabTerms: vocabTerms,
 		Rules:      rules,
 	}, nil
+}
+
+func loadDualValeConfigState(globalIni, localIni, scope string) (*ValeConfigState, error) {
+	hasLocal := localIni != "" && (globalIni == "" || filepath.Clean(localIni) != filepath.Clean(globalIni))
+
+	var globalState *ValeConfigState
+	var globalOverrides map[string]string
+	if globalIni != "" {
+		var err error
+		globalState, err = loadValeConfigState(globalIni)
+		if err != nil {
+			return nil, err
+		}
+		_, _, globalOverrides, _ = parseValeIni(globalIni)
+	}
+
+	var localState *ValeConfigState
+	var localOverrides map[string]string
+	if localIni != "" {
+		var err error
+		localState, err = loadValeConfigState(localIni)
+		if err != nil {
+			return nil, err
+		}
+		_, _, localOverrides, _ = parseValeIni(localIni)
+	}
+
+	baseState := localState
+	if baseState == nil {
+		baseState = globalState
+	}
+	if baseState == nil {
+		return nil, fmt.Errorf("no valid Vale configuration found")
+	}
+
+	globalRulesByID := make(map[string]ValeRuleInfo)
+	if globalState != nil {
+		for _, r := range globalState.Rules {
+			globalRulesByID[r.ID] = r
+		}
+	}
+
+	mergedRules := make([]ValeRuleInfo, 0, len(baseState.Rules))
+	for _, r := range baseState.Rules {
+		info := r
+		info.GlobalLevel = info.DefaultLevel
+		info.GlobalEnabled = true
+		info.ScopeSource = "default"
+
+		if globalOverrides != nil {
+			if gRaw, ok := globalOverrides[info.ID]; ok {
+				info.GlobalOverride = strings.TrimSpace(gRaw)
+			}
+			tmp := info
+			tmp.EffectiveLevel = tmp.DefaultLevel
+			tmp.Enabled = true
+			applyRuleOverride(&tmp, globalOverrides)
+			info.GlobalLevel = tmp.EffectiveLevel
+			info.GlobalEnabled = tmp.Enabled
+		} else if localOverrides != nil {
+			info.GlobalLevel = info.EffectiveLevel
+			info.GlobalEnabled = info.Enabled
+		}
+
+		// Start effective state from global state
+		info.EffectiveLevel = info.GlobalLevel
+		info.Enabled = info.GlobalEnabled
+		if info.GlobalOverride != "" {
+			info.ScopeSource = "global"
+		}
+
+		if hasLocal && localOverrides != nil {
+			if lRaw, ok := localOverrides[info.ID]; ok {
+				info.LocalOverride = strings.TrimSpace(lRaw)
+				if scope != "global" {
+					applyRuleOverride(&info, localOverrides)
+					info.ScopeSource = "local"
+				}
+			}
+		} else if !hasLocal && localOverrides != nil {
+			if lRaw, ok := localOverrides[info.ID]; ok {
+				info.GlobalOverride = strings.TrimSpace(lRaw)
+				applyRuleOverride(&info, localOverrides)
+				info.ScopeSource = "global"
+			}
+		}
+
+		mergedRules = append(mergedRules, info)
+	}
+
+	globalVocab := []string{}
+	if globalState != nil {
+		globalVocab = append(globalVocab, globalState.VocabTerms...)
+	}
+	localVocab := []string{}
+	if hasLocal && localState != nil {
+		localVocab = append(localVocab, localState.VocabTerms...)
+	} else if !hasLocal && localState != nil && globalState == nil {
+		localVocab = append(localVocab, localState.VocabTerms...)
+	}
+
+	seenTerms := make(map[string]bool)
+	mergedVocab := []string{}
+	for _, t := range globalVocab {
+		if !seenTerms[t] {
+			seenTerms[t] = true
+			mergedVocab = append(mergedVocab, t)
+		}
+	}
+	for _, t := range localVocab {
+		if !seenTerms[t] {
+			seenTerms[t] = true
+			mergedVocab = append(mergedVocab, t)
+		}
+	}
+
+	activeState := baseState
+	if scope == "global" && globalState != nil {
+		activeState = globalState
+	}
+
+	return &ValeConfigState{
+		Scope:            scope,
+		ConfigPath:       activeState.ConfigPath,
+		GlobalConfigPath: globalIni,
+		LocalConfigPath:  localIni,
+		HasLocalConfig:   hasLocal,
+		StylesPath:       activeState.StylesPath,
+		VocabName:        activeState.VocabName,
+		VocabPath:        activeState.VocabPath,
+		VocabTerms:       activeState.VocabTerms,
+		GlobalVocabTerms: globalVocab,
+		LocalVocabTerms:  localVocab,
+		MergedVocabTerms: mergedVocab,
+		Rules:            mergedRules,
+	}, nil
+}
+
+func buildMergedValeConfig(globalIni, localIni string) (mergedIniPath string, cleanup func(), err error) {
+	gStylesRel, gVocabName, gOverrides, err := parseValeIni(globalIni)
+	if err != nil {
+		return "", nil, err
+	}
+	lStylesRel, lVocabName, lOverrides, err := parseValeIni(localIni)
+	if err != nil {
+		return "", nil, err
+	}
+
+	gStylesPath := gStylesRel
+	if !filepath.IsAbs(gStylesPath) {
+		gStylesPath = filepath.Join(filepath.Dir(globalIni), gStylesPath)
+	}
+	gStylesPath = filepath.Clean(gStylesPath)
+
+	lStylesPath := lStylesRel
+	if !filepath.IsAbs(lStylesPath) {
+		lStylesPath = filepath.Join(filepath.Dir(localIni), lStylesPath)
+	}
+	lStylesPath = filepath.Clean(lStylesPath)
+
+	tmpDir, err := os.MkdirTemp("", "speedgrapher-vale-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create temp vale config dir: %w", err)
+	}
+	cleanup = func() {
+		_ = os.RemoveAll(tmpDir)
+	}
+
+	tmpStylesDir := filepath.Join(tmpDir, "styles")
+	if err := os.MkdirAll(tmpStylesDir, 0755); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+
+	for _, styleName := range []string{"Google", "proselint", "write-good"} {
+		src := filepath.Join(lStylesPath, styleName)
+		if _, statErr := os.Stat(src); statErr != nil {
+			src = filepath.Join(gStylesPath, styleName)
+		}
+		if _, statErr := os.Stat(src); statErr == nil {
+			dst := filepath.Join(tmpStylesDir, styleName)
+			if err := os.Symlink(src, dst); err != nil {
+				cleanup()
+				return "", nil, err
+			}
+		}
+	}
+
+	mergedVocabDir := filepath.Join(tmpStylesDir, "config", "vocabularies", "SpeedgrapherMerged")
+	if err := os.MkdirAll(mergedVocabDir, 0755); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+
+	for _, fname := range []string{"accept.txt", "reject.txt"} {
+		var combined []string
+		seen := make(map[string]bool)
+		paths := []string{
+			filepath.Join(gStylesPath, "config", "vocabularies", gVocabName, fname),
+			filepath.Join(lStylesPath, "config", "vocabularies", lVocabName, fname),
+		}
+		for _, p := range paths {
+			if data, readErr := os.ReadFile(p); readErr == nil {
+				for line := range strings.SplitSeq(string(data), "\n") {
+					t := strings.TrimSpace(line)
+					if t != "" && !strings.HasPrefix(t, "#") && !seen[t] {
+						seen[t] = true
+						combined = append(combined, t)
+					}
+				}
+			}
+		}
+		if len(combined) > 0 || fname == "accept.txt" {
+			content := ""
+			if len(combined) > 0 {
+				content = strings.Join(combined, "\n") + "\n"
+			}
+			if err := os.WriteFile(filepath.Join(mergedVocabDir, fname), []byte(content), 0644); err != nil {
+				cleanup()
+				return "", nil, err
+			}
+		}
+	}
+
+	mergedOverrides := make(map[string]string)
+	maps.Copy(mergedOverrides, gOverrides)
+	maps.Copy(mergedOverrides, lOverrides)
+
+	var keys []string
+	for k := range mergedOverrides {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var b strings.Builder
+	b.WriteString("StylesPath = styles\nMinAlertLevel = suggestion\nVocab = SpeedgrapherMerged\n\n[*.md]\nBasedOnStyles = Vale, Google, proselint, write-good\n")
+	for _, k := range keys {
+		fmt.Fprintf(&b, "%s = %s\n", k, mergedOverrides[k])
+	}
+
+	mergedIniPath = filepath.Join(tmpDir, ".vale.ini")
+	if err := os.WriteFile(mergedIniPath, []byte(b.String()), 0644); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	return mergedIniPath, cleanup, nil
 }
 
 func applyRuleOverride(info *ValeRuleInfo, overrides map[string]string) {

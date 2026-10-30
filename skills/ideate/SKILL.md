@@ -9,7 +9,7 @@ metadata:
   category: writing
   tags: "brainstorming, interview, outline, blog, readme, documentation, writing"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.12.1"
+  version: "0.13.0"
 ---
 
 # Ideate: Socratic Discovery & Inverted-Pyramid Outlining

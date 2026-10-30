@@ -510,9 +510,24 @@ func TestHandleFog(t *testing.T) {
 
 		cfg := Config{}
 		params := FogParams{Path: filePath}
-		_, _, err := handleFog(cfg, params)
-		if err == nil {
-			t.Error("expected error for empty file, got nil")
+		_, res, err := handleFog(cfg, params)
+		if err != nil {
+			t.Fatalf("unexpected error for empty file: %v", err)
+		}
+		if res == nil || res.FogIndex != 0 || res.TotalWords != 0 {
+			t.Errorf("expected zeroed FogResult for empty file, got %+v", res)
+		}
+	})
+
+	t.Run("Frontmatter-only file", func(t *testing.T) {
+		cfg := Config{}
+		params := FogParams{Text: "---\ntitle: \"New Draft\"\nslug: \"generative-ui\"\n---\n\n"}
+		_, res, err := handleFog(cfg, params)
+		if err != nil {
+			t.Fatalf("unexpected error for frontmatter-only text: %v", err)
+		}
+		if res == nil || res.FogIndex != 0 || res.TotalWords != 0 {
+			t.Errorf("expected zeroed FogResult for frontmatter-only text, got %+v", res)
 		}
 	})
 
@@ -525,9 +540,12 @@ func TestHandleFog(t *testing.T) {
 
 		cfg := Config{}
 		params := FogParams{Path: filePath}
-		_, _, err := handleFog(cfg, params)
-		if err == nil {
-			t.Error("expected error for text without sentences, got nil")
+		_, res, err := handleFog(cfg, params)
+		if err != nil {
+			t.Fatalf("unexpected error for text without sentence punctuation: %v", err)
+		}
+		if res == nil || res.TotalWords != 5 || res.FogIndex <= 0 {
+			t.Errorf("expected valid FogResult for text without punctuation, got %+v", res)
 		}
 	})
 
