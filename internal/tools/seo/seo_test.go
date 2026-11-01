@@ -439,6 +439,46 @@ func TestFindHugoRoot(t *testing.T) {
 		}
 	})
 
+	t.Run("IgnoresNonHugoConfigJsonAndGeminiDir", func(t *testing.T) {
+		tempDir := t.TempDir()
+		geminiConfigDir := filepath.Join(tempDir, ".gemini", "config")
+		dreamsDir := filepath.Join(geminiConfigDir, "dreams")
+		if err := os.MkdirAll(dreamsDir, 0755); err != nil {
+			t.Fatalf("failed to create dreamsDir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(geminiConfigDir, "config.json"), []byte(`{"theme":"dark","baseURL":"https://api.example.com"}`), 0644); err != nil {
+			t.Fatalf("failed to write .gemini/config/config.json: %v", err)
+		}
+		if _, err := findHugoRoot(dreamsDir); err == nil {
+			t.Fatal("expected findHugoRoot to ignore .gemini/config/config.json, got nil error")
+		}
+
+		nonHugoDir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(nonHugoDir, "config.json"), []byte(`{"auth":"token"}`), 0644); err != nil {
+			t.Fatalf("failed to write non-Hugo config.json: %v", err)
+		}
+		if _, err := findHugoRoot(nonHugoDir); err == nil {
+			t.Fatal("expected findHugoRoot to ignore config.json without baseURL, got nil error")
+		}
+
+		dreamFile := filepath.Join(dreamsDir, "2026-10-31.md")
+		dreamMD := "---\ndate: 2026-10-31\nprevious_dream: 2026-10-30.md\nsessions_count: 2\n---\n\n# Dream journal: 2026-10-31\n\n## Retrospective\n\n- Fixed multi-provider hosting.\n"
+		if err := os.WriteFile(dreamFile, []byte(dreamMD), 0644); err != nil {
+			t.Fatalf("failed to write dream file: %v", err)
+		}
+		res, err := Analyze(context.Background(), SEOParams{
+			Path:    dreamFile,
+			HTML:    dreamMD,
+			DocType: "auto",
+		}, Config{WorkspaceDir: tempDir})
+		if err != nil {
+			t.Fatalf("Analyze failed on dream journal: %v", err)
+		}
+		if res.DocType != "doc" {
+			t.Errorf("expected dream journal doc_type 'doc', got %q", res.DocType)
+		}
+	})
+
 	t.Run("EmptyStartDir", func(t *testing.T) {
 		cwd, _ := os.Getwd()
 		_, err := findHugoRoot("")

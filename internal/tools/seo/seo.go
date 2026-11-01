@@ -380,10 +380,10 @@ func resolveDocType(explicitDocType string, isURL bool, rawContent, filePath, se
 			return "doc", nil
 		}
 		if hasFM {
-			if _, hugoErr := findHugoRoot(searchDir); hugoErr == nil {
+			if strings.TrimSpace(fm.Title) != "" || strings.TrimSpace(fm.Canonical) != "" || strings.TrimSpace(fm.Summary) != "" {
 				return "page", nil
 			}
-			if strings.TrimSpace(fm.Title) != "" || strings.TrimSpace(fm.Canonical) != "" || strings.TrimSpace(fm.Summary) != "" {
+			if root, hugoErr := findHugoRoot(searchDir); hugoErr == nil && isPathUnderHugoContent(filePath, root) {
 				return "page", nil
 			}
 		}
@@ -475,8 +475,10 @@ func renderContentToHTML(ctx context.Context, content, filePath, searchDir, docT
 
 	// If inside a Hugo repository, docType is not "doc", and the Markdown has frontmatter (YAML or TOML), render with Hugo CLI.
 	if docType != "doc" && hasFM {
-		if _, err := findHugoRoot(searchDir); err == nil {
-			return convertHugoMarkdownToHTML(ctx, content, searchDir)
+		if root, err := findHugoRoot(searchDir); err == nil {
+			if filePath == "" || isPathUnderHugoContent(filePath, root) {
+				return convertHugoMarkdownToHTML(ctx, content, searchDir)
+			}
 		}
 	}
 
@@ -734,6 +736,55 @@ func seoHandler(ctx context.Context, _ *mcp.CallToolRequest, input SEOParams, cf
 	return nil, result, nil
 }
 
+func isPathUnderHugoContent(filePath, hugoRoot string) bool {
+	if filePath == "" || hugoRoot == "" {
+		return false
+	}
+	absFile, err := filepath.Abs(filePath)
+	if err != nil {
+		return false
+	}
+	absContent, err := filepath.Abs(filepath.Join(hugoRoot, "content"))
+	if err != nil {
+		return false
+	}
+	cleanFile := filepath.Clean(absFile)
+	cleanContent := filepath.Clean(absContent)
+	return strings.HasPrefix(cleanFile, cleanContent+string(filepath.Separator))
+}
+
+func isHugoRootDir(dir string) bool {
+	// Never match inside hidden tool configuration directories (such as ~/.gemini/config).
+	for seg := range strings.SplitSeq(filepath.ToSlash(dir), "/") {
+		if seg == ".gemini" || seg == ".config" || seg == ".git" {
+			return false
+		}
+	}
+
+	for _, config := range []string{"hugo.toml", "hugo.yaml", "hugo.json"} {
+		if info, err := os.Stat(filepath.Join(dir, config)); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	for _, config := range []string{"hugo.toml", "hugo.yaml", "hugo.json", "config.toml", "config.yaml", "config.json"} {
+		if info, err := os.Stat(filepath.Join(dir, "config", "_default", config)); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	for _, legacyConfig := range []string{"config.toml", "config.yaml", "config.json"} {
+		cfgPath := filepath.Join(dir, legacyConfig)
+		info, err := os.Stat(cfgPath)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		data, err := os.ReadFile(cfgPath)
+		if err == nil && strings.Contains(strings.ToLower(string(data)), "baseurl") {
+			return true
+		}
+	}
+	return false
+}
+
 func findHugoRoot(startDir string) (string, error) {
 	if startDir == "" {
 		cwd, err := os.Getwd()
@@ -748,10 +799,8 @@ func findHugoRoot(startDir string) (string, error) {
 	}
 	curr := absDir
 	for {
-		for _, config := range []string{"hugo.toml", "hugo.yaml", "hugo.json", "config.toml", "config.yaml", "config.json"} {
-			if _, err := os.Stat(filepath.Join(curr, config)); err == nil {
-				return curr, nil
-			}
+		if isHugoRootDir(curr) {
+			return curr, nil
 		}
 		parent := filepath.Dir(curr)
 		if parent == curr {
