@@ -98,6 +98,17 @@ func TestFindValeConfigUp(t *testing.T) {
 	}
 }
 
+func setupValeConfig(searchDirs ...string) (string, error) {
+	globalIni, localIni, err := resolveGlobalAndLocalValeConfigs(searchDirs...)
+	if err != nil {
+		return "", err
+	}
+	if localIni != "" {
+		return localIni, nil
+	}
+	return globalIni, nil
+}
+
 func TestSetupValeConfig_WorkspaceDir(t *testing.T) {
 	wsDir := t.TempDir()
 	iniPath := filepath.Join(wsDir, ".vale.ini")

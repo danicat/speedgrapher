@@ -248,26 +248,6 @@ func IsComplexWord(word string) bool {
 	return countSyllables(word) >= 3
 }
 
-// CalculateFogIndex calculates the Gunning Fog Index for a given text, rounded to two decimal places.
-func CalculateFogIndex(text string) (float64, error) {
-	proseText := stripMarkdownForMetrics(text)
-	totalWords, complexWords := CountWords(proseText)
-	totalSentences := CountSentences(proseText)
-
-	if totalWords == 0 {
-		return 0.0, newError("text does not contain any words")
-	}
-	if totalSentences == 0 {
-		return 0.0, newError("text does not contain any sentences")
-	}
-
-	averageSentenceLength := float64(totalWords) / float64(totalSentences)
-	percentageComplexWords := 100 * (float64(complexWords) / float64(totalWords))
-
-	index := 0.4 * (averageSentenceLength + percentageComplexWords)
-	return math.Round(index*100) / 100, nil
-}
-
 // ClassifyFogIndex classifies the Gunning Fog Index into a readability category.
 func ClassifyFogIndex(index float64) string {
 	switch {

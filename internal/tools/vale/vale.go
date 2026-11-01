@@ -258,22 +258,6 @@ func resolveGlobalAndLocalValeConfigs(searchDirs ...string) (globalIni string, l
 	return globalIni, localIni, nil
 }
 
-// setupValeConfig resolves a valid .vale.ini (with an adjacent styles/ directory) deterministically.
-// It checks searchDirs in order (walking up parent directories), then the current working directory,
-// then the plugin's bundled .vale.ini relative to the executable, and finally the standard installed
-// Antigravity plugin directory (~/.gemini/config/plugins/speedgrapher).
-// If no valid .vale.ini is found, it fails fast listing all checked locations.
-func setupValeConfig(searchDirs ...string) (string, error) {
-	globalIni, localIni, err := resolveGlobalAndLocalValeConfigs(searchDirs...)
-	if err != nil {
-		return "", err
-	}
-	if localIni != "" {
-		return localIni, nil
-	}
-	return globalIni, nil
-}
-
 // findValeConfigUp searches for a valid .vale.ini (with adjacent styles/ directory)
 // starting from startDir and walking up parent directories.
 func findValeConfigUp(startDir string) (string, error) {
