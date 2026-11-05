@@ -354,23 +354,40 @@ func TestSEOHandler_URLInput(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		if r.URL.Path == "/redirect-to-metadata" {
+			http.Redirect(w, r, "http://169.254.169.254/latest/meta-data/", http.StatusFound)
+			return
+		}
+		if r.URL.Path == "/redirect-to-private" {
+			http.Redirect(w, r, "http://10.0.0.1/admin", http.StatusFound)
+			return
+		}
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`<html><head><title>Mock Server Title For Test Purposes</title><meta name="description" content="This is a test meta description that has between 120 and 160 characters in total for SEO auditing purposes."><link rel="canonical" href="https://example.com"></head><body><h1>Server H1 Title</h1><a href="/link">Link</a>` + perfectBody + `</body></html>`))
 	}))
 	defer server.Close()
 
-	// 1. Success case
-	_, result, err := seoHandler(context.Background(), nil, SEOParams{URL: server.URL})
+	// 1. Success case with AllowLoopback: true
+	_, result, err := seoHandler(context.Background(), nil, SEOParams{URL: server.URL}, Config{AllowLoopback: true})
 	if err != nil {
-		t.Fatalf("seoHandler failed for valid URL: %v", err)
+		t.Fatalf("seoHandler failed for valid URL with loopback allowed: %v", err)
 	}
 	if result.Title != "Mock Server Title For Test Purposes" {
 		t.Errorf("Expected title 'Mock Server Title For Test Purposes', got %q", result.Title)
 	}
 
-	// 2. Status code error
-	_, _, err = seoHandler(context.Background(), nil, SEOParams{URL: server.URL + "/404"})
+	// 2. Default config blocks loopback
+	_, _, err = seoHandler(context.Background(), nil, SEOParams{URL: server.URL})
+	if err == nil {
+		t.Fatal("Expected error for loopback URL when AllowLoopback is false, got nil")
+	}
+	if !strings.Contains(err.Error(), "loopback IP address") {
+		t.Errorf("Expected loopback block error, got: %v", err)
+	}
+
+	// 3. Status code error
+	_, _, err = seoHandler(context.Background(), nil, SEOParams{URL: server.URL + "/404"}, Config{AllowLoopback: true})
 	if err == nil {
 		t.Fatal("Expected error for 404 URL, got nil")
 	}
@@ -378,155 +395,39 @@ func TestSEOHandler_URLInput(t *testing.T) {
 		t.Errorf("Unexpected error: %v", err)
 	}
 
-	// 3. Network error
-	_, _, err = seoHandler(context.Background(), nil, SEOParams{URL: "http://127.0.0.1:0/nonexistent"})
-	if err == nil {
-		t.Fatal("Expected network error for invalid address, got nil")
-	}
-
-	// 4. Reject non-http scheme and cloud metadata host
+	// 4. Reject non-http scheme, cloud metadata host, and private IPs
 	if _, _, err := seoHandler(context.Background(), nil, SEOParams{URL: "file:///etc/passwd"}); err == nil {
 		t.Error("Expected error for file:// scheme URL, got nil")
 	}
 	if _, _, err := seoHandler(context.Background(), nil, SEOParams{URL: "http://169.254.169.254/latest/meta-data/"}); err == nil {
 		t.Error("Expected error for cloud metadata host URL, got nil")
 	}
-}
-
-func TestFindHugoRoot(t *testing.T) {
-	configs := []string{"hugo.toml", "hugo.yaml", "hugo.json", "config.toml", "config.yaml", "config.json"}
-
-	for _, cfgName := range configs {
-		t.Run(cfgName, func(t *testing.T) {
-			tempDir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(tempDir, cfgName), []byte(`baseURL = "https://example.org"`), 0644); err != nil {
-				t.Fatalf("Failed to write config file %s: %v", cfgName, err)
-			}
-
-			// 1. Direct directory
-			root, err := findHugoRoot(tempDir)
-			if err != nil {
-				t.Fatalf("findHugoRoot failed for %s: %v", cfgName, err)
-			}
-			if root != tempDir {
-				t.Errorf("Expected root %s, got %s", tempDir, root)
-			}
-
-			// 2. Nested directory
-			nestedDir := filepath.Join(tempDir, "content", "posts", "sub")
-			if err := os.MkdirAll(nestedDir, 0755); err != nil {
-				t.Fatalf("Failed to create nested dir: %v", err)
-			}
-
-			root, err = findHugoRoot(nestedDir)
-			if err != nil {
-				t.Fatalf("findHugoRoot failed from nested dir for %s: %v", cfgName, err)
-			}
-			if root != tempDir {
-				t.Errorf("Expected root %s from nested dir, got %s", tempDir, root)
-			}
-		})
+	if _, _, err := seoHandler(context.Background(), nil, SEOParams{URL: "http://10.0.0.1/admin"}); err == nil {
+		t.Error("Expected error for private 10.0.0.0/8 IP, got nil")
+	}
+	if _, _, err := seoHandler(context.Background(), nil, SEOParams{URL: "http://192.168.1.1/admin"}); err == nil {
+		t.Error("Expected error for private 192.168.0.0/16 IP, got nil")
+	}
+	if _, _, err := seoHandler(context.Background(), nil, SEOParams{URL: "http://172.16.0.1/admin"}); err == nil {
+		t.Error("Expected error for private 172.16.0.0/12 IP, got nil")
 	}
 
-	t.Run("NoHugoRootFound", func(t *testing.T) {
-		tempDir := t.TempDir()
-		_, err := findHugoRoot(tempDir)
-		if err == nil {
-			t.Fatal("Expected error when Hugo root is missing, got nil")
-		}
-		if !strings.Contains(err.Error(), "hugo root not found") {
-			t.Errorf("Unexpected error: %v", err)
-		}
-	})
-
-	t.Run("IgnoresNonHugoConfigJsonAndGeminiDir", func(t *testing.T) {
-		tempDir := t.TempDir()
-		geminiConfigDir := filepath.Join(tempDir, ".gemini", "config")
-		dreamsDir := filepath.Join(geminiConfigDir, "dreams")
-		if err := os.MkdirAll(dreamsDir, 0755); err != nil {
-			t.Fatalf("failed to create dreamsDir: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(geminiConfigDir, "config.json"), []byte(`{"theme":"dark","baseURL":"https://api.example.com"}`), 0644); err != nil {
-			t.Fatalf("failed to write .gemini/config/config.json: %v", err)
-		}
-		if _, err := findHugoRoot(dreamsDir); err == nil {
-			t.Fatal("expected findHugoRoot to ignore .gemini/config/config.json, got nil error")
-		}
-
-		nonHugoDir := t.TempDir()
-		if err := os.WriteFile(filepath.Join(nonHugoDir, "config.json"), []byte(`{"auth":"token"}`), 0644); err != nil {
-			t.Fatalf("failed to write non-Hugo config.json: %v", err)
-		}
-		if _, err := findHugoRoot(nonHugoDir); err == nil {
-			t.Fatal("expected findHugoRoot to ignore config.json without baseURL, got nil error")
-		}
-
-		dreamFile := filepath.Join(dreamsDir, "2026-10-31.md")
-		dreamMD := "---\ndate: 2026-10-31\nprevious_dream: 2026-10-30.md\nsessions_count: 2\n---\n\n# Dream journal: 2026-10-31\n\n## Retrospective\n\n- Fixed multi-provider hosting.\n"
-		if err := os.WriteFile(dreamFile, []byte(dreamMD), 0644); err != nil {
-			t.Fatalf("failed to write dream file: %v", err)
-		}
-		res, err := Analyze(context.Background(), SEOParams{
-			Path:    dreamFile,
-			HTML:    dreamMD,
-			DocType: "auto",
-		}, Config{WorkspaceDir: tempDir})
-		if err != nil {
-			t.Fatalf("Analyze failed on dream journal: %v", err)
-		}
-		if res.DocType != "doc" {
-			t.Errorf("expected dream journal doc_type 'doc', got %q", res.DocType)
-		}
-	})
-
-	t.Run("EmptyStartDir", func(t *testing.T) {
-		cwd, _ := os.Getwd()
-		_, err := findHugoRoot("")
-		_ = err
-		_ = cwd
-	})
+	// 5. Redirect to blocked IP is stopped
+	if _, _, err := seoHandler(context.Background(), nil, SEOParams{URL: server.URL + "/redirect-to-metadata"}, Config{AllowLoopback: true}); err == nil {
+		t.Error("Expected error when redirecting to cloud metadata, got nil")
+	}
+	if _, _, err := seoHandler(context.Background(), nil, SEOParams{URL: server.URL + "/redirect-to-private"}, Config{AllowLoopback: true}); err == nil {
+		t.Error("Expected error when redirecting to private network, got nil")
+	}
 }
 
-func TestConvertHugoMarkdownToHTML(t *testing.T) {
+func TestConvertMarkdownToHTML_Direct(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// Create a dummy hugo.toml
-	if err := os.WriteFile(filepath.Join(tempDir, "hugo.toml"), []byte(`baseURL = "http://example.org/"`), 0644); err != nil {
-		t.Fatalf("Failed to write hugo.toml: %v", err)
-	}
-
-	// Create layouts/_default directory
-	if err := os.MkdirAll(filepath.Join(tempDir, "layouts", "_default"), 0755); err != nil {
-		t.Fatalf("Failed to create layouts dir: %v", err)
-	}
-
-	// Create content directory
-	if err := os.Mkdir(filepath.Join(tempDir, "content"), 0755); err != nil {
-		t.Fatalf("Failed to create content dir: %v", err)
-	}
-
-	// Create a minimal single.html template
-	template := `
-<html>
-<head>
-<title>{{ .Title }}</title>
-<meta name="description" content="{{ .Description }}">
-<link rel="canonical" href="{{ .Permalink }}">
-</head>
-<body>
-<h1>{{ .Title }}</h1>
-{{ .Content }}
-</body>
-</html>
-`
-	if err := os.WriteFile(filepath.Join(tempDir, "layouts", "_default", "single.html"), []byte(template), 0644); err != nil {
-		t.Fatalf("Failed to write template: %v", err)
-	}
-
 	markdown := `---
-title: "My Hugo Post Title"
-description: "This is a description for the Hugo post that is long enough."
-canonical: "https://example.com/hugo-post"
+title: "My Decoupled Post Title"
+description: "This is a description for the post that is long enough for SEO analysis."
+canonical: "https://example.com/post"
 draft: true
 ---
 
@@ -536,69 +437,38 @@ This is the body content.
 [Link](https://example.com)
 `
 
-	// Reject path traversal in frontmatter slug/url before invoking Hugo
-	traversalMarkdown := "---\ntitle: \"Traversal\"\nslug: \"../../../etc/passwd\"\n---\nBody\n"
-	if _, err := convertHugoMarkdownToHTML(context.Background(), traversalMarkdown, tempDir); err == nil {
-		t.Fatal("Expected error for path traversal slug in convertHugoMarkdownToHTML, got nil")
-	}
-
-	html, err := convertHugoMarkdownToHTML(context.Background(), markdown, tempDir)
+	html, err := convertMarkdownToHTML(markdown)
 	if err != nil {
-		if strings.Contains(err.Error(), "executable file not found in $PATH") {
-			t.Skip("Hugo binary not installed, skipping integration test")
-		}
 		t.Fatalf("Failed to convert markdown: %v", err)
 	}
 
-	if !strings.Contains(html, "<title>My Hugo Post Title</title>") {
+	if !strings.Contains(html, "<title>My Decoupled Post Title</title>") {
 		t.Error("HTML missing title from front matter")
 	}
-	if !strings.Contains(html, `content="This is a description for the Hugo post that is long enough."`) {
+	if !strings.Contains(html, `content="This is a description for the post that is long enough for SEO analysis."`) {
 		t.Error("HTML missing description from front matter")
 	}
 
-	// Test seoHandler with Hugo Markdown directly
+	// Test seoHandler with Markdown directly
 	_, res, err := seoHandler(context.Background(), nil, SEOParams{HTML: markdown}, Config{WorkspaceDir: tempDir})
 	if err != nil {
-		if strings.Contains(err.Error(), "executable file not found in $PATH") {
-			t.Skip("Hugo binary not installed, skipping integration test")
-		}
-		t.Fatalf("seoHandler failed with Hugo markdown HTML: %v", err)
+		t.Fatalf("seoHandler failed with markdown HTML: %v", err)
 	}
-	if res != nil && res.Title != "My Hugo Post Title" {
-		t.Errorf("Expected title 'My Hugo Post Title', got %q", res.Title)
+	if res != nil && res.Title != "My Decoupled Post Title" {
+		t.Errorf("Expected title 'My Decoupled Post Title', got %q", res.Title)
 	}
 
-	// Test seoHandler with Path pointing to Hugo Markdown file
-	mdPath := filepath.Join(tempDir, "content", "post.md")
+	// Test seoHandler with Path pointing to Markdown file
+	mdPath := filepath.Join(tempDir, "post.md")
 	if err := os.WriteFile(mdPath, []byte(markdown), 0644); err != nil {
 		t.Fatalf("Failed to write md file: %v", err)
 	}
 	_, res, err = seoHandler(context.Background(), nil, SEOParams{Path: mdPath}, Config{WorkspaceDir: tempDir})
 	if err != nil {
-		if strings.Contains(err.Error(), "executable file not found in $PATH") {
-			t.Skip("Hugo binary not installed, skipping integration test")
-		}
-		t.Fatalf("seoHandler failed with Hugo markdown Path: %v", err)
+		t.Fatalf("seoHandler failed with markdown Path: %v", err)
 	}
-	if res != nil && res.Title != "My Hugo Post Title" {
-		t.Errorf("Expected title 'My Hugo Post Title', got %q", res.Title)
-	}
-
-	// Test fail-fast when Hugo does not render the target page (e.g., _build.render = never)
-	unrenderedMarkdown := `---
-title: "Unrendered Post"
-build:
-  render: "never"
----
-Unrendered content.
-`
-	_, err = convertHugoMarkdownToHTML(context.Background(), unrenderedMarkdown, tempDir)
-	if err == nil {
-		t.Fatal("Expected error when Hugo output is not rendered at expected path, got nil")
-	}
-	if !strings.Contains(err.Error(), "expected rendered Hugo output at") {
-		t.Errorf("Expected fail-fast error containing 'expected rendered Hugo output at', got: %v", err)
+	if res != nil && res.Title != "My Decoupled Post Title" {
+		t.Errorf("Expected title 'My Decoupled Post Title', got %q", res.Title)
 	}
 }
 

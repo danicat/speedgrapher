@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -37,7 +37,8 @@ import (
 
 // Config holds configuration options for the SEO tool.
 type Config struct {
-	WorkspaceDir string
+	WorkspaceDir  string
+	AllowLoopback bool
 }
 
 // Register registers the seo tool with the server.
@@ -215,7 +216,7 @@ func parseFrontMatter(markdown string) (FrontMatter, string, bool, error) {
 		}
 		fmRaw := before
 		after := after0
-		if err := parseTOMLFrontMatter(fmRaw, &fm); err != nil {
+		if err := parseSimpleTOMLFrontMatter(fmRaw, &fm); err != nil {
 			return fm, markdown, true, fmt.Errorf("invalid TOML frontmatter: %w", err)
 		}
 		return fm, after, true, nil
@@ -223,33 +224,7 @@ func parseFrontMatter(markdown string) (FrontMatter, string, bool, error) {
 	return fm, markdown, false, nil
 }
 
-func stripTOMLInlineComment(s string) string {
-	inDouble := false
-	inSingle := false
-	escaped := false
-	for i := 0; i < len(s); i++ {
-		ch := s[i]
-		if escaped {
-			escaped = false
-			continue
-		}
-		if ch == '\\' && inDouble {
-			escaped = true
-			continue
-		}
-		if ch == '"' && !inSingle {
-			inDouble = !inDouble
-		} else if ch == '\'' && !inDouble {
-			inSingle = !inSingle
-		} else if ch == '#' && !inDouble && !inSingle {
-			return strings.TrimSpace(s[:i])
-		}
-	}
-	return strings.TrimSpace(s)
-}
-
-func parseTOMLFrontMatter(raw string, fm *FrontMatter) error {
-	currentSection := ""
+func parseSimpleTOMLFrontMatter(raw string, fm *FrontMatter) error {
 	lines := strings.Split(raw, "\n")
 	for i := 0; i < len(lines); i++ {
 		line := strings.TrimSpace(lines[i])
@@ -260,7 +235,6 @@ func parseTOMLFrontMatter(raw string, fm *FrontMatter) error {
 			if !strings.HasSuffix(line, "]") {
 				return fmt.Errorf("unclosed table header %q on line %d", line, i+1)
 			}
-			currentSection = strings.TrimSpace(strings.Trim(line, "[]"))
 			continue
 		}
 		before, after, ok := strings.Cut(line, "=")
@@ -276,70 +250,33 @@ func parseTOMLFrontMatter(raw string, fm *FrontMatter) error {
 			return fmt.Errorf("empty value for key %q on line %d", key, i+1)
 		}
 
-		if strings.HasPrefix(valRaw, "[") {
-			for !strings.HasSuffix(stripTOMLInlineComment(valRaw), "]") {
-				i++
-				if i >= len(lines) {
-					return fmt.Errorf("unclosed array for key %q", key)
-				}
-				valRaw += " " + strings.TrimSpace(lines[i])
-			}
-			continue
-		}
-
 		var strVal string
 		var isBool bool
 		var boolVal bool
+
 		switch {
-		case strings.HasPrefix(valRaw, `"""`):
-			rest := valRaw[3:]
-			for !strings.Contains(rest, `"""`) {
-				i++
-				if i >= len(lines) {
-					return fmt.Errorf("unclosed multi-line string for key %q", key)
-				}
-				rest += "\n" + lines[i]
-			}
-			endIdx := strings.Index(rest, `"""`)
-			strVal = strings.TrimSpace(rest[:endIdx])
-		case strings.HasPrefix(valRaw, `'''`):
-			rest := valRaw[3:]
-			for !strings.Contains(rest, `'''`) {
-				i++
-				if i >= len(lines) {
-					return fmt.Errorf("unclosed multi-line literal string for key %q", key)
-				}
-				rest += "\n" + lines[i]
-			}
-			endIdx := strings.Index(rest, `'''`)
-			strVal = strings.TrimSpace(rest[:endIdx])
 		case strings.HasPrefix(valRaw, `"`):
-			unquoted, err := strconv.Unquote(stripTOMLInlineComment(valRaw))
+			if !strings.HasSuffix(valRaw, `"`) || len(valRaw) < 2 {
+				return fmt.Errorf("unclosed double-quoted string for key %q on line %d", key, i+1)
+			}
+			unquoted, err := strconv.Unquote(valRaw)
 			if err != nil {
 				return fmt.Errorf("invalid quoted string for key %q: %w", key, err)
 			}
 			strVal = unquoted
 		case strings.HasPrefix(valRaw, `'`):
-			cleaned := stripTOMLInlineComment(valRaw)
-			if len(cleaned) < 2 || !strings.HasSuffix(cleaned, `'`) {
-				return fmt.Errorf("unclosed single-quoted string for key %q", key)
+			if !strings.HasSuffix(valRaw, `'`) || len(valRaw) < 2 {
+				return fmt.Errorf("unclosed single-quoted string for key %q on line %d", key, i+1)
 			}
-			strVal = cleaned[1 : len(cleaned)-1]
+			strVal = valRaw[1 : len(valRaw)-1]
 		default:
-			cleaned := stripTOMLInlineComment(valRaw)
-			if cleaned == "true" || cleaned == "false" {
+			if valRaw == "true" || valRaw == "false" {
 				isBool = true
-				boolVal = (cleaned == "true")
-				strVal = cleaned
-			} else if strings.ContainsAny(cleaned, " \t\"'[]") {
-				return fmt.Errorf("invalid unquoted TOML value %q for key %q", cleaned, key)
+				boolVal = (valRaw == "true")
+				strVal = valRaw
 			} else {
-				strVal = cleaned
+				strVal = valRaw
 			}
-		}
-
-		if currentSection != "" {
-			continue
 		}
 
 		switch key {
@@ -367,7 +304,7 @@ func parseTOMLFrontMatter(raw string, fm *FrontMatter) error {
 	return nil
 }
 
-func resolveDocType(explicitDocType string, isURL bool, rawContent, filePath, searchDir string) (string, error) {
+func resolveDocType(explicitDocType string, isURL bool, rawContent, filePath string) (string, error) {
 	if !isURL && !isRawHTML(rawContent, filePath) {
 		fm, _, hasFM, err := parseFrontMatter(rawContent)
 		if err != nil {
@@ -381,9 +318,6 @@ func resolveDocType(explicitDocType string, isURL bool, rawContent, filePath, se
 		}
 		if hasFM {
 			if strings.TrimSpace(fm.Title) != "" || strings.TrimSpace(fm.Canonical) != "" || strings.TrimSpace(fm.Summary) != "" {
-				return "page", nil
-			}
-			if root, hugoErr := findHugoRoot(searchDir); hugoErr == nil && isPathUnderHugoContent(filePath, root) {
 				return "page", nil
 			}
 		}
@@ -463,25 +397,10 @@ func extractHTMLHeadings(doc *goquery.Document) []HeadingItem {
 	return headings
 }
 
-func renderContentToHTML(ctx context.Context, content, filePath, searchDir, docType string) (string, error) {
+func renderContentToHTML(content, filePath string) (string, error) {
 	if isRawHTML(content, filePath) {
 		return content, nil
 	}
-
-	_, _, hasFM, err := parseFrontMatter(content)
-	if err != nil {
-		return "", err
-	}
-
-	// If inside a Hugo repository, docType is not "doc", and the Markdown has frontmatter (YAML or TOML), render with Hugo CLI.
-	if docType != "doc" && hasFM {
-		if root, err := findHugoRoot(searchDir); err == nil {
-			if filePath == "" || isPathUnderHugoContent(filePath, root) {
-				return convertHugoMarkdownToHTML(ctx, content, searchDir)
-			}
-		}
-	}
-
 	return convertMarkdownToHTML(content)
 }
 
@@ -610,6 +529,75 @@ func convertMarkdownToHTML(markdown string) (string, error) {
 	return fmt.Sprintf("<html><head>\n%s</head><body>\n%s</body></html>", headBuilder.String(), bodyBuilder.String()), nil
 }
 
+var carrierGradeNAT = &net.IPNet{
+	IP:   net.ParseIP("100.64.0.0"),
+	Mask: net.CIDRMask(10, 32),
+}
+
+func validateIP(ip net.IP, allowLoopback bool) error {
+	if ip == nil {
+		return fmt.Errorf("invalid IP address")
+	}
+	if ip.IsUnspecified() {
+		return fmt.Errorf("unspecified IP address %s is not allowed", ip)
+	}
+	if ip.IsLoopback() {
+		if !allowLoopback {
+			return fmt.Errorf("loopback IP address %s is not allowed", ip)
+		}
+		return nil
+	}
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return fmt.Errorf("link-local IP address %s is not allowed", ip)
+	}
+	if ip.IsPrivate() {
+		return fmt.Errorf("private IP address %s is not allowed", ip)
+	}
+	if carrierGradeNAT.Contains(ip) {
+		return fmt.Errorf("carrier-grade NAT IP address %s is not allowed", ip)
+	}
+	return nil
+}
+
+func validateURL(ctx context.Context, rawURL string, allowLoopback bool) (*url.URL, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL %q: %w", rawURL, err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("invalid URL %q: scheme must be http or https", rawURL)
+	}
+	hostname := u.Hostname()
+	if hostname == "" {
+		return nil, fmt.Errorf("invalid URL %q: missing host", rawURL)
+	}
+	if strings.EqualFold(hostname, "metadata.google.internal") || strings.EqualFold(hostname, "instance-data") {
+		return nil, fmt.Errorf("cloud metadata host %q is not allowed", hostname)
+	}
+
+	if ip := net.ParseIP(hostname); ip != nil {
+		if err := validateIP(ip, allowLoopback); err != nil {
+			return nil, fmt.Errorf("blocked URL host %q: %w", hostname, err)
+		}
+		return u, nil
+	}
+
+	resolver := &net.Resolver{}
+	ips, err := resolver.LookupIP(ctx, "ip", hostname)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve DNS for host %q: %w", hostname, err)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no IP addresses found for host %q", hostname)
+	}
+	for _, ip := range ips {
+		if err := validateIP(ip, allowLoopback); err != nil {
+			return nil, fmt.Errorf("blocked URL host %q: %w", hostname, err)
+		}
+	}
+	return u, nil
+}
+
 func seoHandler(ctx context.Context, _ *mcp.CallToolRequest, input SEOParams, cfg ...Config) (*mcp.CallToolResult, *SEOResult, error) {
 	c := resolveConfig(cfg...)
 	var doc *goquery.Document
@@ -617,7 +605,6 @@ func seoHandler(ctx context.Context, _ *mcp.CallToolRequest, input SEOParams, cf
 	var rawContent string
 	var docType string
 
-	searchDir := c.WorkspaceDir
 	var resolvedFilePath string
 	if input.Path != "" {
 		filePath := input.Path
@@ -629,23 +616,47 @@ func seoHandler(ctx context.Context, _ *mcp.CallToolRequest, input SEOParams, cf
 			return nil, nil, fmt.Errorf("failed to resolve path %s: %w", input.Path, absErr)
 		}
 		resolvedFilePath = absPath
-		searchDir = filepath.Dir(absPath)
 	}
 
 	if input.URL != "" {
-		u, parseErr := url.Parse(input.URL)
-		if parseErr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			return nil, nil, fmt.Errorf("invalid URL %q: scheme must be http or https", input.URL)
+		validatedURL, valErr := validateURL(ctx, input.URL, c.AllowLoopback)
+		if valErr != nil {
+			return nil, nil, valErr
 		}
-		host := strings.ToLower(u.Hostname())
-		if host == "169.254.169.254" || host == "metadata.google.internal" || strings.HasPrefix(host, "169.254.") {
-			return nil, nil, fmt.Errorf("blocked URL host %q: link-local and cloud metadata addresses are not allowed", host)
-		}
-		req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, input.URL, nil)
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, validatedURL.String(), nil)
 		if reqErr != nil {
 			return nil, nil, fmt.Errorf("failed to create HTTP request: %w", reqErr)
 		}
-		client := &http.Client{Timeout: 15 * time.Second}
+		transport := &http.Transport{
+			DialContext: func(dialCtx context.Context, network, addr string) (net.Conn, error) {
+				host, port, splitErr := net.SplitHostPort(addr)
+				if splitErr != nil {
+					return nil, splitErr
+				}
+				ips, lookupErr := net.DefaultResolver.LookupIP(dialCtx, "ip", host)
+				if lookupErr != nil {
+					return nil, lookupErr
+				}
+				for _, ip := range ips {
+					if ipErr := validateIP(ip, c.AllowLoopback); ipErr != nil {
+						return nil, fmt.Errorf("blocked connection to %s (%s): %w", host, ip, ipErr)
+					}
+				}
+				d := net.Dialer{Timeout: 10 * time.Second}
+				return d.DialContext(dialCtx, network, net.JoinHostPort(host, port))
+			},
+		}
+		client := &http.Client{
+			Transport: transport,
+			Timeout:   15 * time.Second,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 10 {
+					return fmt.Errorf("stopped after 10 redirects")
+				}
+				_, redirectErr := validateURL(req.Context(), req.URL.String(), c.AllowLoopback)
+				return redirectErr
+			},
+		}
 		resp, fetchErr := client.Do(req)
 		if fetchErr != nil {
 			return nil, nil, fmt.Errorf("failed to fetch URL: %w", fetchErr)
@@ -654,7 +665,7 @@ func seoHandler(ctx context.Context, _ *mcp.CallToolRequest, input SEOParams, cf
 		if resp.StatusCode != http.StatusOK {
 			return nil, nil, fmt.Errorf("failed to fetch URL, status code: %d", resp.StatusCode)
 		}
-		docType, err = resolveDocType(input.DocType, true, "", "", searchDir)
+		docType, err = resolveDocType(input.DocType, true, "", "")
 		if err != nil {
 			return nil, nil, err
 		}
@@ -662,11 +673,11 @@ func seoHandler(ctx context.Context, _ *mcp.CallToolRequest, input SEOParams, cf
 	} else if input.HTML != "" {
 		rawContent = input.HTML
 		var docErr error
-		docType, docErr = resolveDocType(input.DocType, false, rawContent, resolvedFilePath, searchDir)
+		docType, docErr = resolveDocType(input.DocType, false, rawContent, resolvedFilePath)
 		if docErr != nil {
 			return nil, nil, fmt.Errorf("failed to render content for SEO analysis: %w", docErr)
 		}
-		htmlContent, convErr := renderContentToHTML(ctx, rawContent, resolvedFilePath, searchDir, docType)
+		htmlContent, convErr := renderContentToHTML(rawContent, resolvedFilePath)
 		if convErr != nil {
 			return nil, nil, fmt.Errorf("failed to render content for SEO analysis: %w", convErr)
 		}
@@ -678,11 +689,11 @@ func seoHandler(ctx context.Context, _ *mcp.CallToolRequest, input SEOParams, cf
 		}
 		rawContent = string(data)
 		var docErr error
-		docType, docErr = resolveDocType(input.DocType, false, rawContent, resolvedFilePath, searchDir)
+		docType, docErr = resolveDocType(input.DocType, false, rawContent, resolvedFilePath)
 		if docErr != nil {
 			return nil, nil, fmt.Errorf("failed to render %s for SEO analysis: %w", resolvedFilePath, docErr)
 		}
-		htmlContent, convErr := renderContentToHTML(ctx, rawContent, resolvedFilePath, searchDir, docType)
+		htmlContent, convErr := renderContentToHTML(rawContent, resolvedFilePath)
 		if convErr != nil {
 			return nil, nil, fmt.Errorf("failed to render %s for SEO analysis: %w", resolvedFilePath, convErr)
 		}
@@ -734,158 +745,6 @@ func seoHandler(ctx context.Context, _ *mcp.CallToolRequest, input SEOParams, cf
 		return nil, nil, err
 	}
 	return nil, result, nil
-}
-
-func isPathUnderHugoContent(filePath, hugoRoot string) bool {
-	if filePath == "" || hugoRoot == "" {
-		return false
-	}
-	absFile, err := filepath.Abs(filePath)
-	if err != nil {
-		return false
-	}
-	absContent, err := filepath.Abs(filepath.Join(hugoRoot, "content"))
-	if err != nil {
-		return false
-	}
-	cleanFile := filepath.Clean(absFile)
-	cleanContent := filepath.Clean(absContent)
-	return strings.HasPrefix(cleanFile, cleanContent+string(filepath.Separator))
-}
-
-func isHugoRootDir(dir string) bool {
-	// Never match inside hidden tool configuration directories (such as ~/.gemini/config).
-	for seg := range strings.SplitSeq(filepath.ToSlash(dir), "/") {
-		if seg == ".gemini" || seg == ".config" || seg == ".git" {
-			return false
-		}
-	}
-
-	for _, config := range []string{"hugo.toml", "hugo.yaml", "hugo.json"} {
-		if info, err := os.Stat(filepath.Join(dir, config)); err == nil && !info.IsDir() {
-			return true
-		}
-	}
-	for _, config := range []string{"hugo.toml", "hugo.yaml", "hugo.json", "config.toml", "config.yaml", "config.json"} {
-		if info, err := os.Stat(filepath.Join(dir, "config", "_default", config)); err == nil && !info.IsDir() {
-			return true
-		}
-	}
-	for _, legacyConfig := range []string{"config.toml", "config.yaml", "config.json"} {
-		cfgPath := filepath.Join(dir, legacyConfig)
-		info, err := os.Stat(cfgPath)
-		if err != nil || info.IsDir() {
-			continue
-		}
-		data, err := os.ReadFile(cfgPath)
-		if err == nil && strings.Contains(strings.ToLower(string(data)), "baseurl") {
-			return true
-		}
-	}
-	return false
-}
-
-func findHugoRoot(startDir string) (string, error) {
-	if startDir == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", err
-		}
-		startDir = cwd
-	}
-	absDir, err := filepath.Abs(startDir)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve absolute path for %s: %w", startDir, err)
-	}
-	curr := absDir
-	for {
-		if isHugoRootDir(curr) {
-			return curr, nil
-		}
-		parent := filepath.Dir(curr)
-		if parent == curr {
-			break
-		}
-		curr = parent
-	}
-	return "", fmt.Errorf("hugo root not found")
-}
-
-func convertHugoMarkdownToHTML(ctx context.Context, markdown string, workspaceDir string) (string, error) {
-	fm, _, hasFM, err := parseFrontMatter(markdown)
-	if err != nil {
-		return "", err
-	}
-
-	root, err := findHugoRoot(workspaceDir)
-	if err != nil {
-		return "", fmt.Errorf("hugo root not found: %w", err)
-	}
-
-	contentDir := filepath.Join(root, "content")
-	if err := os.MkdirAll(contentDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create content dir: %w", err)
-	}
-
-	// Create a unique temp file in content
-	tmpFile, err := os.CreateTemp(contentDir, "speedgrapher_seo_*.md")
-	if err != nil {
-		return "", fmt.Errorf("failed to create temp markdown: %w", err)
-	}
-	tempFilePath := tmpFile.Name()
-	defer func() { _ = os.Remove(tempFilePath) }()
-
-	if _, err := tmpFile.WriteString(markdown); err != nil {
-		_ = tmpFile.Close()
-		return "", fmt.Errorf("failed to write temp markdown: %w", err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		return "", fmt.Errorf("failed to close temp markdown: %w", err)
-	}
-
-	tempOut, err := os.MkdirTemp("", "speedgrapher_hugo_out")
-	if err != nil {
-		return "", fmt.Errorf("failed to create temp out dir: %w", err)
-	}
-	defer func() { _ = os.RemoveAll(tempOut) }()
-
-	tempOutAbs, err := filepath.Abs(tempOut)
-	if err == nil {
-		tempOut = tempOutAbs
-	}
-
-	baseName := strings.TrimSuffix(filepath.Base(tempFilePath), filepath.Ext(tempFilePath))
-	targetSlug := strings.ToLower(baseName)
-	if hasFM {
-		if strings.TrimSpace(fm.URL) != "" {
-			targetSlug = strings.Trim(strings.TrimSpace(fm.URL), "/")
-		} else if strings.TrimSpace(fm.Slug) != "" {
-			targetSlug = strings.TrimSpace(fm.Slug)
-		}
-	}
-
-	renderedPath := filepath.Join(tempOut, targetSlug, "index.html")
-	cleanTempOut := filepath.Clean(tempOut)
-	cleanRendered := filepath.Clean(renderedPath)
-	if !strings.HasPrefix(cleanRendered, cleanTempOut+string(filepath.Separator)) {
-		return "", fmt.Errorf("invalid frontmatter slug/url %q: path escapes Hugo output directory", targetSlug)
-	}
-
-	// Run hugo with --buildDrafts, --buildFuture, and --buildExpired so draft and scheduled posts render properly
-	hugoCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(hugoCtx, "hugo", "--buildDrafts", "--buildFuture", "--buildExpired", "--destination", tempOut, "--quiet")
-	cmd.Dir = root
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("hugo failed: %s (error: %w)", string(out), err)
-	}
-
-	htmlBytes, err := os.ReadFile(cleanRendered)
-	if err != nil {
-		return "", fmt.Errorf("expected rendered Hugo output at %s not found: %w", cleanRendered, err)
-	}
-
-	return string(htmlBytes), nil
 }
 
 func analyzeSEO(doc *goquery.Document, keyword string) *SEOResult {

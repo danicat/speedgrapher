@@ -24,6 +24,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/danicat/speedgrapher/internal/tools/fog"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func createFakeVale(t *testing.T) string {
@@ -115,6 +118,7 @@ func TestRun_Audit(t *testing.T) {
 
 	t.Run("audit from file path via stdin", func(t *testing.T) {
 		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
 		sampleFile := filepath.Join(tmpDir, "sample.html")
 		content := `<html><head><title>Sample HTML File Title Here</title></head><body><h1>Main Heading</h1><p>This is a clean sentence.</p></body></html>`
 		if err := os.WriteFile(sampleFile, []byte(content), 0644); err != nil {
@@ -176,6 +180,7 @@ func TestRun_Audit(t *testing.T) {
 
 	t.Run("audit 0-byte empty file on disk", func(t *testing.T) {
 		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
 		emptyFile := filepath.Join(tmpDir, "empty.md")
 		if err := os.WriteFile(emptyFile, []byte(""), 0644); err != nil {
 			t.Fatalf("failed to write empty file: %v", err)
@@ -303,4 +308,68 @@ func TestRun_MCPWithCancelledContext(t *testing.T) {
 	if err != nil && !strings.Contains(err.Error(), "context canceled") {
 		t.Errorf("expected nil or context canceled error, got: %v", err)
 	}
+}
+
+func TestCMD01_BuildBlockHealthTelemetry_NilSlopRes(t *testing.T) {
+	fogRes := &fog.FogResult{
+		Paragraphs: []fog.ParagraphFog{
+			{
+				BlockIndex: 1,
+				BlockType:  "paragraph",
+				StartLine:  1,
+				EndLine:    2,
+				TotalWords: 10,
+				FogIndex:   12.0,
+			},
+		},
+	}
+	blocks, err := buildBlockHealthTelemetry(fogRes, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error with nil slopRes and valeRes: %v", err)
+	}
+	if len(blocks) != 1 {
+		t.Fatalf("expected 1 block, got %d", len(blocks))
+	}
+	if blocks[0].SlopScore != 0.0 {
+		t.Errorf("expected slop score 0.0, got %f", blocks[0].SlopScore)
+	}
+}
+
+func TestCMD02_RunMCPServer_CustomTransport(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- runMCPServer(ctx, serverTransport)
+	}()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0"}, nil)
+	session, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatalf("failed to connect client to in-memory MCP server: %v", err)
+	}
+	defer session.Close()
+
+	tools, err := session.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to list tools: %v", err)
+	}
+
+	toolNames := make(map[string]bool)
+	for _, tool := range tools.Tools {
+		toolNames[tool.Name] = true
+	}
+
+	expectedTools := []string{"fog", "slop", "seo", "vale"}
+	for _, exp := range expectedTools {
+		if !toolNames[exp] {
+			t.Errorf("expected tool %q to be registered, found: %v", exp, toolNames)
+		}
+	}
+
+	cancel()
+	_ = <-errCh
 }

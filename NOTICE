@@ -1,0 +1,16 @@
+Speedgrapher
+Copyright 2026 Daniela Petruzalek
+
+This product includes software developed by third parties:
+
+1. styles/Google
+   - Vale YAML rules implementation by Joseph Kato / Errata AI (MIT License)
+   - Style rules derived from Google Developer Documentation Style Guide (CC-BY 4.0)
+
+2. styles/proselint
+   - Derived from proselint by Jordan Suchow, Michael Pacer, and Lara A. Ross (BSD-3-Clause)
+   - Vale packaging by Joseph Kato / Errata AI
+
+3. styles/write-good
+   - Derived from write-good by Brian Ford (MIT License)
+   - Vale packaging by Joseph Kato / Errata AI

@@ -32,6 +32,7 @@ const GCP_PROJECT_ID_RE = /^[a-z][a-z0-9.:-]{4,61}[a-z0-9]$/;
 const GEMINI_MODEL_ID_RE = /^[a-zA-Z0-9._-]+$/;
 
 let cachedAdcToken = null;
+let pendingAdcPromise = null;
 
 function getAiSettingsPath() {
   return join(getSettingsDir(), 'ai-settings.json');
@@ -199,65 +200,77 @@ async function getVertexAccessToken() {
     return cachedAdcToken.accessToken;
   }
 
-  const adcPath = resolveAdcFilePath();
-  if (!existsSync(adcPath)) {
-    throw new Error(
-      `Google Cloud Application Default Credentials (ADC) not found at "${adcPath}". Run "gcloud auth application-default login" or switch to Gemini API Key in Settings.`
-    );
+  if (pendingAdcPromise) {
+    return pendingAdcPromise;
   }
 
-  let adc;
-  try {
-    adc = JSON.parse(readFileSync(adcPath, 'utf8'));
-  } catch (err) {
-    throw new Error(`Failed to parse ADC credentials file at "${adcPath}": ${err.message}`);
-  }
+  pendingAdcPromise = (async () => {
+    try {
+      const adcPath = resolveAdcFilePath();
+      if (!existsSync(adcPath)) {
+        throw new Error(
+          `Google Cloud Application Default Credentials (ADC) not found at "${adcPath}". Run "gcloud auth application-default login" or switch to Gemini API Key in Settings.`
+        );
+      }
 
-  if (!adc.client_id || !adc.client_secret || !adc.refresh_token) {
-    throw new Error(
-      `ADC file at "${adcPath}" is missing required OAuth2 authorized_user fields (client_id, client_secret, refresh_token).`
-    );
-  }
+      let adc;
+      try {
+        adc = JSON.parse(readFileSync(adcPath, 'utf8'));
+      } catch (err) {
+        throw new Error(`Failed to parse ADC credentials file at "${adcPath}": ${err.message}`);
+      }
 
-  let tokenRes;
-  try {
-    tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: adc.client_id,
-        client_secret: adc.client_secret,
-        refresh_token: adc.refresh_token,
-        grant_type: 'refresh_token',
-      }),
-      signal: AbortSignal.timeout(OAUTH_TIMEOUT_MS),
-    });
-  } catch (err) {
-    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
-      throw new Error(`Google Cloud OAuth2 token refresh timed out after ${OAUTH_TIMEOUT_MS / 1000}s.`);
+      if (!adc.client_id || !adc.client_secret || !adc.refresh_token) {
+        throw new Error(
+          `ADC file at "${adcPath}" is missing required OAuth2 authorized_user fields (client_id, client_secret, refresh_token).`
+        );
+      }
+
+      let tokenRes;
+      try {
+        tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: adc.client_id,
+            client_secret: adc.client_secret,
+            refresh_token: adc.refresh_token,
+            grant_type: 'refresh_token',
+          }),
+          signal: AbortSignal.timeout(OAUTH_TIMEOUT_MS),
+        });
+      } catch (err) {
+        if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+          throw new Error(`Google Cloud OAuth2 token refresh timed out after ${OAUTH_TIMEOUT_MS / 1000}s.`);
+        }
+        throw new Error(`Google Cloud OAuth2 token refresh failed: ${err.message}`);
+      }
+
+      const rawTokenBody = await tokenRes.text();
+      let tokenData;
+      try {
+        tokenData = JSON.parse(rawTokenBody);
+      } catch (err) {
+        throw new Error(`Failed to parse OAuth2 token response (HTTP ${tokenRes.status}): ${err.message}`);
+      }
+
+      if (!tokenRes.ok || !tokenData.access_token) {
+        const errDesc = tokenData.error_description || tokenData.error || `HTTP ${tokenRes.status}`;
+        throw new Error(`Failed to exchange ADC refresh token for Vertex AI access token: ${errDesc}`);
+      }
+
+      const expiresInSec = typeof tokenData.expires_in === 'number' ? tokenData.expires_in : 3600;
+      cachedAdcToken = {
+        accessToken: tokenData.access_token,
+        expiresAtMs: Date.now() + expiresInSec * 1000,
+      };
+      return cachedAdcToken.accessToken;
+    } finally {
+      pendingAdcPromise = null;
     }
-    throw new Error(`Google Cloud OAuth2 token refresh failed: ${err.message}`);
-  }
+  })();
 
-  const rawTokenBody = await tokenRes.text();
-  let tokenData;
-  try {
-    tokenData = JSON.parse(rawTokenBody);
-  } catch (err) {
-    throw new Error(`Failed to parse OAuth2 token response (HTTP ${tokenRes.status}): ${err.message}`);
-  }
-
-  if (!tokenRes.ok || !tokenData.access_token) {
-    const errDesc = tokenData.error_description || tokenData.error || `HTTP ${tokenRes.status}`;
-    throw new Error(`Failed to exchange ADC refresh token for Vertex AI access token: ${errDesc}`);
-  }
-
-  const expiresInSec = typeof tokenData.expires_in === 'number' ? tokenData.expires_in : 3600;
-  cachedAdcToken = {
-    accessToken: tokenData.access_token,
-    expiresAtMs: Date.now() + expiresInSec * 1000,
-  };
-  return cachedAdcToken.accessToken;
+  return pendingAdcPromise;
 }
 
 function validateConfiguredAiEndpointSettings(settings) {

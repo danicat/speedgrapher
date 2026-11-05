@@ -24,14 +24,17 @@ func TestCountSyllables(t *testing.T) {
 		expected int
 	}{
 		{"complex", 2},
-		{"sentence", 3},
+		{"sentence", 2},
 		{"difficult", 3},
 		{"dog", 1},
 		{"cat", 1},
 		{"created", 2},
 		{"beautiful", 3},
-		{"requires", 3},
+		{"requires", 2},
 		{"understanding", 4},
+		{"table", 2},
+		{"described", 2},
+		{"looked", 1},
 	}
 
 	for _, tc := range testCases {

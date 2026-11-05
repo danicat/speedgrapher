@@ -773,3 +773,34 @@ func TestMaskHugoShortcodesForVale(t *testing.T) {
 			strings.Index(masked, suffix), strings.Index(input, suffix))
 	}
 }
+
+func TestValeP1Fixes(t *testing.T) {
+	t.Run("VALE-01 Workspace containment error", func(t *testing.T) {
+		wsDir := t.TempDir()
+		outsideFile := filepath.Join(t.TempDir(), "secret.md")
+		if err := os.WriteFile(outsideFile, []byte("secret content"), 0644); err != nil {
+			t.Fatalf("failed to write outside file: %v", err)
+		}
+
+		cfg := Config{WorkspaceDir: wsDir}
+		_, err := Analyze(context.Background(), ValeParams{Path: outsideFile}, cfg)
+		if err == nil {
+			t.Fatal("expected error for path outside workspace directory, got nil")
+		}
+		if !strings.Contains(err.Error(), "outside workspace directory") {
+			t.Errorf("expected 'outside workspace directory' error, got %v", err)
+		}
+	})
+
+	t.Run("VALE-02 UTF-8 formatVocabTerm", func(t *testing.T) {
+		gotASCII := formatVocabTerm("kubernetes", true)
+		if gotASCII != "[Kk]ubernetes" {
+			t.Errorf("expected [Kk]ubernetes, got %q", gotASCII)
+		}
+
+		gotAcronym := formatVocabTerm("AWS", true)
+		if gotAcronym != "AWS" {
+			t.Errorf("expected acronym AWS to be preserved, got %q", gotAcronym)
+		}
+	})
+}

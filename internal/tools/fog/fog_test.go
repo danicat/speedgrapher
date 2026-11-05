@@ -35,7 +35,7 @@ func TestCountWords(t *testing.T) {
 			name:                 "Simple case",
 			text:                 "This is a sentence. This is another sentence.",
 			expectedWords:        8,
-			expectedComplexWords: 3, // sentence (3), another (3), sentence (3)
+			expectedComplexWords: 1, // another (3); sentence (2) is not complex
 		},
 		{
 			name:                 "Empty string",
@@ -59,7 +59,7 @@ func TestCountWords(t *testing.T) {
 			name:                 "With complex words",
 			text:                 "This is a difficult and complicated sentence.",
 			expectedWords:        7,
-			expectedComplexWords: 3, // difficult (3), complicated (4), sentence (3)
+			expectedComplexWords: 2, // difficult (3), complicated (4); sentence (2) is not complex
 		},
 	}
 
@@ -125,12 +125,12 @@ func TestIsComplexWord(t *testing.T) {
 		expected bool
 	}{
 		{"complex", false},
-		{"sentence", true},
+		{"sentence", false},
 		{"difficult", true},
 		{"dog", false},
 		{"understanding", true},
 		{"beautiful", true},
-		{"requires", true},
+		{"requires", false},
 	}
 
 	for _, tc := range testCases {
@@ -140,26 +140,6 @@ func TestIsComplexWord(t *testing.T) {
 			}
 		})
 	}
-}
-
-// CalculateFogIndex calculates the Gunning Fog Index for a given text, rounded to two decimal places.
-func CalculateFogIndex(text string) (float64, error) {
-	proseText := stripMarkdownForMetrics(text)
-	totalWords, complexWords := CountWords(proseText)
-	totalSentences := CountSentences(proseText)
-
-	if totalWords == 0 {
-		return 0.0, newError("text does not contain any words")
-	}
-	if totalSentences == 0 {
-		return 0.0, newError("text does not contain any sentences")
-	}
-
-	averageSentenceLength := float64(totalWords) / float64(totalSentences)
-	percentageComplexWords := 100 * (float64(complexWords) / float64(totalWords))
-
-	index := 0.4 * (averageSentenceLength + percentageComplexWords)
-	return math.Round(index*100) / 100, nil
 }
 
 func TestCalculateFogIndex(t *testing.T) {
@@ -173,7 +153,7 @@ func TestCalculateFogIndex(t *testing.T) {
 		{
 			name:        "Simple case",
 			text:        "This is a sentence. This is another sentence.",
-			expected:    16.6,
+			expected:    6.6,
 			expectError: false,
 		},
 		{
@@ -192,7 +172,7 @@ func TestCalculateFogIndex(t *testing.T) {
 		{
 			name:        "Complex example",
 			text:        "Automated testing is a cornerstone of modern software development.",
-			expected:    21.38,
+			expected:    16.93,
 			expectError: false,
 		},
 		{
@@ -224,13 +204,13 @@ func TestCalculateFogIndex(t *testing.T) {
 		{
 			name:        "Corner case: Long sentence (100+ words)",
 			text:        "This is an exceedingly long and convoluted sentence, meticulously crafted to test the boundaries of the Gunning Fog Index calculation, which, as we know, is a formula designed to assess the readability of a given passage of English prose by considering both the average sentence length and the percentage of complex words, a task that requires careful enumeration of both words and sentences, as well as a robust and consistent method for determining syllable counts in order to classify words as either simple or complex, thereby providing a numerical score that corresponds to the number of years of formal education a person needs to understand the text on the first reading.",
-			expected:    54.49,
+			expected:    52.33,
 			expectError: false,
 		},
 		{
 			name:        "Corner case: Long paragraph",
 			text:        "This is an exceedingly long and convoluted sentence, meticulously crafted to test the boundaries of the Gunning Fog Index calculation. Which, as we know, is a formula designed to assess the readability of a given passage of English prose by considering both the average sentence length and the percentage of complex words. A task that requires careful enumeration of both words and sentences, as well as a robust and consistent method for determining syllable counts in order to classify words as either simple or complex. Thereby providing a numerical score that corresponds to the number of years of formal education a person needs to understand the text on the first reading.",
-			expected:    21.19,
+			expected:    19.03,
 			expectError: false,
 		},
 	}
@@ -293,13 +273,13 @@ func TestFogResult(t *testing.T) {
 			name: "Simple case",
 			text: "This is a sentence. This is another sentence.",
 			expectedResult: FogResult{
-				FogIndex:               16.6,
-				Classification:         FogCategoryProfessional,
+				FogIndex:               6.6,
+				Classification:         FogCategorySimplistic,
 				TotalWords:             8,
 				TotalSentences:         2,
 				AverageSentenceLength:  4.0,
-				PercentageComplexWords: 37.5,
-				ComplexWords:           3,
+				PercentageComplexWords: 12.5,
+				ComplexWords:           1,
 			},
 			expectError: false,
 		},

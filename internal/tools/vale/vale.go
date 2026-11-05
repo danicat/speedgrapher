@@ -17,6 +17,7 @@ package vale
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -24,6 +25,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -354,6 +356,16 @@ func valeHandler(ctx context.Context, _ *mcp.CallToolRequest, input ValeParams, 
 			return nil, nil, fmt.Errorf("failed to get absolute file path: %w", err)
 		}
 		filePath = absFilePath
+		if cfg.WorkspaceDir != "" {
+			absWorkspace, err := filepath.Abs(cfg.WorkspaceDir)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to resolve workspace directory: %w", err)
+			}
+			rel, err := filepath.Rel(absWorkspace, filePath)
+			if err != nil || strings.HasPrefix(rel, "..") || rel == ".." {
+				return nil, nil, fmt.Errorf("file path %q is outside workspace directory %q", filePath, absWorkspace)
+			}
+		}
 		targetFileDir = filepath.Dir(filePath)
 
 		if text == "" {
@@ -397,12 +409,21 @@ func valeHandler(ctx context.Context, _ *mcp.CallToolRequest, input ValeParams, 
 
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, valePath, "--no-exit", "--config", execIniPath, "--ext", ".md", "--output=JSON")
+	cmd.WaitDelay = 2 * time.Second
 	cmd.Stdin = strings.NewReader(maskHugoShortcodesForVale(text))
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return nil, nil, fmt.Errorf("vale execution timed out or cancelled: %w", ctx.Err())
+		}
 		return nil, nil, fmt.Errorf("vale execution failed: %w (stderr: %s)", err, strings.TrimSpace(stderr.String()))
+	}
+
+	outBytes := stdout.Bytes()
+	if !json.Valid(outBytes) {
+		return nil, nil, fmt.Errorf("vale returned invalid JSON: %s (stderr: %s)", strings.TrimSpace(stdout.String()), strings.TrimSpace(stderr.String()))
 	}
 
 	return nil, &ValeResult{Output: stdout.String(), ConfigPath: iniPath}, nil

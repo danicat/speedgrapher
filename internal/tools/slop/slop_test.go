@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danicat/speedgrapher/internal/tools/fog"
 	"github.com/jdkato/prose/v2"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -541,4 +542,53 @@ func TestCalculate_HugoShortcodeLinksIgnored(t *testing.T) {
 	if resHugo.OverallScore != resStandard.OverallScore {
 		t.Errorf("expected identical slop score with Hugo shortcode link: got %.2f, want %.2f", resHugo.OverallScore, resStandard.OverallScore)
 	}
+}
+
+func TestSlopFixes_P1(t *testing.T) {
+	t.Run("SLOP-01 Multi-line sentence rhythm", func(t *testing.T) {
+		text := "We started the collector daemon with high throughput in mind.\n" +
+			"The system buffers spans across multiple threads\n" +
+			"before flushing them to disk."
+		blocks := fog.SegmentBlocks(text)
+		rhythm := extractSentenceRhythm(blocks)
+		if len(rhythm) != 2 {
+			t.Fatalf("expected 2 sentences across wrapped lines, got %d", len(rhythm))
+		}
+		if rhythm[1].WordCount < 10 {
+			t.Errorf("expected multi-line sentence to not be fragmented into short words, got %d words: %q", rhythm[1].WordCount, rhythm[1].Text)
+		}
+	})
+
+	t.Run("SLOP-02 Inline code not counted as slop", func(t *testing.T) {
+		textWithCode := "Run the command with `utilize` and `framework` and `leverage` options."
+		res, err := Calculate(textWithCode)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res.LexicalSlop.Score > 0 {
+			t.Errorf("expected 0 lexical slop score for inline code, got %f", res.LexicalSlop.Score)
+		}
+	})
+
+	t.Run("SLOP-03 Analogy bridge without target in same sentence", func(t *testing.T) {
+		text := "This cache layer is similar to an in-memory hash map.\n\nLater in the chapter we discuss the rendering engine."
+		res, err := Calculate(text)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res.StructuralCliches.Score > 0 {
+			t.Errorf("expected 0 structural cliché score when bridge is not in the same sentence as target, got %f", res.StructuralCliches.Score)
+		}
+	})
+
+	t.Run("SLOP-04 CLI flags not counted as dashes", func(t *testing.T) {
+		text := "Run the tool using --verbose --debug --output json --workspace-dir /tmp/test to check results."
+		res, err := Calculate(text)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res.StructuralCliches.Score > 0 {
+			t.Errorf("expected CLI double dash flags to not trigger structural cliché score, got %f", res.StructuralCliches.Score)
+		}
+	})
 }

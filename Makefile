@@ -102,4 +102,7 @@ bump-version:
 	git tag -a v$(VERSION) -m "Release v$(VERSION)"
 	@echo "Created git tag v$(VERSION). Push with: git push origin v$(VERSION)"
 
-.PHONY: build install-plugin install clean test test-cov bump-version snapshot release
+license-check:
+	addlicense -check -ignore 'styles/**' .
+
+.PHONY: build install-plugin install clean test test-cov bump-version snapshot release license-check

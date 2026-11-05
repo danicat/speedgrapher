@@ -217,11 +217,31 @@ func newError(format string, a ...any) error {
 	return fmt.Errorf(format, a...)
 }
 
+// CalculateFogIndex calculates the Gunning Fog Index for a given text, rounded to two decimal places.
+func CalculateFogIndex(text string) (float64, error) {
+	proseText := stripMarkdownForMetrics(text)
+	totalWords, complexWords := CountWords(proseText)
+	totalSentences := CountSentences(proseText)
+
+	if totalWords == 0 {
+		return 0.0, newError("text does not contain any words")
+	}
+	if totalSentences == 0 {
+		return 0.0, newError("text does not contain any sentences")
+	}
+
+	averageSentenceLength := float64(totalWords) / float64(totalSentences)
+	percentageComplexWords := 100 * (float64(complexWords) / float64(totalWords))
+
+	index := 0.4 * (averageSentenceLength + percentageComplexWords)
+	return math.Round(index*100) / 100, nil
+}
+
 // CountWords counts the number of words and complex words in a given text.
 // It strips non-prose blocks (frontmatter, code fences, HTML comments), removes punctuation, and counts words.
 func CountWords(text string) (int, int) {
 	stripped := stripMarkdownForMetrics(text)
-	cleanText := punctRegex.ReplaceAllString(stripped, "")
+	cleanText := punctRegex.ReplaceAllString(stripped, " ")
 	words := strings.Fields(cleanText)
 
 	complexWordCount := 0
@@ -294,12 +314,12 @@ func analyzeParagraphsAndFindings(rawText string) ([]FogFinding, []ParagraphFog)
 		rawLine := origLines[idx]
 		searchLine := maskInlineCodeAndLinks(mLine)
 
-		// 1. Complex word detection (4+ syllables)
+		// 1. Complex word detection (3+ syllables)
 		wLocs := wordTokenRe.FindAllStringIndex(searchLine, -1)
 		for _, wLoc := range wLocs {
 			word := rawLine[wLoc[0]:wLoc[1]]
 			syllables := countSyllables(word)
-			if syllables < 4 {
+			if syllables < 3 {
 				continue
 			}
 			findings = append(findings, FogFinding{
@@ -314,7 +334,7 @@ func analyzeParagraphsAndFindings(rawText string) ([]FogFinding, []ParagraphFog)
 
 		// 2. Long sentence detection (> 30 words on a single line)
 		cleanLine := cleanProseLine(mLine)
-		lineWords := strings.Fields(punctRegex.ReplaceAllString(cleanLine, ""))
+		lineWords := strings.Fields(punctRegex.ReplaceAllString(cleanLine, " "))
 		lineSentences := CountSentences(cleanLine)
 		if lineSentences <= 1 && len(lineWords) > 30 {
 			trimmedRaw := strings.TrimSpace(rawLine)

@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 import {
   ALLOWED_MD_EXTENSIONS,
   allowedSessionDirs,
@@ -75,7 +78,7 @@ export function writeBaselineForPath(canonicalPath, baselineContent) {
   }
 }
 
-export function executeSpeedgrapherAudit({ filePath, text, keyword, docType, workspaceDir }) {
+export async function executeSpeedgrapherAudit({ filePath, text, keyword, docType, workspaceDir }) {
   const binPath = getBinaryPath();
 
   let workingDir = '';
@@ -101,13 +104,14 @@ export function executeSpeedgrapherAudit({ filePath, text, keyword, docType, wor
 
   let stdout;
   try {
-    stdout = execFileSync(binPath, ['audit', payload], {
+    const res = await execFileAsync(binPath, ['audit', payload], {
       cwd: workingDir,
       env: buildSubprocessEnv(),
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
       timeout: AUDIT_SUBPROCESS_TIMEOUT_MS,
     });
+    stdout = res.stdout;
   } catch (err) {
     if (err.code === 'ETIMEDOUT' || err.signal === 'SIGTERM') {
       throw new Error(`Speedgrapher audit timed out after ${AUDIT_SUBPROCESS_TIMEOUT_MS / 1000}s on "${filePath || 'draft'}".`);
@@ -115,7 +119,7 @@ export function executeSpeedgrapherAudit({ filePath, text, keyword, docType, wor
     const stderrText = err.stderr ? String(err.stderr).trim() : '';
     const stdoutText = err.stdout ? String(err.stdout).trim() : '';
     const diagnostic = [
-      `Command "${binPath} audit" failed (exit code ${err.status ?? 'unknown'}): ${err.message}`,
+      `Command "${binPath} audit" failed (exit code ${err.status ?? err.code ?? 'unknown'}): ${err.message}`,
       stderrText ? `stderr:\n${stderrText}` : '',
       stdoutText ? `stdout:\n${stdoutText}` : '',
     ]
@@ -186,7 +190,7 @@ export function extractPillMetrics(rawText, audit) {
   };
 }
 
-export function openAndAuditDocument(data) {
+export async function openAndAuditDocument(data) {
   const rawInputPath = typeof data?.path === 'string' ? data.path : '';
   if (!rawInputPath.trim()) {
     return jsonError('Missing required "path" parameter to open document.', 400);
@@ -248,15 +252,13 @@ export function openAndAuditDocument(data) {
       );
     }
 
-    const canonicalExisting = realpathSync(targetPath);
-    allowedSessionFiles.add(canonicalExisting);
-
     let canonicalPath;
     try {
       canonicalPath = validateAllowedMarkdownPath(targetPath, resolvedWorkspace, info.conversationId);
     } catch (err) {
       return jsonError(err.message, err.statusCode || 400);
     }
+    allowedSessionFiles.add(canonicalPath);
 
     const content = readFileSync(canonicalPath, 'utf8');
     let baselineContent = readBaselineForPath(canonicalPath);
@@ -267,7 +269,7 @@ export function openAndAuditDocument(data) {
     const requestedDocType = typeof data?.docType === 'string' && data.docType.trim() ? data.docType.trim() : 'auto';
     const requestedKeyword = typeof data?.keyword === 'string' ? data.keyword.trim() : '';
 
-    const audit = executeSpeedgrapherAudit({
+    const audit = await executeSpeedgrapherAudit({
       filePath: canonicalPath,
       text: content,
       keyword: requestedKeyword,
@@ -294,7 +296,7 @@ export function openAndAuditDocument(data) {
   }
 }
 
-export function createAndOpenDocument(data) {
+export async function createAndOpenDocument(data) {
   const rawFilename = typeof data?.filename === 'string' ? data.filename.trim() : '';
   const rawInputPath = typeof data?.path === 'string' ? data.path.trim() : '';
   const rawDir = typeof data?.dir === 'string' ? data.dir.trim() : '';
@@ -408,7 +410,7 @@ export function createAndOpenDocument(data) {
     writeBaselineForPath(canonicalPath, initialContent);
     const st = statSync(canonicalPath);
 
-    const audit = executeSpeedgrapherAudit({
+    const audit = await executeSpeedgrapherAudit({
       filePath: canonicalPath,
       text: initialContent,
       keyword: requestedKeyword,
@@ -435,7 +437,7 @@ export function createAndOpenDocument(data) {
   }
 }
 
-export function syncAndAuditDocument(data) {
+export async function syncAndAuditDocument(data) {
   const rawInputPath = typeof data?.path === 'string' ? data.path : '';
   const workspacePath = typeof data?.workspacePath === 'string' ? data.workspacePath : '';
   const conversationId = typeof data?.conversationId === 'string' ? data.conversationId : '';
@@ -486,7 +488,7 @@ export function syncAndAuditDocument(data) {
       ? statSync(canonicalPath)
       : { mtimeMs: Date.now(), size: Buffer.byteLength(content, 'utf8') };
 
-    const audit = executeSpeedgrapherAudit({
+    const audit = await executeSpeedgrapherAudit({
       filePath: canonicalPath,
       text: content,
       keyword,
@@ -507,7 +509,7 @@ export function syncAndAuditDocument(data) {
   }
 }
 
-export function pollDocument(data) {
+export async function pollDocument(data) {
   const rawInputPath = typeof data?.path === 'string' ? data.path : '';
   const workspacePath = typeof data?.workspacePath === 'string' ? data.workspacePath : '';
   const conversationId = typeof data?.conversationId === 'string' ? data.conversationId : '';
@@ -577,7 +579,7 @@ export function pollDocument(data) {
     const docType = typeof data?.docType === 'string' && data.docType.trim() ? data.docType.trim() : 'auto';
     const keyword = typeof data?.keyword === 'string' ? data.keyword.trim() : '';
 
-    const audit = executeSpeedgrapherAudit({
+    const audit = await executeSpeedgrapherAudit({
       filePath: canonicalPath,
       text: proposedContent,
       keyword,
@@ -601,7 +603,7 @@ export function pollDocument(data) {
   }
 }
 
-export function handleAudit(data) {
+export async function handleAudit(data) {
   const rawInputPath = typeof data?.path === 'string' ? data.path : '';
   const workspaceDir = typeof data?.workspacePath === 'string' ? data.workspacePath.trim() : '';
 
@@ -624,7 +626,7 @@ export function handleAudit(data) {
 
   try {
     const auditText = !filePath && text === '' ? '\n' : text;
-    const audit = executeSpeedgrapherAudit({ filePath, text: auditText, keyword, docType, workspaceDir });
+    const audit = await executeSpeedgrapherAudit({ filePath, text: auditText, keyword, docType, workspaceDir });
     const metrics = extractPillMetrics(text, audit);
     return { audit, metrics };
   } catch (err) {
@@ -632,7 +634,7 @@ export function handleAudit(data) {
   }
 }
 
-export function handleValeRules(data) {
+export async function handleValeRules(data) {
   const action = typeof data?.action === 'string' && data.action.trim() ? data.action.trim() : 'list';
   if (!VALID_VALE_RULE_ACTIONS.has(action)) {
     return jsonError(
@@ -705,18 +707,19 @@ export function handleValeRules(data) {
 
     let stdout;
     try {
-      stdout = execFileSync(binPath, ['call', 'vale_rules', JSON.stringify(payload)], {
+      const res = await execFileAsync(binPath, ['call', 'vale_rules', JSON.stringify(payload)], {
         cwd: workingDir,
         env: buildSubprocessEnv(),
         encoding: 'utf8',
         maxBuffer: 16 * 1024 * 1024,
         timeout: AUDIT_SUBPROCESS_TIMEOUT_MS,
       });
+      stdout = res.stdout;
     } catch (err) {
       const stderrText = err.stderr ? String(err.stderr).trim() : '';
       const stdoutText = err.stdout ? String(err.stdout).trim() : '';
       const diagnostic = [
-        `Command "${binPath} call vale_rules" failed (exit code ${err.status ?? 'unknown'}): ${err.message}`,
+        `Command "${binPath} call vale_rules" failed (exit code ${err.status ?? err.code ?? 'unknown'}): ${err.message}`,
         stderrText ? `stderr:\n${stderrText}` : '',
         stdoutText ? `stdout:\n${stdoutText}` : '',
       ]

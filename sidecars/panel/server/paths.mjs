@@ -571,6 +571,40 @@ export function handleGetImage(reqOrData, maybeReq) {
     return jsonError(`Invalid document or workspace path: ${err.message}`, 400);
   }
 
+  const info = resolveActiveWorkspaceAndSession();
+  const activeWs = info.workspaceDir ? realpathSync(info.workspaceDir) : '';
+  const activeSession = info.sessionDir && existsSync(info.sessionDir) ? realpathSync(info.sessionDir) : '';
+
+  if (activeWs) {
+    if (wsPath) {
+      try {
+        const canonicalWs = realpathSync(wsPath);
+        if (!isPathInsideDir(canonicalWs, activeWs)) {
+          return jsonError(`Access denied: workspace path "${wsPath}" is outside the active workspace.`, 403);
+        }
+      } catch {
+        return jsonError(`Invalid workspace path "${wsPath}".`, 400);
+      }
+    } else {
+      wsPath = activeWs;
+    }
+  }
+
+  if (docPath) {
+    let canonicalDocPath;
+    try {
+      canonicalDocPath = existsSync(docPath) ? realpathSync(docPath) : docPath;
+    } catch {
+      canonicalDocPath = docPath;
+    }
+    const inWs = activeWs && isPathInsideDir(canonicalDocPath, activeWs);
+    const inSess = activeSession && isPathInsideDir(canonicalDocPath, activeSession);
+    const inAllowed = allowedSessionFiles.has(canonicalDocPath);
+    if (!inWs && !inSess && !inAllowed) {
+      return jsonError(`Access denied: document path "${docPath}" is outside the active workspace.`, 403);
+    }
+  }
+
   const docDir = docPath
     ? existsSync(docPath) && statSync(docPath).isDirectory()
       ? docPath
@@ -618,7 +652,18 @@ export function handleGetImage(reqOrData, maybeReq) {
     return jsonError(`Failed to resolve canonical image path: ${err.message}`, 400);
   }
 
-  const allowedRoots = [docDir, hugoRoot, wsPath].filter(Boolean);
+  const candidateRoots = [docDir, hugoRoot, wsPath, activeWs, activeSession].filter(Boolean);
+  const allowedRoots = candidateRoots.filter((root) => {
+    try {
+      const canonical = realpathSync(root);
+      if (activeWs && isPathInsideDir(canonical, activeWs)) return true;
+      if (activeSession && isPathInsideDir(canonical, activeSession)) return true;
+      if (Array.from(allowedSessionDirs).some((dir) => isPathInsideDir(canonical, dir))) return true;
+      if (Array.from(allowedSessionFiles).some((file) => isPathInsideDir(canonical, dirname(file)))) return true;
+    } catch {}
+    return false;
+  });
+
   const isAllowed = allowedRoots.some((root) => isPathInsideDir(canonicalImagePath, root));
   if (!isAllowed) {
     return jsonError(
@@ -690,6 +735,11 @@ export function handleListDirectory(data) {
         const ext = extname(norm).toLowerCase();
         if (ALLOWED_MD_EXTENSIONS.has(ext)) {
           const canonicalFile = realpathSync(norm);
+          const inWs = info.workspaceDir ? isPathInsideDir(canonicalFile, info.workspaceDir) : false;
+          const inSess = info.sessionDir ? isPathInsideDir(canonicalFile, info.sessionDir) : false;
+          if (!inWs && !inSess && !allowedSessionFiles.has(canonicalFile)) {
+            return jsonError(`Access denied: "${canonicalFile}" is outside the active workspace.`, 403);
+          }
           allowedSessionFiles.add(canonicalFile);
           return {
             isFile: true,
@@ -733,6 +783,17 @@ export function handleListDirectory(data) {
   } catch (err) {
     return jsonError(`Failed to resolve directory "${targetDir}": ${err.message}`, 400);
   }
+
+  const inWorkspace = info.workspaceDir ? isPathInsideDir(canonicalDir, info.workspaceDir) : false;
+  const inSession = info.sessionDir ? isPathInsideDir(canonicalDir, info.sessionDir) : false;
+  const inAllowedDir = Array.from(allowedSessionDirs).some((dir) => isPathInsideDir(canonicalDir, dir));
+  if (!inWorkspace && !inSession && !inAllowedDir) {
+    return jsonError(
+      `Access denied: directory "${canonicalDir}" is outside the active workspace and session directory.`,
+      403
+    );
+  }
+
   allowedSessionDirs.add(canonicalDir);
 
   let dirents;

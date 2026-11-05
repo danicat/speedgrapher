@@ -94,7 +94,7 @@ var (
 		`(?i)feel free to reach out`, `(?i)a crucial aspect`,
 		`(?i)\bthe[ \t]+(?:[a-z0-9\-]+[ \t]+){0,4}[a-z0-9\-]+[ \t]*:[ \t]*the[ \t]+(?:[a-z0-9\-]+[ \t]+){0,4}[a-z0-9\-]+\b`,
 		`(?i)\b(?:[a-z0-9\-]+[ \t]+){1,5}\(the[ \t]+(?:[a-z0-9\-]+[ \t]+){0,4}[a-z0-9\-]+\)`,
-		`(?i)\b[a-z0-9]+(?:\s*(?:—|–|--)\s*|\s+-\s+)[a-z0-9]+(?:\s+[a-z0-9]+){0,6}(?:\s*(?:—|–|--)\s*|\s+-\s+)[a-z0-9]+\b`,
+		`(?i)\b[a-z0-9]+(?:\s*(?:—|–|--(?:\s+|$))\s*|\s+-\s+)[a-z0-9]+(?:\s+[a-z0-9]+){0,6}(?:\s*(?:—|–|--(?:\s+|$))\s*|\s+-\s+)[a-z0-9]+\b`,
 		`(?i)serves as`, `(?i)stands as`, `(?i)marks a pivotal moment`, `(?i)represents a`,
 		`(?i)\bmark(?:s|ed|ing) a (?:pivotal|crucial|significant|key|defining) (?:moment|shift|turning point|step)\b`,
 		`(?i)\brepresent(?:s|ed|ing) a (?:significant|major|paradigm|fundamental|pivotal) shift\b`,
@@ -201,6 +201,7 @@ var (
 	nonAlphaNumRegex    = regexp.MustCompile(`(?i)[^a-z0-9\s]`)
 	sentenceSplitRe     = regexp.MustCompile(`[.!?]+(?:\s+|$)`)
 	multiSpaceCollapse  = regexp.MustCompile(`\s{2,}`)
+	cliFlagRegex        = regexp.MustCompile(`(?:^|[\s"'` + "`" + `])--[a-zA-Z0-9]`)
 
 	newProseDocument = func(text string) (*prose.Document, error) {
 		return prose.NewDocument(text)
@@ -574,7 +575,17 @@ func combineSlopScores(structScore, lexScore, fillerScore, rhythmScore, voiceSco
 	return math.Round(base*100) / 100
 }
 
-func extractFindings(rawText string, hasAnalogyTarget bool) []SlopFinding {
+func sentenceHasAnalogyTarget(text string) bool {
+	lower := strings.ToLower(text)
+	for _, t := range analogyTargets {
+		if strings.Contains(lower, t) {
+			return true
+		}
+	}
+	return false
+}
+
+func extractFindings(rawText string) []SlopFinding {
 	var findings []SlopFinding
 	maskedComments := maskHTMLComments(rawText)
 	origLines := strings.Split(rawText, "\n")
@@ -664,7 +675,7 @@ func extractFindings(rawText string, hasAnalogyTarget bool) []SlopFinding {
 					break
 				}
 			}
-			if isBridge && !hasAnalogyTarget {
+			if isBridge && !sentenceHasAnalogyTarget(displayLine) {
 				continue
 			}
 
@@ -710,32 +721,33 @@ func extractFindings(rawText string, hasAnalogyTarget bool) []SlopFinding {
 func extractSentenceRhythm(blocks []fog.ProseBlock) []SentenceRhythmItem {
 	var rhythm []SentenceRhythmItem
 	for _, blk := range blocks {
-		for idx, cleaned := range blk.CleanLines {
-			lineNum := min(blk.StartLine+idx, blk.EndLine)
-			parts := sentenceSplitRe.Split(cleaned, -1)
-			for _, p := range parts {
-				pTrim := strings.TrimSpace(p)
-				if pTrim == "" {
-					continue
-				}
-				wc := len(strings.Fields(nonAlphaNumRegex.ReplaceAllString(pTrim, "")))
-				if wc == 0 {
-					continue
-				}
-				band := "medium"
-				if wc < 10 {
-					band = "short"
-				} else if wc >= 25 {
-					band = "long"
-				}
-				rhythm = append(rhythm, SentenceRhythmItem{
-					SentenceIndex: len(rhythm),
-					Line:          lineNum,
-					WordCount:     wc,
-					Band:          band,
-					Text:          pTrim,
-				})
+		if len(blk.CleanLines) == 0 {
+			continue
+		}
+		joined := strings.Join(blk.CleanLines, " ")
+		parts := sentenceSplitRe.Split(joined, -1)
+		for _, p := range parts {
+			pTrim := strings.TrimSpace(p)
+			if pTrim == "" {
+				continue
 			}
+			wc := len(strings.Fields(nonAlphaNumRegex.ReplaceAllString(pTrim, "")))
+			if wc == 0 {
+				continue
+			}
+			band := "medium"
+			if wc < 10 {
+				band = "short"
+			} else if wc >= 25 {
+				band = "long"
+			}
+			rhythm = append(rhythm, SentenceRhythmItem{
+				SentenceIndex: len(rhythm),
+				Line:          blk.StartLine,
+				WordCount:     wc,
+				Band:          band,
+				Text:          pTrim,
+			})
 		}
 	}
 	return rhythm
@@ -843,7 +855,7 @@ func Calculate(rawText string) (SlopResult, error) {
 	text = mdImageRegex.ReplaceAllString(text, "$1")
 	text = mdLinkRegex.ReplaceAllString(text, "$1")
 	// Strip inline code
-	text = inlineCodeRegex.ReplaceAllString(text, "$1")
+	text = inlineCodeRegex.ReplaceAllString(text, " ")
 	// Strip Hugo shortcodes before HTML tags so {{< ... >}} is removed cleanly
 	text = shortcodeRegex.ReplaceAllString(text, " ")
 	text = htmlTagRegex.ReplaceAllString(text, " ")
@@ -858,16 +870,7 @@ func Calculate(rawText string) (SlopResult, error) {
 		}, nil
 	}
 
-	lowerText := strings.ToLower(text)
-	hasAnalogyTarget := false
-	for _, t := range analogyTargets {
-		if strings.Contains(lowerText, t) {
-			hasAnalogyTarget = true
-			break
-		}
-	}
-
-	findings := extractFindings(rawText, hasAnalogyTarget)
+	findings := extractFindings(rawText)
 	paragraphs, rhythm := computeParagraphSlop(rawText, findings)
 
 	// 1. Lexical & Filler Analysis
@@ -882,27 +885,38 @@ func Calculate(rawText string) (SlopResult, error) {
 	fillerRatio := math.Round((fillerCount/totalW)*10000) / 10000
 
 	// 2. Structural Patterns
-	structMatches := structuralRegex.FindAllString(text, -1)
+	sentences := sentenceSplitRe.Split(text, -1)
 	actualStructCount := 0.0
-	for _, m := range structMatches {
-		isBridge := false
-		for _, br := range bridgeRegexes {
-			if br.MatchString(m) {
-				isBridge = true
-				break
-			}
+	for _, s := range sentences {
+		sTrim := strings.TrimSpace(s)
+		if sTrim == "" {
+			continue
 		}
+		sHasAnalogy := sentenceHasAnalogyTarget(sTrim)
+		structMatches := structuralRegex.FindAllString(sTrim, -1)
+		for _, m := range structMatches {
+			isBridge := false
+			for _, br := range bridgeRegexes {
+				if br.MatchString(m) {
+					isBridge = true
+					break
+				}
+			}
 
-		if isBridge {
-			if hasAnalogyTarget {
+			if isBridge {
+				if sHasAnalogy {
+					actualStructCount++
+				}
+			} else {
 				actualStructCount++
 			}
-		} else {
-			actualStructCount++
 		}
 	}
 
-	dashCount := float64(strings.Count(text, "—") + strings.Count(text, "--"))
+	cliFlagMatches := cliFlagRegex.FindAllString(text, -1)
+	rawDoubleDashCount := strings.Count(text, "--")
+	effectiveDoubleDashCount := max(0, rawDoubleDashCount-len(cliFlagMatches))
+	dashCount := float64(strings.Count(text, "—") + effectiveDoubleDashCount)
 	dashDensity := (dashCount / totalW) * 1000
 	if dashDensity > 5 {
 		actualStructCount += math.Floor((dashDensity - 5) / 2)
@@ -911,7 +925,6 @@ func Calculate(rawText string) (SlopResult, error) {
 	effectiveStructDensity := (actualStructCount / math.Max(totalW, 80.0)) * 1000
 
 	// 3. Rhythm Variance
-	sentences := sentenceSplitRe.Split(text, -1)
 	var lens []float64
 	for _, s := range sentences {
 		if trimmed := strings.TrimSpace(s); trimmed != "" {

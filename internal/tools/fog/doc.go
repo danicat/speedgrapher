@@ -72,7 +72,10 @@ and `ClassifyFogIndex` functions.
 Example:
 
 	text := "This is a sample sentence to be analyzed."
-	fogIndex := fog.CalculateFogIndex(text)
+	fogIndex, err := fog.CalculateFogIndex(text)
+	if err != nil {
+		log.Fatal(err)
+	}
 	classification := fog.ClassifyFogIndex(fogIndex)
 	fmt.Printf("Fog Index: %.2f\n", fogIndex)
 	fmt.Printf("Classification: %s\n", classification)

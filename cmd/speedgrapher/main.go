@@ -34,6 +34,7 @@ import (
 	"github.com/danicat/speedgrapher/internal/tools/slop"
 	"github.com/danicat/speedgrapher/internal/tools/vale"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"golang.org/x/sync/errgroup"
 )
 
 const defaultVersion = "dev"
@@ -177,6 +178,9 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout, _ io.Write
 }
 
 func resolveWorkspaceDir() (string, error) {
+	if ws := os.Getenv("SPEEDGRAPHER_WORKSPACE"); ws != "" {
+		return filepath.Abs(filepath.Clean(ws))
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("failed to determine current working directory: %w", err)
@@ -184,12 +188,7 @@ func resolveWorkspaceDir() (string, error) {
 	return cwd, nil
 }
 
-func runMCPServer(ctx context.Context) error {
-	workspaceDir, err := resolveWorkspaceDir()
-	if err != nil {
-		return err
-	}
-
+func newSpeedgrapherMCPServer(workspaceDir, valeBin string) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "speedgrapher",
 		Version: version,
@@ -198,9 +197,25 @@ func runMCPServer(ctx context.Context) error {
 	fog.Register(server, fog.Config{WorkspaceDir: workspaceDir})
 	slop.Register(server, slop.Config{WorkspaceDir: workspaceDir})
 	seo.Register(server, seo.Config{WorkspaceDir: workspaceDir})
-	vale.Register(server, vale.Config{WorkspaceDir: workspaceDir, ValeBinPath: valeBinOverride})
+	vale.Register(server, vale.Config{WorkspaceDir: workspaceDir, ValeBinPath: valeBin})
 
-	return server.Run(ctx, &mcp.StdioTransport{})
+	return server
+}
+
+func runMCPServer(ctx context.Context, customTransport ...mcp.Transport) error {
+	workspaceDir, err := resolveWorkspaceDir()
+	if err != nil {
+		return err
+	}
+
+	server := newSpeedgrapherMCPServer(workspaceDir, valeBinOverride)
+
+	var transport mcp.Transport = &mcp.StdioTransport{}
+	if len(customTransport) > 0 && customTransport[0] != nil {
+		transport = customTransport[0]
+	}
+
+	return server.Run(ctx, transport)
 }
 
 func readJSONPayload(args []string, stdin io.Reader) ([]byte, error) {
@@ -233,7 +248,11 @@ func buildBlockHealthTelemetry(fogRes *fog.FogResult, slopRes *slop.SlopResult, 
 		return []BlockHealthTelemetry{}, nil
 	}
 
-	slopByRange := make(map[[2]int]slop.ParagraphSlop, len(slopRes.Paragraphs))
+	var slopCap int
+	if slopRes != nil {
+		slopCap = len(slopRes.Paragraphs)
+	}
+	slopByRange := make(map[[2]int]slop.ParagraphSlop, slopCap)
 	if slopRes != nil {
 		for _, sp := range slopRes.Paragraphs {
 			slopByRange[[2]int{sp.StartLine, sp.EndLine}] = sp
@@ -366,32 +385,61 @@ func runAudit(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 		}
 	}
 
-	fogRes, err := fog.Analyze(fog.FogParams{Text: text, Path: absPath}, fog.Config{WorkspaceDir: workspaceDir})
-	if err != nil {
-		return fmt.Errorf("fog analysis failed: %w", err)
-	}
+	var (
+		fogRes  *fog.FogResult
+		slopRes *slop.SlopResult
+		valeRes *vale.ValeResult
+		seoRes  *seo.SEOResult
+	)
 
-	slopRes, err := slop.Analyze(slop.SlopParams{Text: text, Path: absPath}, slop.Config{WorkspaceDir: workspaceDir})
-	if err != nil {
-		return fmt.Errorf("slop analysis failed: %w", err)
-	}
+	g, gctx := errgroup.WithContext(ctx)
 
-	valeRes, err := vale.Analyze(ctx, vale.ValeParams{Text: text, Path: absPath}, vale.Config{
-		WorkspaceDir: workspaceDir,
-		ValeBinPath:  valeBinOverride,
+	g.Go(func() error {
+		var err error
+		fogRes, err = fog.Analyze(fog.FogParams{Text: text, Path: absPath}, fog.Config{WorkspaceDir: workspaceDir})
+		if err != nil {
+			return fmt.Errorf("fog analysis failed: %w", err)
+		}
+		return nil
 	})
-	if err != nil {
-		return fmt.Errorf("vale analysis failed: %w", err)
-	}
 
-	seoRes, err := seo.Analyze(ctx, seo.SEOParams{
-		HTML:    text,
-		Path:    absPath,
-		Keyword: params.Keyword,
-		DocType: params.DocType,
-	}, seo.Config{WorkspaceDir: workspaceDir})
-	if err != nil {
-		return fmt.Errorf("seo analysis failed: %w", err)
+	g.Go(func() error {
+		var err error
+		slopRes, err = slop.Analyze(slop.SlopParams{Text: text, Path: absPath}, slop.Config{WorkspaceDir: workspaceDir})
+		if err != nil {
+			return fmt.Errorf("slop analysis failed: %w", err)
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		var err error
+		valeRes, err = vale.Analyze(gctx, vale.ValeParams{Text: text, Path: absPath}, vale.Config{
+			WorkspaceDir: workspaceDir,
+			ValeBinPath:  valeBinOverride,
+		})
+		if err != nil {
+			return fmt.Errorf("vale analysis failed: %w", err)
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		var err error
+		seoRes, err = seo.Analyze(gctx, seo.SEOParams{
+			HTML:    text,
+			Path:    absPath,
+			Keyword: params.Keyword,
+			DocType: params.DocType,
+		}, seo.Config{WorkspaceDir: workspaceDir})
+		if err != nil {
+			return fmt.Errorf("seo analysis failed: %w", err)
+		}
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return err
 	}
 
 	blocks, err := buildBlockHealthTelemetry(fogRes, slopRes, valeRes)
@@ -414,6 +462,12 @@ func runCall(ctx context.Context, args []string, stdin io.Reader, stdout io.Writ
 	}
 
 	toolName := args[0]
+	switch toolName {
+	case "fog", "slop", "vale", "vale_rules", "seo":
+	default:
+		return fmt.Errorf("unknown tool %q (expected fog, slop, vale, vale_rules, or seo)", toolName)
+	}
+
 	payload, err := readJSONPayload(args[1:], stdin)
 	if err != nil {
 		return fmt.Errorf("call %s input error: %w", toolName, err)
@@ -494,5 +548,6 @@ func runCall(ctx context.Context, args []string, stdin io.Reader, stdout io.Writ
 func writeJSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false)
 	return enc.Encode(v)
 }

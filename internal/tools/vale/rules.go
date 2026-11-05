@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 )
@@ -873,15 +874,16 @@ func formatVocabTerm(term string, caseInsensitive bool) string {
 	if !caseInsensitive || trimmed == "" || strings.HasPrefix(trimmed, "[") {
 		return trimmed
 	}
-	if len(trimmed) > 1 {
-		rest := trimmed[1:]
-		if rest == strings.ToUpper(rest) && rest != strings.ToLower(rest) {
-			return trimmed
-		}
+	r, size := utf8.DecodeRuneInString(trimmed)
+	if r == utf8.RuneError {
+		return trimmed
 	}
-	r := rune(trimmed[0])
+	rest := trimmed[size:]
+	if len(rest) > 0 && rest == strings.ToUpper(rest) && rest != strings.ToLower(rest) {
+		return trimmed
+	}
 	if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
-		return fmt.Sprintf("[%c%c]%s", unicode.ToUpper(r), unicode.ToLower(r), trimmed[1:])
+		return fmt.Sprintf("[%c%c]%s", unicode.ToUpper(r), unicode.ToLower(r), rest)
 	}
 	return trimmed
 }

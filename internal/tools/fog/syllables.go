@@ -15,23 +15,81 @@
 package fog
 
 import (
-	"regexp"
 	"strings"
 )
 
-var vowelGroupRegex = regexp.MustCompile("[aeiouy]+")
+func isVowel(b byte) bool {
+	switch b {
+	case 'a', 'e', 'i', 'o', 'u', 'y':
+		return true
+	default:
+		return false
+	}
+}
 
-// countSyllables estimates the number of syllables in a word by counting vowel groups.
-// This is a simplified heuristic.
+// countSyllables estimates the number of syllables in a word using a zero-allocation
+// byte scanner with English phonology rules for silent 'e' and common inflectional endings.
 func countSyllables(word string) int {
+	if len(word) == 0 {
+		return 0
+	}
 	word = strings.ToLower(word)
 
-	vowelGroups := vowelGroupRegex.FindAllString(word, -1)
-	syllableCount := len(vowelGroups)
+	count := 0
+	inVowel := false
+	for i := 0; i < len(word); i++ {
+		if isVowel(word[i]) {
+			if !inVowel {
+				count++
+				inVowel = true
+			}
+		} else {
+			inVowel = false
+		}
+	}
 
-	if syllableCount == 0 {
+	if count == 0 {
 		return 1
 	}
 
-	return syllableCount
+	// Suffix rules for silent 'e'
+	n := len(word)
+	if strings.HasSuffix(word, "e") {
+		// Silent terminal -e deduction (e.g. sentence, make, require, describe)
+		// Exception: -le preceded by a consonant (e.g. table, little, bottle, cycle) forms a syllable
+		if n > 2 && word[n-2] == 'l' && !isVowel(word[n-3]) {
+			// keep syllable
+		} else if n > 1 && !strings.HasSuffix(word, "ee") && !strings.HasSuffix(word, "oe") {
+			count--
+		}
+	} else if strings.HasSuffix(word, "es") {
+		// -es suffix: pronounced as a distinct syllable only after sibilants (s, z, x, ch, sh)
+		// Otherwise -es represents a silent 'e' + 's' (e.g. requires, makes, writes)
+		if n > 2 {
+			pre := word[:n-2]
+			if !strings.HasSuffix(pre, "s") &&
+				!strings.HasSuffix(pre, "z") &&
+				!strings.HasSuffix(pre, "x") &&
+				!strings.HasSuffix(pre, "ch") &&
+				!strings.HasSuffix(pre, "sh") &&
+				!strings.HasSuffix(pre, "c") &&
+				!strings.HasSuffix(pre, "g") {
+				count--
+			}
+		}
+	} else if strings.HasSuffix(word, "ed") {
+		// -ed suffix: pronounced as a distinct syllable only when preceded by 'd' or 't' (e.g. created, needed)
+		// Otherwise silent (e.g. looked, described, walked, stopped)
+		if n > 2 {
+			preChar := word[n-3]
+			if preChar != 'd' && preChar != 't' {
+				count--
+			}
+		}
+	}
+
+	if count <= 0 {
+		return 1
+	}
+	return count
 }
