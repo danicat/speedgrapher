@@ -226,7 +226,7 @@ func parseFrontMatter(markdown string) (FrontMatter, string, bool, error) {
 
 func parseSimpleTOMLFrontMatter(raw string, fm *FrontMatter) error {
 	lines := strings.Split(raw, "\n")
-	for i := 0; i < len(lines); i++ {
+	for i := range lines {
 		line := strings.TrimSpace(lines[i])
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

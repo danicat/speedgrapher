@@ -9,7 +9,7 @@ metadata:
   category: writing
   tags: "writing, drafting, blog, article, tutorial, documentation, readme"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.13.1"
+  version: "0.13.2"
 ---
 
 # Draft: Adaptive-Voice Technical Writing

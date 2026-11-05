@@ -42,6 +42,7 @@ const defaultVersion = "dev"
 var (
 	version         = defaultVersion
 	valeBinOverride string
+	readBuildInfo   = debug.ReadBuildInfo
 )
 
 func init() {
@@ -51,7 +52,7 @@ func init() {
 }
 
 func resolveVersionFromBuildInfo(fallback string) string {
-	info, ok := debug.ReadBuildInfo()
+	info, ok := readBuildInfo()
 	if !ok || info == nil {
 		if fallback != "" {
 			return fallback

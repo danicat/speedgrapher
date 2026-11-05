@@ -66,19 +66,17 @@ target for most general-purpose writing.
 
 # Usage
 
-The `fog` tool can be used programmatically by calling the `CalculateFogIndex`
+The `fog` tool can be used programmatically by calling the `Analyze`
 and `ClassifyFogIndex` functions.
 
 Example:
 
-	text := "This is a sample sentence to be analyzed."
-	fogIndex, err := fog.CalculateFogIndex(text)
+	res, err := fog.Analyze(fog.FogParams{Text: "This is a sample sentence to be analyzed."})
 	if err != nil {
 		log.Fatal(err)
 	}
-	classification := fog.ClassifyFogIndex(fogIndex)
-	fmt.Printf("Fog Index: %.2f\n", fogIndex)
-	fmt.Printf("Classification: %s\n", classification)
+	fmt.Printf("Fog Index: %.2f\n", res.FogIndex)
+	fmt.Printf("Classification: %s\n", res.Classification)
 
 # External References
 

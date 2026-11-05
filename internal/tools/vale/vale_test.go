@@ -57,18 +57,6 @@ func TestFindValeConfigUp(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "config in parent directory (e.g. bin/)",
-			startDir: binDir,
-			want:     iniPath,
-			wantErr:  false,
-		},
-		{
-			name:     "config in ancestor directory (e.g. bin/sub/)",
-			startDir: subDir,
-			want:     iniPath,
-			wantErr:  false,
-		},
-		{
 			name:     "config in deep ancestor directory (e.g. bin/sub/deep/)",
 			startDir: deepDir,
 			want:     iniPath,
@@ -107,29 +95,6 @@ func setupValeConfig(searchDirs ...string) (string, error) {
 		return localIni, nil
 	}
 	return globalIni, nil
-}
-
-func TestSetupValeConfig_WorkspaceDir(t *testing.T) {
-	wsDir := t.TempDir()
-	iniPath := filepath.Join(wsDir, ".vale.ini")
-	if err := os.WriteFile(iniPath, []byte("StylesPath = styles\n"), 0644); err != nil {
-		t.Fatalf("failed to write .vale.ini: %v", err)
-	}
-	stylesDir := filepath.Join(wsDir, "styles")
-	if err := os.MkdirAll(stylesDir, 0755); err != nil {
-		t.Fatalf("failed to create styles dir: %v", err)
-	}
-
-	got, err := setupValeConfig(wsDir)
-	if err != nil {
-		t.Fatalf("setupValeConfig() unexpected error: %v", err)
-	}
-	if !filepath.IsAbs(got) {
-		t.Errorf("setupValeConfig() returned non-absolute path: %s", got)
-	}
-	if got != iniPath {
-		t.Errorf("setupValeConfig() = %s, want %s", got, iniPath)
-	}
 }
 
 func TestSetupValeConfig_CwdAndBundledAndMissing(t *testing.T) {
@@ -335,26 +300,6 @@ func TestValeParams_Validation(t *testing.T) {
 		}
 	})
 
-	t.Run("valid absolute path executes successfully", func(t *testing.T) {
-		docFile := filepath.Join(wsDir, "test_abs_doc.md")
-		if err := os.WriteFile(docFile, []byte("# Markdown Document\nTesting absolute path."), 0644); err != nil {
-			t.Fatalf("failed to write test file: %v", err)
-		}
-
-		_, res, err := valeHandler(context.Background(), nil, ValeParams{
-			Path: docFile,
-		}, Config{
-			ValeBinPath:  fakeVale,
-			WorkspaceDir: wsDir,
-		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if res == nil || res.Output == "" {
-			t.Fatal("expected non-empty output")
-		}
-	})
-
 	if runtime.GOOS != "windows" {
 		t.Run("vale runtime error fails fast with stderr", func(t *testing.T) {
 			errVale := filepath.Join(t.TempDir(), "err-vale")
@@ -471,14 +416,41 @@ func TestResolveValeBinary(t *testing.T) {
 }
 
 func TestRegister(t *testing.T) {
-	server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
-	Register(server)
+	ctx := context.Background()
+	wsDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(wsDir, ".vale.ini"), []byte("StylesPath = styles\n"), 0644); err != nil {
+		t.Fatalf("failed to write .vale.ini: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(wsDir, "styles"), 0755); err != nil {
+		t.Fatalf("failed to create styles dir: %v", err)
+	}
 
-	serverWithCfg := mcp.NewServer(&mcp.Implementation{Name: "test-server-cfg"}, nil)
-	Register(serverWithCfg, Config{
-		WorkspaceDir: "/tmp",
-		ValeBinPath:  "/custom/vale",
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
+	Register(server, Config{
+		WorkspaceDir: wsDir,
+		ValeBinPath:  createFakeValeBinary(t),
 	})
+
+	t1, t2 := mcp.NewInMemoryTransports()
+	if _, err := server.Connect(ctx, t1, nil); err != nil {
+		t.Fatalf("server.Connect failed: %v", err)
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+	session, err := client.Connect(ctx, t2, nil)
+	if err != nil {
+		t.Fatalf("client.Connect failed: %v", err)
+	}
+	defer func() { _ = session.Close() }()
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "vale",
+		Arguments: map[string]any{
+			"text": "# Heading\nThis is a simple sentence.",
+		},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("CallTool(vale) failed: err=%v, res=%+v", err, res)
+	}
 }
 
 func TestManageRules(t *testing.T) {

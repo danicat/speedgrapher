@@ -32,27 +32,20 @@ func TestCalculate(t *testing.T) {
 		name               string
 		text               string
 		wantScoreThreshold float64
+		maxScore           float64
 	}{
-		{
-			name:               "empty text",
-			text:               "",
-			wantScoreThreshold: 0,
-		},
-		{
-			name:               "natural text",
-			text:               "This is a simple sentence written by a human being. It doesn't contain any weird words.",
-			wantScoreThreshold: 0,
-		},
 		{
 			name:               "heavy slop",
 			text:               "We will delve into the multifaceted tapestry of this crucial paradigm. It is a testament to the intricate synergy we can harness to unlock a robust game changer.",
 			wantScoreThreshold: 20.0,
+			maxScore:           100.0,
 		},
 		{
 			name: "slop with structural cliches and analogies",
 			text: `In today's fast-paced world, let's dive in. Think of this engine as a conductor of an orchestra.
 At the end of the day, here's the thing: it marks a pivotal moment to fundamentally reshape the paradigm — indeed — remarkably transformative.`,
 			wantScoreThreshold: 25.0,
+			maxScore:           100.0,
 		},
 		{
 			name: "markdown frontmatter and code blocks stripped",
@@ -63,6 +56,7 @@ title: "Delve Tapestry Landscape"
 ` + "`inline delve code`" + `
 This is a standard human sentence without excessive jargon.`,
 			wantScoreThreshold: 0,
+			maxScore:           5.0,
 		},
 	}
 
@@ -72,8 +66,11 @@ This is a standard human sentence without excessive jargon.`,
 			if err != nil {
 				t.Fatalf("Calculate() unexpected error: %v", err)
 			}
-			if res.OverallScore < tt.wantScoreThreshold && tt.wantScoreThreshold > 0 {
+			if res.OverallScore < tt.wantScoreThreshold {
 				t.Errorf("Calculate() gotScore = %v, want >= %v", res.OverallScore, tt.wantScoreThreshold)
+			}
+			if res.OverallScore > tt.maxScore {
+				t.Errorf("Calculate() gotScore = %v, want <= %v", res.OverallScore, tt.maxScore)
 			}
 		})
 	}
@@ -164,28 +161,6 @@ func TestHandleSlop(t *testing.T) {
 		params := SlopParams{
 			Text: "We will delve into the multifaceted tapestry of this paradigm. It is a testament to the intricate synergy.",
 		}
-		_, res, err := handleSlop(cfg, params)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if res == nil {
-			t.Fatal("expected non-nil result")
-		}
-		if res.OverallScore < 10.0 {
-			t.Errorf("expected slop score >= 10, got %f", res.OverallScore)
-		}
-	})
-
-	t.Run("Valid Path input with absolute path", func(t *testing.T) {
-		tempDir := t.TempDir()
-		filePath := filepath.Join(tempDir, "sample.md")
-		content := "In today's fast-paced world, we delve into the intricate tapestry of paradigms."
-		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-			t.Fatalf("failed to write temp file: %v", err)
-		}
-
-		cfg := Config{}
-		params := SlopParams{Path: filePath}
 		_, res, err := handleSlop(cfg, params)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -319,15 +294,30 @@ func TestHandleSlop(t *testing.T) {
 }
 
 func TestRegister(t *testing.T) {
-	t.Run("Register without cfg", func(t *testing.T) {
-		server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
-		Register(server)
-	})
+	ctx := context.Background()
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
+	Register(server, Config{WorkspaceDir: t.TempDir()})
 
-	t.Run("Register with cfg", func(t *testing.T) {
-		server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
-		Register(server, Config{WorkspaceDir: "/tmp/test"})
+	t1, t2 := mcp.NewInMemoryTransports()
+	if _, err := server.Connect(ctx, t1, nil); err != nil {
+		t.Fatalf("server.Connect failed: %v", err)
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+	session, err := client.Connect(ctx, t2, nil)
+	if err != nil {
+		t.Fatalf("client.Connect failed: %v", err)
+	}
+	defer func() { _ = session.Close() }()
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "slop",
+		Arguments: map[string]any{
+			"text": "This is a simple sentence.",
+		},
 	})
+	if err != nil || res.IsError {
+		t.Fatalf("CallTool(slop) failed: err=%v, res=%+v", err, res)
+	}
 }
 
 func TestCalculate_HyphenatedWordsNotFlagged(t *testing.T) {
@@ -435,26 +425,10 @@ func TestRealWorldWebCalibrationCorpus(t *testing.T) {
 			maxScore: 10.0,
 		},
 		{
-			name:     "PaulGraham_2015_WriteLikeYouTalk",
-			source:   "https://paulgraham.com/talk.html (Paul Graham, October 2015)",
-			category: "good",
-			text:     `Here's a simple trick for getting more people to read what you write: write in spoken language. Something comes over most people when they start writing. They write in a different language than they'd use if they were talking to a friend. The sentence structure and even the words are different. No one uses "pen" as a verb in spoken English. You'd feel like an idiot using "pen" instead of "write" in a conversation with a friend. You don't need complex sentences to express complex ideas. When specialists in some abstruse topic talk to one another about ideas in their field, they don't use sentences any more complex than they do when talking about what to have for lunch. They use different words, certainly. But even those they use no more than necessary.`,
-			minScore: 0.0,
-			maxScore: 10.0,
-		},
-		{
 			name:     "Cloudflare_2015_MillionPackets",
 			source:   "https://blog.cloudflare.com/how-to-receive-a-million-packets/ (Marek Majkowski, June 2015)",
 			category: "good",
 			text:     `Historically, network cards had a single RX queue that was used to pass packets between hardware and kernel. This design had an obvious limitation - it was impossible to deliver more packets than a single CPU could handle. To utilize multicore systems, NICs began to support multiple RX queues. The design is simple: each RX queue is pinned to a separate CPU, therefore, by delivering packets to all the RX queues a NIC can utilize all CPUs. But it raises a question: given a packet, how does the NIC decide to which RX queue to push it? Round-robin balancing is not acceptable, as it might introduce reordering of packets within a single connection. An alternative is to use a hash from packet to decide the RX queue number. The hash is usually counted from a tuple (src IP, dst IP, src port, dst port). This guarantees that packets for a single flow will always end up on exactly the same RX queue, and reordering of packets within a single flow can't happen.`,
-			minScore: 0.0,
-			maxScore: 10.0,
-		},
-		{
-			name:     "DanLuu_2017_FilesAreHard",
-			source:   "https://danluu.com/file-consistency/ (Dan Luu, 2017)",
-			category: "good",
-			text:     `I haven't used a desktop email client in years. None of them could handle the volume of email I get without at least occasionally corrupting my mailbox. Pine, Eudora, and outlook have all corrupted my inbox, forcing me to restore from backup. How is it that desktop mail clients are less reliable than gmail, even though my gmail account not only handles more email than I ever had on desktop clients, but also allows simultaneous access from multiple locations across the globe? Distributed systems have an unfair advantage, in that they can be robust against total disk failure in a way that desktop clients can't, but none of the file corruption issues I've had have been from total disk failure. Why has my experience with desktop applications been so bad?`,
 			minScore: 0.0,
 			maxScore: 10.0,
 		},

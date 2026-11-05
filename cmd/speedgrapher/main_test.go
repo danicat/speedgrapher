@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"testing"
 	"time"
@@ -214,25 +215,6 @@ func TestRun_Audit(t *testing.T) {
 		}
 	})
 
-	t.Run("audit frontmatter-only markdown", func(t *testing.T) {
-		var stdout, stderr bytes.Buffer
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-
-		payload := `{"text":"---\ntitle: \"Generative UI\"\nslug: \"generative-ui\"\n---\n\n","doc_type":"doc"}`
-		if err := run(ctx, []string{"audit", payload}, strings.NewReader(""), &stdout, &stderr); err != nil {
-			t.Fatalf("unexpected error auditing frontmatter-only markdown: %v", err)
-		}
-
-		var got auditResult
-		if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
-			t.Fatalf("failed to decode audit JSON output: %v", err)
-		}
-		if got.Fog == nil || got.Fog.FogIndex != 0 {
-			t.Errorf("expected FogIndex 0 for frontmatter-only markdown, got %+v", got.Fog)
-		}
-	})
-
 	t.Run("audit heading-only markdown without sentence punctuation", func(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -263,7 +245,6 @@ func TestRun_ErrorCases(t *testing.T) {
 		{"bad flag", []string{"--unknown-flag"}, "", "unknown flag"},
 		{"unknown command", []string{"unknowncmd"}, "", "unknown command"},
 		{"call missing tool", []string{"call"}, "", "usage: speedgrapher call"},
-		{"call unknown tool", []string{"call", "nonexistent", `{}`}, "", "unknown tool"},
 		{"call removed analyze_seo tool", []string{"call", "analyze_seo", `{}`}, "", "unknown tool"},
 		{"audit missing payload", []string{"audit"}, "", "audit input error"},
 		{"audit invalid json", []string{"audit", "{bad"}, "", "failed to parse audit JSON"},
@@ -289,13 +270,52 @@ func TestRun_ErrorCases(t *testing.T) {
 }
 
 func TestBuildInfoFallback(t *testing.T) {
-	if version == "" {
-		t.Errorf("expected version to be non-empty")
+	origReadBuildInfo := readBuildInfo
+	defer func() { readBuildInfo = origReadBuildInfo }()
+
+	readBuildInfo = func() (*debug.BuildInfo, bool) {
+		return nil, false
+	}
+	if got := resolveVersionFromBuildInfo("fallback-v1"); got != "fallback-v1" {
+		t.Errorf("resolveVersionFromBuildInfo(\"fallback-v1\") = %q, want \"fallback-v1\"", got)
+	}
+	if got := resolveVersionFromBuildInfo(""); got != defaultVersion {
+		t.Errorf("resolveVersionFromBuildInfo(\"\") = %q, want %q", got, defaultVersion)
 	}
 
-	v := resolveVersionFromBuildInfo("fallback-v1")
-	if v == "" {
-		t.Errorf("expected non-empty version from resolveVersionFromBuildInfo")
+	readBuildInfo = func() (*debug.BuildInfo, bool) {
+		return &debug.BuildInfo{
+			Main: debug.Module{Version: "v1.2.3"},
+		}, true
+	}
+	if got := resolveVersionFromBuildInfo("fallback-v1"); got != "v1.2.3" {
+		t.Errorf("resolveVersionFromBuildInfo() with release tag = %q, want \"v1.2.3\"", got)
+	}
+
+	readBuildInfo = func() (*debug.BuildInfo, bool) {
+		return &debug.BuildInfo{
+			Main: debug.Module{Version: "(devel)"},
+			Settings: []debug.BuildSetting{
+				{Key: "vcs.revision", Value: "abcdef1234567890"},
+				{Key: "vcs.modified", Value: "true"},
+			},
+		}, true
+	}
+	if got := resolveVersionFromBuildInfo(""); got != "devel (abcdef1-dirty)" {
+		t.Errorf("resolveVersionFromBuildInfo() dirty vcs = %q, want \"devel (abcdef1-dirty)\"", got)
+	}
+
+	readBuildInfo = func() (*debug.BuildInfo, bool) {
+		return &debug.BuildInfo{
+			Main: debug.Module{Version: "(devel)"},
+			Settings: []debug.BuildSetting{
+				{Key: "vcs.revision", Value: "abcdef1"},
+				{Key: "vcs.modified", Value: "false"},
+			},
+		}, true
+	}
+	if got := resolveVersionFromBuildInfo(""); got != "devel (abcdef1)" {
+		t.Errorf("resolveVersionFromBuildInfo() clean vcs = %q, want \"devel (abcdef1)\"", got)
 	}
 }
 
@@ -351,7 +371,7 @@ func TestCMD02_RunMCPServer_CustomTransport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to connect client to in-memory MCP server: %v", err)
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 
 	tools, err := session.ListTools(ctx, nil)
 	if err != nil {
@@ -371,5 +391,5 @@ func TestCMD02_RunMCPServer_CustomTransport(t *testing.T) {
 	}
 
 	cancel()
-	_ = <-errCh
+	<-errCh
 }

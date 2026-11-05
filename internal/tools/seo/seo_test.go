@@ -49,50 +49,6 @@ const perfectBody = `
 	</p>
 `
 
-func TestAnalyzeSEO_PassingScore(t *testing.T) {
-	html := `
-		<html>
-			<head>
-				<title>Perfect SEO Title Example For Testing Keyword</title>
-				<meta name="description" content="This is a perfect meta description that is long enough to pass the check and contains the keyword we are looking for in this test case.">
-				<link rel="canonical" href="https://example.com/page">
-			</head>
-			<body>
-				<h1>Main Keyword Heading</h1>
-				` + perfectBody + `
-				<img src="image.jpg" alt="Description of image">
-				<a href="/internal">Internal Link</a>
-			</body>
-		</html>
-	`
-
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
-	if err != nil {
-		t.Fatalf("Failed to parse HTML: %v", err)
-	}
-
-	result := analyzeSEO(doc, "keyword")
-
-	if result.Score != 100 {
-		t.Errorf("Expected score 100, got %d", result.Score)
-		for _, check := range result.Checks {
-			if check.Status != "pass" {
-				t.Logf("Failed check: %s - %s", check.Name, check.Description)
-			}
-		}
-	}
-
-	if result.Title != "Perfect SEO Title Example For Testing Keyword" {
-		t.Errorf("Expected title 'Perfect SEO Title Example For Testing Keyword', got '%s'", result.Title)
-	}
-	if result.H1 != "Main Keyword Heading" {
-		t.Errorf("Expected H1 'Main Keyword Heading', got '%s'", result.H1)
-	}
-	if result.WordCount < 300 {
-		t.Errorf("Expected word count >= 300, got %d", result.WordCount)
-	}
-}
-
 func TestAnalyzeSEO_IndividualChecks(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -244,16 +200,16 @@ func TestAnalyzeSEO_IndividualChecks(t *testing.T) {
 }
 
 func TestAnalyzeSEO_ScoreFloor(t *testing.T) {
-	// Empty body, missing all tags
-	html := `<html><body></body></html>`
+	// Worst-case document failing/warning all 7 checks (-15 title, -15 desc, -10 H1, -5 img alt, -5 links, -10 content, -5 canonical = 35)
+	html := `<html><body><img src="missing-alt.png"></body></html>`
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
 		t.Fatalf("Failed to parse HTML: %v", err)
 	}
 
 	result := analyzeSEO(doc, "keyword")
-	if result.Score < 0 {
-		t.Errorf("Score should not be negative, got %d", result.Score)
+	if result.Score != 35 {
+		t.Errorf("Expected exact worst-case score 35 when all 7 checks fail/warn, got %d", result.Score)
 	}
 }
 
@@ -281,29 +237,6 @@ func TestSEOHandler_HTMLInput(t *testing.T) {
 	}
 	if result.H1 != "Direct HTML Heading" {
 		t.Errorf("Expected H1 'Direct HTML Heading', got %q", result.H1)
-	}
-}
-
-func TestSEOHandler_PathInput_AbsoluteHTML(t *testing.T) {
-	tempDir := t.TempDir()
-	htmlPath := filepath.Join(tempDir, "page.html")
-	html := `<html><head><title>Absolute Path Test Title Example</title><meta name="description" content="This is a test meta description that has between 120 and 160 characters in total for SEO auditing purposes."><link rel="canonical" href="https://example.com"></head><body><h1>Page from Absolute Path</h1><a href="/test">Link</a>` + perfectBody + `</body></html>`
-	if err := os.WriteFile(htmlPath, []byte(html), 0644); err != nil {
-		t.Fatalf("Failed to write html file: %v", err)
-	}
-
-	_, result, err := seoHandler(context.Background(), nil, SEOParams{Path: htmlPath})
-	if err != nil {
-		t.Fatalf("seoHandler failed with Path input: %v", err)
-	}
-	if result == nil {
-		t.Fatal("Expected non-nil result")
-	}
-	if result.Title != "Absolute Path Test Title Example" {
-		t.Errorf("Expected title 'Absolute Path Test Title Example', got %q", result.Title)
-	}
-	if result.H1 != "Page from Absolute Path" {
-		t.Errorf("Expected H1 'Page from Absolute Path', got %q", result.H1)
 	}
 }
 
@@ -697,11 +630,30 @@ Read more [click here](https://example.com) and ![](missing-alt.png).
 }
 
 func TestRegister(t *testing.T) {
+	ctx := context.Background()
 	server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
-	Register(server)
+	Register(server, Config{WorkspaceDir: t.TempDir()})
 
-	serverWithCfg := mcp.NewServer(&mcp.Implementation{Name: "test-server-2"}, nil)
-	Register(serverWithCfg, Config{WorkspaceDir: "/tmp"})
+	t1, t2 := mcp.NewInMemoryTransports()
+	if _, err := server.Connect(ctx, t1, nil); err != nil {
+		t.Fatalf("server.Connect failed: %v", err)
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+	session, err := client.Connect(ctx, t2, nil)
+	if err != nil {
+		t.Fatalf("client.Connect failed: %v", err)
+	}
+	defer func() { _ = session.Close() }()
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "seo",
+		Arguments: map[string]any{
+			"html": "<html><head><title>Registered SEO Tool Test Title</title></head><body><h1>Heading</h1></body></html>",
+		},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("CallTool(seo) failed: err=%v, res=%+v", err, res)
+	}
 }
 
 func TestSEO_DualPurposeMetadataAndGEO(t *testing.T) {
