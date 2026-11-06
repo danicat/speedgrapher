@@ -47,9 +47,9 @@ Run `fog`, `slop`, and `vale` on the target `.md` file using its absolute `path`
 
 | MCP Tool | Scope & Granularity | Target Threshold | Action When Out of Bounds |
 | :--- | :--- | :--- | :--- |
-| **`fog`** | Document-wide & per-paragraph Gunning Fog Index (`paragraphs[]`). | **11.0 – 15.0** | **$> 15.0$**: Flag compound sentences ($> 30$ words) and bureaucratic noun stacks for splitting.<br>**$< 11.0$**: Check for choppy staccato fragments or oversimplified explanations. |
-| **`slop`** | Document-wide & per-paragraph 5-Dimension AI Slop Score (`0–100`). | **$< 20$** (Clean)<br>**$\ge 25$** (Warning) | Flag every lexical tell (*delve*, *tapestry*, *leverage*, *utilize*, *robust*, *quietly*), negative parallelism (*"It's not X — it's Y"*), and uniform-cadence paragraph. |
-| **`vale`** | Static style & grammar linter (`Google`, `proselint`, `write-good`). | **0 errors / 0 warnings** | Filter out false-positive spelling alerts on valid code identifiers, and flag passive voice, weasel words, and title-case headings. |
+| **`fog`** | Document-wide & per-paragraph Gunning Fog Index (`paragraphs[]`). | **12.0 – 14.0** | Check readability balance when paragraph density falls outside the 12.0–14.0 target range. |
+| **`slop`** | Document-wide & per-paragraph 5-Dimension AI Slop Score (`0–100`). | **$< 20$** (Clean)<br>**$\ge 25$** (Warning) | Flag lexical tells (*delve*, *tapestry*, *leverage*, *utilize*, *robust*, *quietly*), negative parallelism (*"It's not X, it's Y"*), and uniform-cadence paragraphs. |
+| **`vale`** | Static style & grammar linter (`Google`, `proselint`, `write-good`). | **Grammar clean; style informational** | Vale grammar checks must always be fixed. Vale style checks are informational and presented to the user for discussion. |
 
 ### B. Qualitative Editorial Audit Criteria
 Inspect the manuscript line by line against six qualitative standards:
@@ -66,7 +66,7 @@ Speedgrapher uses HTML comments placed immediately below a paragraph as a zero-l
 
 1. **Resolving Human Comments (`Human -> Agent`)**:
    - When the file contains `<!-- review: ... -->` or `<!-- review(...): ... -->` comments added by the author, locate every comment block.
-   - Edit the preceding paragraph (or add the requested code/table) to fulfill the author's note while keeping `fog` ($11\text{–}15$) and `slop` ($< 20$) in bounds.
+   - Edit the preceding paragraph (or add the requested code/table) to fulfill the author's note while keeping `fog` ($12\text{–}14$) and `slop` ($< 20$) in bounds.
    - **Delete each resolved `<!-- review: ... -->` or `<!-- review(...): ... -->` comment** from the file once addressed.
 2. **Injecting Agent Annotations (`Agent -> Human`)**:
    - When the user asks you to *annotate the file in place* or *leave inline review comments* (instead of rewriting the prose directly), insert concise `<!-- review: [Dimension] Concrete recommendation -->` comments directly beneath the affected paragraphs:
@@ -88,9 +88,9 @@ Open [file.md](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md)
 
 | Dimension | Score / Status | Target | Assessment |
 | :--- | :--- | :--- | :--- |
-| **Readability (`fog`)** | `<score>` (`<N>` hotspot paragraphs) | `11.0 – 15.0` | `[Pass / Needs Simplification / Check Depth]` |
+| **Readability (`fog`)** | `<score>` (`<N>` hotspot paragraphs) | `12.0 – 14.0` | `[Pass / Needs Simplification / Check Depth]` |
 | **AI Slop (`slop`)** | `<score>/100` | `< 20` (Warn `>= 25`) | `[Pass / Minor Tells / High Slop Warning]` |
-| **Static Analysis (`vale`)** | `<E> errors, <W> warnings` | `0 errors, 0 warnings` | `[Summary of Google / proselint / write-good findings]` |
+| **Static Analysis (`vale`)** | `<E> errors, <W> warnings` | Grammar clean; style informational | `[Grammar errors resolved; style warnings summarized for discussion]` |
 | **Technical SEO (`seo`)** | `<score>/100` (`<N>/7` checks) | `>= 85` (`7/7` passed) | `[Summary of metadata, heading, alt-text, and link checks]` |
 | **Narrative & Jargon Hygiene** | `[Strong / Needs Tightening]` | Inverted pyramid & plain English | `[1-sentence assessment of 150-word lead, jargon, and citations]` |
 
@@ -173,7 +173,7 @@ When translating an article or documentation file into target languages (such as
 ## 5. Final Release Checklist Deliverable
 
 When wrapping up a pre-publication audit, provide a ready-to-execute **Release Plan**:
-- **Quality & SEO Gate Summary**: Pass/fail table for `fog` ($11\text{–}15$), `slop` ($< 20$), `vale` (`0` warnings), and `seo` ($\ge 85$, `7/7` checks).
+- **Quality & SEO Gate Summary**: Pass/fail table for `fog` ($12\text{–}14$), `slop` ($< 20$), `vale` (grammar clean; style checks discussed), and `seo` ($\ge 85$, `7/7` checks).
 - **Validated Frontmatter Block**: Ready-to-paste YAML/TOML frontmatter containing `title`, `summary`, `description`, and `canonical`.
 - **Target File Path**: Recommended path following the repository's convention (for example, `content/posts/<slug>/index.md` or `index.<lang>.md`).
 - **Proposed Git Commit Message**: A conventional commit message (for example, `docs(blog): publish zero-allocation json parsing post`) for the author to run manually.
@@ -182,5 +182,8 @@ When wrapping up a pre-publication audit, provide a ready-to-execute **Release P
 
 ## Operational Constraints
 
+- **Zero Silent Edits**: Never rewrite, overwrite, or mutate draft files on disk without explicit user approval. Present all changes as numbered line-indexed recommendations and wait for the author to command which edits to apply.
+- **Preserve Author Voice**: Never let static style linters sanitize the author's conversational cadence, colloquialisms, idioms, contractions, or first-person voice. Vale grammar errors must be fixed; Vale style warnings are strictly discussion points.
+- **Strictly No Em Dashes**: Never use em dashes (`—` or `--`) as mid-sentence connectors. Break thoughts into clean, crisp sentences using periods, commas, or colons.
 - **No Git Operations**: Never execute `git add`, `git commit`, `git push`, or `git tag` yourself. Provide the exact commands in the Release Plan for the user to run.
 - **Explicit User Sign-Off**: Never overwrite production content files without the author's confirmation unless explicitly instructed.

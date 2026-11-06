@@ -36,9 +36,9 @@ Generic AI articles fail because they summarize public documentation and describ
 | Pillar | What to Extract | Example Probing Question |
 | :--- | :--- | :--- |
 | **1. The Triggering Incident / Problem** | The specific production alert, customer bug, latency ceiling, or developer friction that forced action. | *"What was the exact failure metric or bottleneck that convinced you the existing implementation wouldn't hold up?"* |
-| **2. Failed Hypotheses & Dead Ends** | The first one or two intuitive fixes that *did not work*, and the mechanism that broke them. | *"Before you landed on the final design, what was your first instinct—and how did that attempt fail?"* |
+| **2. Failed Hypotheses & Dead Ends** | The first one or two intuitive fixes that *did not work*, and the mechanism that broke them. | *"Before you landed on the final design, what was your first instinct, and how did that attempt fail?"* |
 | **3. Concrete Artifacts** | Verbatim error logs, stack traces, `pprof` profiles, minimal before/after diffs, benchmark tables, or architecture diagrams. | *"Do you have the panic stack trace, `benchstat` output, or minimal code diff we can anchor the lead section around?"* |
-| **4. Breakthrough & Engineering Trade-offs** | The specific insight that solved the problem, the measurable outcome, and the new operational boundaries introduced. | *"Once the fix went live, how did the metrics move—and under what conditions should another team avoid this approach?"* |
+| **4. Breakthrough & Engineering Trade-offs** | The specific insight that solved the problem, the measurable outcome, and the new operational boundaries introduced. | *"Once the fix went live, how did the metrics move, and under what conditions should another team avoid this approach?"* |
 
 ### The Open $\rightarrow$ Focused $\rightarrow$ Closed Interviewing Loop
 
@@ -55,11 +55,11 @@ flowchart LR
 
 - **Stage A — Open Question (Broad Context)**: Invite the author to tell the story in their own words (*"How did this bottleneck first show up in production?"*).
 - **Stage B — Focused Question (Drilling for Specificity & Artifacts)**: When the author gives a high-level answer, ask for the concrete mechanism or artifact (*"Which allocation site sat at the top of the heap profile, and can we inspect that struct in the repo?"*).
-- **Stage C — Closed Question (Verification & Transition)**: Summarize the technical mechanism in one crisp sentence to confirm accuracy before moving to the next pillar (*"So an unbuffered channel inside the retry loop pinned 4 MiB request bodies until the context expired—did I capture that accurately?"*).
+- **Stage C — Closed Question (Verification & Transition)**: Summarize the technical mechanism in one crisp sentence to confirm accuracy before moving to the next pillar (*"So an unbuffered channel inside the retry loop pinned 4 MiB request bodies until the context expired. Did I capture that accurately?"*).
 
 ### Interviewing Etiquette
 - **One Question at a Time**: Never stack multiple unrelated questions in a single turn.
-- **Cozy Web Peer Voice**: Speak like an inquisitive senior engineer at a whiteboard—warm, sharp, and grounded, never robotic or sycophantic.
+- **Cozy Web Peer Voice**: Speak like an inquisitive senior engineer at a whiteboard: warm, sharp, and grounded, never robotic or sycophantic.
 - **Know When to Wrap Up**: Five to eight focused turns are typically enough to capture all four pillars. Do not drag out the interview once you have a clear thesis, real artifacts, and honest trade-offs.
 
 ---
@@ -129,7 +129,7 @@ Open in [Speedgrapher](sidecar://speedgrapher/panel/)
 ## 1. Narrative & Persona Metadata
 - **Document Type**: [Technical Blog Post | README.md | Architecture Doc | SKILL.md]
 - **Target Audience**: [e.g., Go backend engineers, Kubernetes operators, AI agent builders]
-- **150-Word Lead Hook (The Scanner — 10s)**: [1–3 crisp sentences stating the exact problem, architectural solution, and headline metric or command]
+- **150-Word Lead Hook (The Scanner: 10s)**: [1–3 crisp sentences stating the exact problem, architectural solution, and headline metric or command]
 - **Voice & Perspective**: [e.g., First-person plural engineering postmortem (`we`) / Direct instructional (`you`)]
 
 ## 2. The 4 Pillars of Information Gain
@@ -143,15 +143,15 @@ Open in [Speedgrapher](sidecar://speedgrapher/panel/)
 
 ## 3. Inverted-Pyramid Section Outline
 
-### 1. [Lead section heading in sentence case] (The Scanner — 10s)
+### 1. [Lead section heading in sentence case] (The Scanner: 10s)
 - **Lead hook**: [Headline metric, problem, and core solution within 150 words]
 - **Immediate takeaway**: [What the reader walks away with immediately]
 
-### 2. [Working code or quick-start implementation] (The Operator — 3m)
+### 2. [Working code or quick-start implementation] (The Operator: 3m)
 - **Primary artifact**: [Minimal runnable code block, CLI command, or system diagram]
 - **Why before how**: [The constraint this snippet solves and the key lines to inspect]
 
-### 3. [Why initial approaches fell short & deep-dive mechanics] (The Contributor — 15m)
+### 3. [Why initial approaches fell short & deep-dive mechanics] (The Contributor: 15m)
 - **Dead end analyzed**: [Why the naive approach failed under load or edge cases]
 - **Internal mechanism**: [Step-by-step walkthrough of the winning architecture]
 
@@ -164,6 +164,8 @@ Open in [Speedgrapher](sidecar://speedgrapher/panel/)
 
 ## Operational Constraints
 
+- **Zero Silent Edits**: Never rewrite or mutate draft text on disk without explicit user approval.
+- **Strictly No Em Dashes**: Never use em dashes (`—` or `--`) as mid-sentence connectors. Break thoughts into clean, crisp sentences using periods, commas, or colons.
 - **No Premature Full Drafting**: During an interactive interview, do not dump a 2,000-word article before the author confirms the outline (unless they explicitly ask to skip straight to drafting).
 - **No Fabricated Artifacts**: Never invent benchmark numbers, stack traces, or production incidents. If an artifact is not yet available, mark it clearly as `[TODO: Insert benchmark output]`.
 - **No Git Operations**: Never run `git commit`, `git push`, or other repository mutation commands.

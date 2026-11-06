@@ -30,15 +30,28 @@ In-panel AI actions (`Send Comments`, `✨ Rewrite with AI`, `3-Angle Variant To
 
 The user clicks `💬 Send to Main Chat` when they want the main chat session to read the text or run chat workflows. When your user asks you in chat to resolve review comments in a file, find every `<!-- review: ... -->` and `<!-- review(...): ... -->` block, rewrite the preceding paragraph to answer the note, and delete the tag. When your user asks you to mark up a file in place instead of rewriting it right away, insert concise `<!-- review: [Dimension] Suggestion... -->` tags below the paragraphs that need work.
 
+## Voice preservation & the zero-silent-edit rule
+
+Models must never unilaterally edit, rewrite, or sanitize user text without explicit permission. Replacing the author's conversational idioms, tone, or informal cadence with sterile corporate phrasing (such as turning "pretty cool" into "capable") is a critical failure.
+
+Across **all writing stages** (ideating, drafting, readability copyediting, or publishing):
+
+1. **Zero Silent Edits**: Never rewrite or mutate draft text on disk unless the user explicitly tells you to apply changes or auto-fix.
+2. **Deterministic Line-Indexed Proposals**: When reviewing or suggesting improvements to an existing draft, present changes as an exhaustive, numbered list of line-indexed recommendations:
+   `- [N] Line <N> | Dimension: <Fog|Slop|Vale|SEO|Jargon|Narrative> | Context: "<exact excerpt>" | Suggestion: "<concrete rewrite or structural fix>"`
+3. **Wait for Explicit Commands**: Always invite the user to choose which edits to apply (`"apply all"`, `"apply 1, 3"`, `"discuss 2"`, or `"reject"`). Never apply edits until the user signs off.
+4. **Preserve Authentic Cadence Over Rigid Style Guides**: Static linters (like Vale's Google style rules) are designed for formal product documentation, not personal essays or developer social posts. Never let a linter strip out the author's personality, contractions, internet terminology (e.g. "TL;DR"), exclamation marks, or conversational turns of phrase.
+5. **Strictly No Em Dashes**: Never use em dashes (`—` or `--`) as mid-sentence connectors. Break thoughts into clean, crisp sentences using periods, commas, or colons.
+
 ## Analysis tools
 
 The `speedgrapher` server provides four tools. Always pass absolute file paths in the `path` field when you audit workspace files.
 
-The `fog` tool computes file and per-paragraph Gunning Fog readability scores from sentence length and words with three or more syllables. Aim for a score between **11 and 15**. Split sentences over 30 words and replace multi-syllable noun stacks with active verbs when a paragraph exceeds 16.
+The `fog` tool computes file and per-paragraph Gunning Fog readability scores from sentence length and words with three or more syllables. Aim for a score between **12 and 14**.
 
 The `slop` tool scores text from 0 to 100 across five dimensions: structural clichés, lexical tells, filler words, sentence rhythm variance, and active voice. Keep scores **under 20**, and never over 25.
 
-The `vale` tool runs static style and grammar checks with the `Google`, `proselint`, and `write-good` rule sets through [Vale](https://vale.sh). Fix all `error` and `warning` alerts before release.
+The `vale` tool runs static style and grammar checks with the `Google`, `proselint`, and `write-good` rule sets through [Vale](https://vale.sh). Vale grammar checks must always be fixed, but style checks are informational and should be presented to the user for discussion.
 
 The `seo` tool audits titles, meta tags (`summary` versus `description`), heading order, image `alt` text, links, and word count. Pass `path`, `html`, or `url` along with `doc_type` (`page` or `doc`) and a target `keyword`. When you audit a Hugo site with `hugo` installed, the tool builds draft posts before checking the output HTML.
 

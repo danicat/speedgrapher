@@ -103,14 +103,13 @@ All technical drafts must comply with strict brand, trademark, and legal safety 
 Before presenting a completed draft or expanded section to the user, run the `speedgrapher` MCP tools on the target file or text:
 
 1. **`fog` (Gunning Fog Index)**:
-   - Target range: **$11.0\text{–}15.0$** across the document and individual paragraphs.
-   - If any paragraph exceeds `16.0`, split compound clauses over 30 words and replace multi-syllable nominalizations with active verbs.
+   - Target range: **$12.0\text{–}14.0$** across the document and individual paragraphs.
 2. **`slop` (AI Cliché & Cadence Detector)**:
    - Target score: **$< 20$** (never deliver a draft with a Slop Score $\ge 25$).
    - Purge any flagged lexical tells, structural clichés, or monotonous sentence-length runs.
 3. **`vale` (Static Style & Grammar Linter)**:
-   - Target: **0 errors and 0 warnings**.
-   - Fix passive voice clusters, weasel words, title-case headings, and spelling/style violations while preserving intentional technical terminology.
+   - Target: **Grammar clean; style checks informational**.
+   - Fix all grammar errors. Vale style checks are informational and must be presented to the author for discussion.
 4. **Surface the Speedgrapher Pill**:
    - Always include `[file.md](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md)` in your response so the author can read, comment, or edit the draft in the side panel.
 
@@ -118,5 +117,7 @@ Before presenting a completed draft or expanded section to the user, run the `sp
 
 ## Operational Constraints
 
+- **Zero Silent Edits & Voice Integrity**: When iterating on or editing an existing user draft, never silently overwrite files on disk or sanitize the author's conversational voice. Present proposed improvements as line-indexed recommendations and wait for user sign-off.
+- **Strictly No Em Dashes**: Never use em dashes (`—` or `--`) as mid-sentence connectors. Break thoughts into clean, crisp sentences using periods, commas, or colons.
 - **Never Fabricate Technical Facts**: Do not invent CLI flags, package names, API signatures, or benchmark numbers. Verify every symbol against the workspace or official documentation.
 - **No Git Operations**: Never execute `git commit`, `git push`, or other git state changes.

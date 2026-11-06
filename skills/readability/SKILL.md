@@ -44,7 +44,7 @@ Apply these four steps from the HBR framework to every document you edit:
 2. **Identify Jargon Tripwires & Unexpanded Acronyms**:
    - Scan for clusters of three or more consecutive multi-syllable nouns (*"resource utilization optimization strategy"*) and undefined initialisms (*"E2E CIL SLOs"*).
 3. **Check Yourself (Plain-English Substitutions & First-Use Definitions)**:
-   - Expand unfamiliar acronyms on first use—for example, *"extended Berkeley Packet Filter (eBPF)"* or *"Generative Engine Optimization (GEO)"*—while leaving universally understood primitives (`HTTP`, `JSON`, `CPU`, `API`, `URL`, `CLI`, `SQL`) unexpanded unless writing for beginners.
+   - Expand unfamiliar acronyms on first use (for example, *"extended Berkeley Packet Filter (eBPF)"* or *"Generative Engine Optimization (GEO)"*), while leaving universally understood primitives (`HTTP`, `JSON`, `CPU`, `API`, `URL`, `CLI`, `SQL`) unexpanded unless writing for beginners.
    - Replace every corporate verb (*utilize*, *leverage*, *operationalize*, *facilitate*) with its direct plain-English equivalent (*use*, *run*, *help*).
 4. **Write to Be Understood, Not to Impress**:
    - Whenever a sentence hides a simple engineering trade-off behind formal passive abstractions (*"A determination was made to effectuate memory reclamation"*), rewrite it with an explicit subject and active verb (*"The collector frees unused heap buffers every five seconds"*).
@@ -57,7 +57,7 @@ When `speedgrapher`'s `slop` MCP tool audits a file, it scores synthetic phrasin
 
 | Dimension | What `slop` Measures | Common Failure Mode | Target Remediation |
 | :--- | :--- | :--- | :--- |
-| **1. Structural** | Rhetorical templates: negative parallelisms, dramatic countdowns, self-answering questions, and bold-first listicles. | Framing routine technical points as dramatic reveals (*"It's not X — it's Y"*, *"Not X. Not Y. Just Z."*). | Rewrite into single affirmative cause-and-effect clauses; convert mechanical `**Bold**: Text` lists into prose or comparison tables. |
+| **1. Structural** | Rhetorical templates: negative parallelisms, dramatic countdowns, self-answering questions, and bold-first listicles. | Framing routine technical points as dramatic reveals (*"It's not X, it's Y"*, *"Not X. Not Y. Just Z."*). | Rewrite into single affirmative cause-and-effect clauses; convert mechanical `**Bold**: Text` lists into prose or comparison tables. |
 | **2. Lexical** | High-probability LLM vocabulary (*delve*, *tapestry*, *landscape*, *paradigm*, *testament*, *beacon*, *catalyst*, *robust*, *seamless*) and magic adverbs (*quietly*, *deeply*, *fundamentally*, *merely*, *simply*). | Substituting ornate metaphors and unverified adjectives for concrete engineering properties. | Delete magic adverbs; replace inflated words with exact system nouns, failure modes, and metrics. |
 | **3. Filler** | Throat-clearing transitions (*It's worth noting*, *Importantly*, *Here's the kicker*), copula evasions (*serves as*, *stands as*), and fractal signposting (*Let's break this down*, *In conclusion*). | Padding transitions without adding technical information. | Delete signposts and replace copula evasions with *is* or *are*. |
 | **4. Rhythm Variance** | Sentence-length Coefficient of Variation ($CV = \sigma / \mu$). | Monotonous 15–20 word sentences or choppy staccato fragments. | Alternate short diagnostic statements (5–8 words) with compound technical explanations (20–28 words). |
@@ -72,8 +72,8 @@ Execute this four-step loop whenever improving a file's readability or deslopify
 ```mermaid
 flowchart LR
     Step1["1. Baseline Telemetry\nRun `fog`, `slop` & `vale`\n+ load `tropes-and-jargon.md`"] --> Step2["2. HBR Jargon & Slop Purge\nCut status jargon, tropes &\nunexpanded acronyms"]
-    Step2 --> Step3["3. Paragraph Hotspot Surgery\nFix paragraphs with `fog` > 16\nand resolve `vale` spans"]
-    Step3 --> Step4{"4. Verification Gate\n`slop` < 20, `fog` 11–15,\n`vale` 0 warnings?"}
+    Step2 --> Step3["3. Paragraph Hotspot Surgery\nAddress paragraphs outside 12–14\nand resolve grammar spans"]
+    Step3 --> Step4{"4. Verification Gate\n`slop` < 20, `fog` 12–14,\ngrammar fixed?"}
     Step4 -->|No| Step2
     Step4 -->|Yes| Done["Deliver Clean Text +\nSpeedgrapher Pill"]
 ```
@@ -91,19 +91,17 @@ Apply the **4-Step HBR Jargon Mitigation Framework** and the diagnostic tables i
 
 - Replace status-signaling buzzwords and bureaucratic noun stacks with plain verbs and exact system actors.
 - Expand unfamiliar domain acronyms on first mention.
-- Strip lexical tells (*delve*, *tapestry*, *landscape*, *leverage*, *utilize*, *robust*, *seamless*), magic adverbs (*quietly*, *deeply*, *merely*, *simply*), negative parallelisms (*"It's not X — it's Y"*), and excessive em-dashes (`—`).
+- Strip lexical tells (*delve*, *tapestry*, *landscape*, *leverage*, *utilize*, *robust*, *seamless*), magic adverbs (*quietly*, *deeply*, *merely*, *simply*), negative parallelisms (*"It's not X, it's Y"*), and em dashes (`—` or `--`).
 
 ### Step 3: Per-Paragraph `fog` & `vale` Hotspot Surgery
 
 For every paragraph flagged in `paragraphs[]` or by `vale`:
 
-- **When Paragraph `fog` $> 16.0$**:
-  - Split compound sentences longer than 28–30 words into two distinct sentences.
-  - Convert multi-syllable nominalizations (*implementation*, *utilization*, *configuration*, *orchestration*, *determination*) into short active verbs (*build*, *use*, *set*, *coordinate*, *decide*).
-- **When Paragraph `fog` $< 10.0$**:
-  - Check for robotic staccato fragments (*"Fixing small bugs. Updating CI runners."*) and combine them into cohesive clauses.
-- **When `vale` Reports `error` or `warning` Spans**:
-  - Apply `vale`'s deterministic replacement suggestions for weasel words, passive voice clusters, wordiness, and sentence-case headings.
+- **When Paragraph `fog` is Outside Target Range (12.0–14.0)**:
+  - Check readability balance to keep paragraph density aligned with the 12.0–14.0 target range.
+- **When `vale` Reports Alerts**:
+  - Vale grammar checks must always be fixed.
+  - Vale style checks are informational and must be presented to the user for discussion.
   - If a `vale` rule produces a genuine false positive on a domain term across the project, note that the author can mute the rule or add the term to the custom vocabulary via the `Mute Rule` / `+ Add to Vocab` buttons in the alert popover, or the `⚙️` Settings modal in Speedgrapher.
 
 ### Step 4: Verification Gate
@@ -111,8 +109,8 @@ For every paragraph flagged in `paragraphs[]` or by `vale`:
 Re-run `fog`, `slop`, and `vale` on the edited file to verify measurable improvement:
 
 - **Target `slop` Score**: **$< 20$** (never finish with a Slop Score $\ge 25$).
-- **Target `fog` Index**: **$11.0\text{–}15.0$** overall, with no individual narrative paragraph stranded in the `hard` ($> 18$) bucket.
-- **Target `vale` Status**: **0 errors and 0 warnings**.
+- **Target `fog` Index**: **$12.0\text{–}14.0$** overall.
+- **Target `vale` Status**: All grammar checks fixed; style checks presented to user for discussion.
 - Report a concise **Before $\rightarrow$ After Telemetry Table** (`fog`, `slop`, and `vale` counts) and surface `[file.md](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md)`.
 
 ---
@@ -138,6 +136,8 @@ Re-run `fog`, `slop`, and `vale` on the edited file to verify measurable improve
 
 ## Operational Constraints
 
+- **Zero Silent Edits & Explicit User Sign-Off**: Never overwrite files on disk or rewrite user prose directly without explicit confirmation. Present all suggested adjustments as a numbered list of line-indexed recommendations and wait for user approval before applying.
 - **Preserve Technical Accuracy**: Never alter code blocks, CLI flags, benchmark numbers, API signatures, or URLs while copyediting surrounding prose.
-- **Preserve Author Voice**: Strip status-signaling jargon and synthetic LLM tropes without flattening the author's natural personality, dry humor, or first-person engineering stories.
+- **Preserve Author Voice**: Strip status-signaling jargon and synthetic LLM tropes without flattening the author's natural personality, dry humor, colloquialisms, or first-person engineering stories. Never let rigid linter rules sanitize authentic human voice.
+- **Strictly No Em Dashes**: Never use em dashes (`—` or `--`) as mid-sentence connectors. Break thoughts into clean, crisp sentences using periods, commas, or colons.
 - **No Git Operations**: Never execute `git commit`, `git push`, or other repository mutation commands.
