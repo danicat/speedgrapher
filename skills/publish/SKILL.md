@@ -9,14 +9,14 @@ metadata:
   category: writing
   tags: "review, publish, seo, geo, metadata, localization, blog"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.13.2"
+  version: "0.13.3"
 ---
 
 # Publish: Editorial Review, Inline Annotations & SEO/GEO Release Gate
 
-`publish` is Speedgrapher's unified quality and release gate. It operates in two progressive stages mirroring Speedgrapher's two-plane architecture:
-- **Stage A (Prose & Structural Review — All Markdown Files)**: Audits readability (`fog`), AI-trope density (`slop`), static grammar/style (`vale`), macro-narrative flow, and bidirectional inline review comments (`<!-- review: ... -->`).
-- **Stage B (Second-Plane Technical SEO, GEO & Localization — Blog Posts & Web Pages)**: Audits discoverability via the `seo` MCP tool (`doc_type: "page"` or `"doc"`), enforces the dual-purpose frontmatter split (`summary` vs. `description`), validates Generative Engine Optimization (GEO) signals, and guides idiomatic multi-language localization.
+`publish` is Speedgrapher's unified quality and authoritative release gate. It operates in two progressive stages mirroring Speedgrapher's two-plane architecture:
+- **Stage A (Prose and Structural Review: All Markdown Files)**: Audits readability (`fog`), AI-trope density (`slop`), static grammar/style (`vale`), macro-narrative flow, and bidirectional inline review comments (`<!-- review: ... -->`).
+- **Stage B (Second-Plane Technical SEO, GEO, and Localization: Blog Posts and Web Pages)**: Audits discoverability via the `seo` MCP tool (`doc_type: "page"` or `"doc"`), enforces the dual-purpose frontmatter split (`summary` vs. `description`), validates Generative Engine Optimization (GEO) signals, and guides idiomatic multi-language localization.
 
 ---
 
@@ -49,7 +49,7 @@ Run `fog`, `slop`, and `vale` on the target `.md` file using its absolute `path`
 | :--- | :--- | :--- | :--- |
 | **`fog`** | Document-wide & per-paragraph Gunning Fog Index (`paragraphs[]`). | **12.0 – 14.0** | Check readability balance when paragraph density falls outside the 12.0–14.0 target range. |
 | **`slop`** | Document-wide & per-paragraph 5-Dimension AI Slop Score (`0–100`). | **$< 20$** (Clean)<br>**$\ge 25$** (Warning) | Flag lexical tells (*delve*, *tapestry*, *leverage*, *utilize*, *robust*, *quietly*), negative parallelism (*"It's not X, it's Y"*), and uniform-cadence paragraphs. |
-| **`vale`** | Static style & grammar linter (`Google`, `proselint`, `write-good`). | **Grammar clean; style informational** | Vale grammar checks must always be fixed. Vale style checks are informational and presented to the user for discussion. |
+| **`vale`** | Static style & grammar linter (`Google`, `proselint`, `write-good`). | **Grammar clean; style informational** | Vale grammar checks must always be fixed. Vale style checks are informational and presented to the user for discussion. Style rules must never override authentic author voice. |
 
 ### B. Qualitative Editorial Audit Criteria
 Inspect the manuscript line by line against six qualitative standards:
@@ -172,8 +172,8 @@ When translating an article or documentation file into target languages (such as
 
 ## 5. Final Release Checklist Deliverable
 
-When wrapping up a pre-publication audit, provide a ready-to-execute **Release Plan**:
-- **Quality & SEO Gate Summary**: Pass/fail table for `fog` ($12\text{–}14$), `slop` ($< 20$), `vale` (grammar clean; style checks discussed), and `seo` ($\ge 85$, `7/7` checks).
+As the single authoritative release gate, `publish` verifies that all diagnostic telemetry passes before publication. When wrapping up a pre-publication audit, provide a ready-to-execute **Release Plan**:
+- **Authoritative Gate Summary**: Pass/fail scorecard for `fog` ($12\text{–}14$), `slop` ($< 20$), `vale` (grammar clean; style checks discussed), and `seo` ($\ge 85$, `7/7` checks passed).
 - **Validated Frontmatter Block**: Ready-to-paste YAML/TOML frontmatter containing `title`, `summary`, `description`, and `canonical`.
 - **Target File Path**: Recommended path following the repository's convention (for example, `content/posts/<slug>/index.md` or `index.<lang>.md`).
 - **Proposed Git Commit Message**: A conventional commit message (for example, `docs(blog): publish zero-allocation json parsing post`) for the author to run manually.

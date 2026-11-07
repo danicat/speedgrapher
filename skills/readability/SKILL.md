@@ -9,7 +9,7 @@ metadata:
   category: writing
   tags: "readability, copyediting, editing, jargon, style, grammar, prose"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.13.2"
+  version: "0.13.3"
 ---
 
 # Readability: jargon mitigation, deslopification & copyediting
@@ -101,7 +101,8 @@ For every paragraph flagged in `paragraphs[]` or by `vale`:
   - Check readability balance to keep paragraph density aligned with the 12.0–14.0 target range.
 - **When `vale` Reports Alerts**:
   - Vale grammar checks must always be fixed.
-  - Vale style checks are informational and must be presented to the user for discussion.
+  - Vale style checks are purely informational and must be presented to the user for discussion.
+  - Static style rules (such as Google developer documentation style) are intended for formal reference manuals, not personal engineering essays or developer social posts. Never let style rules strip author voice, contractions (*it's*, *we've*), conversational idioms, or first-person storytelling.
   - If a `vale` rule produces a genuine false positive on a domain term across the project, note that the author can mute the rule or add the term to the custom vocabulary via the `Mute Rule` / `+ Add to Vocab` buttons in the alert popover, or the `⚙️` Settings modal in Speedgrapher.
 
 ### Step 4: Verification Gate
@@ -136,7 +137,9 @@ Re-run `fog`, `slop`, and `vale` on the edited file to verify measurable improve
 
 ## Operational Constraints
 
-- **Zero Silent Edits & Explicit User Sign-Off**: Never overwrite files on disk or rewrite user prose directly without explicit confirmation. Present all suggested adjustments as a numbered list of line-indexed recommendations and wait for user approval before applying.
+- **Zero Silent Edits & Explicit User Sign-Off**: Never overwrite files on disk or rewrite user prose directly without explicit confirmation. Present all suggested adjustments as a numbered list of line-indexed recommendations using the standard format:
+  `- [N] Line <N> | Dimension: <Fog|Slop|Vale|SEO|Jargon|Narrative> | Context: "<exact excerpt>" | Suggestion: "<concrete rewrite or structural fix>"`
+  Wait for explicit user commands (`"apply all"`, `"apply 1, 3"`, `"discuss 2"`, or `"reject"`) before making any changes on disk.
 - **Preserve Technical Accuracy**: Never alter code blocks, CLI flags, benchmark numbers, API signatures, or URLs while copyediting surrounding prose.
 - **Preserve Author Voice**: Strip status-signaling jargon and synthetic LLM tropes without flattening the author's natural personality, dry humor, colloquialisms, or first-person engineering stories. Never let rigid linter rules sanitize authentic human voice.
 - **Strictly No Em Dashes**: Never use em dashes (`—` or `--`) as mid-sentence connectors. Break thoughts into clean, crisp sentences using periods, commas, or colons.

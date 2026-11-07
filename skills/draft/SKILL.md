@@ -9,7 +9,7 @@ metadata:
   category: writing
   tags: "writing, drafting, blog, article, tutorial, documentation, readme"
   author: Daniela Petruzalek (daniela@danicat.dev)
-  version: "0.13.2"
+  version: "0.13.3"
 ---
 
 # Draft: Adaptive-Voice Technical Writing
@@ -24,21 +24,26 @@ Follow this five-stage workflow whenever authoring or expanding a technical docu
 
 ```mermaid
 flowchart LR
-    Voice["1. Voice Fingerprinting\nInspect workspace style & posts"] --> Framing["2. Outcome-First Framing\n150-word lead & GEO section leads"]
+    Voice["1. Voice Calibration\nInspect style & establish voice anchors"] --> Framing["2. Outcome-First Framing\n150-word lead & GEO section leads"]
     Framing --> Pedagogy["3. Grounded Drafting\nWhy-before-how code & citations"]
     Pedagogy --> Safety["4. Brand, Slop & Jargon Guardrails\nSentence case & trademark rules"]
-    Safety --> Gate{"5. Pre-Delivery Gate\nRun `fog`, `slop` & `vale`"}
+    Safety --> Gate{"5. Milestone Sanity Gate\nBatch audit via `fog`, `slop` & `vale`"}
     Gate -->|Out of Bounds| Pedagogy
     Gate -->|Clean| Deliver["Deliver Draft + Speedgrapher Pill"]
 ```
+
+Drafting prioritizes narrative clarity, grounded code examples, and authentic human cadence. Never run linters in an inner loop on every sentence or paragraph while drafting. Treating linters as immediate generative constraints triggers Goodhart's law, causing sterile vocabulary and repetitive editing churn. Run linters only as milestone sanity gates once full sections or drafts are complete.
 
 ---
 
 ## 2. Core Editorial Pillars
 
-### A. Voice Fingerprinting
-Before writing the first paragraph, inspect the workspace for existing posts, `README.md` files, or style guidelines to capture the author's voice fingerprint:
-- **Pronoun & Perspective Stance**: Match the author's established stance consistently—whether conversational first-person singular (*"I tracked the memory leak to..."*), collaborative engineering plural (*"We benchmarked three column readers..."*), or direct second-person instructional (*"Configure the listener..."*).
+### A. Voice Calibration & Fingerprinting
+Before writing the first paragraph, inspect the workspace for existing posts, `README.md` files, or style guidelines to calibrate the author's voice:
+- **Exemplar-Plus-Ban Grounding**: Anchor the tone with two concrete reference points:
+  1. *Exemplar anchor*: Identify 1-2 representative paragraphs from the author's past writing to match rhythm, sentence length distribution, and vocabulary.
+  2. *Negative ban list*: Explicitly ban corporate jargon, synthetic teacher-mode transitions (*"Let's break this down"*, *"Here's the kicker"*), and robotic signposting (*"In this section, we will delve into..."*).
+- **Pronoun & Perspective Stance**: Match the author's established stance consistently: conversational first-person singular (*"I tracked the memory leak to..."*), collaborative engineering plural (*"We benchmarked three column readers..."*), or direct second-person instructional (*"Configure the listener..."*).
 - **Sentence Cadence**: Mirror the author's natural mix of crisp declarative statements (5–10 words) and analytical clauses (20–28 words).
 - **Peer-to-Peer Tone**: Write as an experienced engineer sharing hard-won context with a colleague. Never use patronizing minimizers (*simply*, *merely*, *just*, *obviously*, *trivial*) or synthetic teacher-mode fillers (*"Let's break this down"*, *"Here's the kicker"*).
 
@@ -63,9 +68,9 @@ Anchor every tool, library, standard, and specification to its authoritative ups
 - **No Vague Authority Appeals**: Replace unnamed attributions (*"experts suggest"*, *"industry reports show"*) with links to specific RFCs, benchmarks, papers, or source files.
 
 ### E. Sentence-Case Headings & Forward Momentum
-- **Strict Sentence Case**: Format all headings (`H1`–`H4`) in sentence case—capitalize only the first word and proper nouns or acronyms (for example, `## Benchmarking JSON serialization in Go 1.27`, not `## Benchmarking JSON Serialization In Go 1.27`).
+- **Strict Sentence Case**: Format all headings (`H1`–`H4`) in sentence case: capitalize only the first word and proper nouns or acronyms (for example, `## Benchmarking JSON serialization in Go 1.27`, not `## Benchmarking JSON Serialization In Go 1.27`).
 - **Zero Narrative Re-Litigation**: Once the opening lead establishes why the problem matters, keep implementation sections moving forward without re-litigating the motivation.
-- **Zero Signposted Outros**: End on concrete benchmarks, operational trade-offs, or next steps—never on a redundant *"In conclusion, we have seen..."* paragraph.
+- **Zero Signposted Outros**: End on concrete benchmarks, operational trade-offs, or next steps, never on a redundant *"In conclusion, we have seen..."* paragraph.
 
 ---
 
@@ -98,19 +103,22 @@ All technical drafts must comply with strict brand, trademark, and legal safety 
 
 ---
 
-## 5. Mandatory Pre-Delivery Verification Gate
+## 5. Milestone Sanity Gate (Not an Inner-Loop Constraint)
 
-Before presenting a completed draft or expanded section to the user, run the `speedgrapher` MCP tools on the target file or text:
+Linters are milestone quality checks, not generative targets. Run `speedgrapher` MCP tools as milestone gates on completed sections or drafts, never line by line while actively drafting:
 
-1. **`fog` (Gunning Fog Index)**:
+1. **Decoupled Verification**:
+   - Write with natural cadence first. Do not artificially constrain active writing to satisfy linter heuristics in real time.
+   - Run `fog`, `slop`, and `vale` once a coherent section or complete draft is drafted.
+2. **`fog` (Gunning Fog Index)**:
    - Target range: **$12.0\text{–}14.0$** across the document and individual paragraphs.
-2. **`slop` (AI Cliché & Cadence Detector)**:
+3. **`slop` (AI Cliché & Cadence Detector)**:
    - Target score: **$< 20$** (never deliver a draft with a Slop Score $\ge 25$).
    - Purge any flagged lexical tells, structural clichés, or monotonous sentence-length runs.
-3. **`vale` (Static Style & Grammar Linter)**:
+4. **`vale` (Static Style & Grammar Linter)**:
    - Target: **Grammar clean; style checks informational**.
-   - Fix all grammar errors. Vale style checks are informational and must be presented to the author for discussion.
-4. **Surface the Speedgrapher Pill**:
+   - Fix all grammar errors. Vale style checks are informational and must be presented to the author for discussion. Never let style rules sanitize the author's authentic cadence or idioms.
+5. **Surface the Speedgrapher Pill**:
    - Always include `[file.md](sidecar://speedgrapher/panel/?file=/absolute/path/to/file.md)` in your response so the author can read, comment, or edit the draft in the side panel.
 
 ---
