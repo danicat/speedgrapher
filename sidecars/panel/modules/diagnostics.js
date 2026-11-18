@@ -82,8 +82,6 @@ export const EDITORIAL_RULE_EXPLANATIONS = {
     'Formulaic AI sentence frames ("Not only X, but also Y", "It is worth noting that", "In today\'s fast-paced...") signal synthetic generation. State the technical point directly.',
   'Slop.Filler':
     'Throat-clearing transition phrases ("In order to", "It is important to remember that", "Essentially") pad word count before the real point begins. Delete the preamble.',
-  'Slop.Passive':
-    'Clustered passive constructions sap momentum and obscure system causality. Convert to active subject-verb-object sentences.',
   'Slop.Rhythm':
     'Uniform sentence lengths create a robotic, monotonous cadence. Mix short, punchy declarative sentences with longer technical explanations.',
   'Fog.LongSentence':
@@ -189,10 +187,7 @@ export function getEditorialRuleExplanation(pillar, ruleId, category = '') {
     if (cat.includes('filler')) {
       return 'Throat-clearing transitions ("It is worth noting that", "In order to") pad word count before the real point begins. Cut the preamble.';
     }
-    if (cat.includes('passive')) {
-      return 'Passive construction obscures which component or actor performs the operation. Name the subject and use an active verb.';
-    }
-    return 'Synthetic phrasing pattern detected by the 5-dimension Slop analyzer. Rewrite with direct, concrete engineering prose.';
+    return 'Synthetic phrasing pattern detected by the 4-dimension Slop analyzer. Rewrite with direct, concrete engineering prose.';
   }
 
   if (pillar === 'fog') {

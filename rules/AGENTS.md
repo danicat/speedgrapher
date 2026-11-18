@@ -49,7 +49,7 @@ The `speedgrapher` server provides four tools. Always pass absolute file paths i
 
 The `fog` tool computes file and per-paragraph Gunning Fog readability scores from sentence length and words with three or more syllables. Aim for a score between **12 and 14**.
 
-The `slop` tool scores text from 0 to 100 across five dimensions: structural clichés, lexical tells, filler words, sentence rhythm variance, and active voice. Keep scores **under 20**, and never over 25.
+The `slop` tool scores text from 0 to 100 across four dimensions: structural clichés, lexical tells, filler words, and sentence rhythm variance. Keep scores **under 20**, and never over 25. Passive voice is not slop; keep natural passive phrasing when the actor is obvious or secondary instead of forcing awkward active rewrites.
 
 The `vale` tool runs static style and grammar checks with the `Google`, `proselint`, and `write-good` rule sets through [Vale](https://vale.sh). Vale grammar checks must always be fixed, but style checks are informational and should be presented to the user for discussion.
 

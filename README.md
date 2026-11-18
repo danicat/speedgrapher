@@ -89,7 +89,7 @@ speedgrapher version
 | MCP tool | Target score | What the tool checks |
 | :--- | :--- | :--- |
 | **`fog`** | **11 to 15** | Computes file and per-paragraph Gunning Fog scores, complex word spans, undefined acronyms, and corporate jargon counts. |
-| **`slop`** | **Under 20** | Scores canned phrases, AI buzzwords, filler words, sentence rhythm, and passive voice on a 0 to 100 scale, tuned on pre-2021 human prose. |
+| **`slop`** | **Under 20** | Scores canned phrases, AI buzzwords, filler words, and sentence rhythm on a 0 to 100 scale, tuned on pre-2021 human prose. |
 | **`vale`** | **0 warnings** | Lints grammar and style with [Vale](https://vale.sh) using the bundled `Google`, `proselint`, and `write-good` rule sets. |
 | **`seo`** | **85 or higher** | Audits titles, `summary` versus `description` tags, lead blocks, heading order, image `alt` text, and links for web pages and docs. |
 

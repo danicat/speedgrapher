@@ -48,7 +48,7 @@ Run `fog`, `slop`, and `vale` on the target `.md` file using its absolute `path`
 | MCP Tool | Scope & Granularity | Target Threshold | Action When Out of Bounds |
 | :--- | :--- | :--- | :--- |
 | **`fog`** | Document-wide & per-paragraph Gunning Fog Index (`paragraphs[]`). | **12.0 – 14.0** | Check readability balance when paragraph density falls outside the 12.0–14.0 target range. |
-| **`slop`** | Document-wide & per-paragraph 5-Dimension AI Slop Score (`0–100`). | **$< 20$** (Clean)<br>**$\ge 25$** (Warning) | Flag lexical tells (*delve*, *tapestry*, *leverage*, *utilize*, *robust*, *quietly*), negative parallelism (*"It's not X, it's Y"*), and uniform-cadence paragraphs. |
+| **`slop`** | Document-wide & per-paragraph 4-Dimension AI Slop Score (`0–100`). | **$< 20$** (Clean)<br>**$\ge 25$** (Warning) | Flag lexical tells (*delve*, *tapestry*, *leverage*, *utilize*, *robust*, *quietly*), negative parallelism (*"It's not X, it's Y"*), and uniform-cadence paragraphs. |
 | **`vale`** | Static style & grammar linter (`Google`, `proselint`, `write-good`). | **Grammar clean; style informational** | Vale grammar checks must always be fixed. Vale style checks are informational and presented to the user for discussion. Style rules must never override authentic author voice. |
 
 ### B. Qualitative Editorial Audit Criteria

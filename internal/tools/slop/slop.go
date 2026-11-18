@@ -27,7 +27,6 @@ import (
 	"unicode"
 
 	"github.com/danicat/speedgrapher/internal/tools/fog"
-	"github.com/jdkato/prose/v2"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -150,40 +149,12 @@ var (
 	}
 
 	fillerPhrasesRegex = regexp.MustCompile(`(?i)\b(?:in order to|due to the fact that|for the purpose of|in the event that|at this point in time|in the process of|with regard to|with respect to|in terms of|as a matter of fact|it goes without saying|needless to say|by and large|first and foremost|each and every|a wide range of|a diverse range of|a variety of)\b`)
-
-	passiveExceptions = map[string]bool{
-		"based": true, "related": true, "concerned": true, "interested": true, "tired": true,
-		"excited": true, "supposed": true, "united": true, "complicated": true, "automated": true,
-		"dedicated": true, "distributed": true, "isolated": true, "deprecated": true, "required": true,
-		"declared": true, "scoped": true, "informed": true, "disabled": true, "enabled": true,
-	}
-
-	// concreteTechNouns exempts standard concrete software/engineering nouns from abstract nominalization penalties.
-	concreteTechNouns = map[string]bool{
-		"function": true, "functions": true, "variable": true, "variables": true,
-		"argument": true, "arguments": true, "document": true, "documents": true,
-		"statement": true, "statements": true, "condition": true, "conditions": true,
-		"iteration": true, "iterations": true, "location": true, "locations": true,
-		"position": true, "positions": true, "instance": true, "instances": true,
-		"interface": true, "interfaces": true, "sequence": true, "sequences": true,
-		"reference": true, "references": true, "allocation": true, "allocations": true,
-		"optimization": true, "optimizations": true, "expression": true, "expressions": true,
-		"application": true, "applications": true, "environment": true, "environments": true,
-		"collection": true, "collections": true, "configuration": true, "configurations": true,
-		"connection": true, "connections": true, "operation": true, "operations": true,
-		"implementation": true, "implementations": true, "information": true,
-		"performance": true, "difference": true, "differences": true,
-		"experience": true, "architecture": true, "propagation": true,
-		"documentation": true, "annotation": true, "annotations": true,
-		"extension": true, "extensions": true, "definition": true, "definitions": true,
-	}
 )
 
 var (
 	lexicalSlopRegex    = buildLexicalRegex()
 	structuralRegex     = regexp.MustCompile(strings.Join(append(clichePatterns, analogyBridges...), "|"))
 	bridgeRegexes       = buildBridgeRegexes()
-	passiveVoiceRegex   = regexp.MustCompile(`(?i)\b(?:is|are|was|were|be|been|being)\s+(?:[a-z]+ly\s+)?([a-z]{4,}ed|written|built|made|done|given|taken|shown|known|seen|found|sent|kept|held|brought|thought|bought|caught|taught|sold|told|paid|laid|driven|broken|chosen|spoken|stolen|woven|frozen|forgotten|forgiven|hidden|ridden|risen|shaken|fallen|beaten|eaten|bitten|drawn|blown|grown|thrown|flown|worn|torn|sworn|borne|begun|drunk|shrunk|sung|sunk|sprung|stung|swung|wrung|clung|flung|slung|spun|strung|hung|dug|stuck|struck)\b`)
 	frontmatterRegex    = regexp.MustCompile(`(?m)\A(?:\s*\n)*(?:---[\s\S]*?^(?:---|\.\.\.)|\+\+\+[\s\S]*?^\+\+\+)`)
 	codeBlockRegex      = regexp.MustCompile("(?s)(?:```[\\s\\S]*?```|~~~[\\s\\S]*?~~~)")
 	htmlCommentRegex    = regexp.MustCompile(`(?s)<!--.*?-->`)
@@ -202,10 +173,6 @@ var (
 	sentenceSplitRe     = regexp.MustCompile(`[.!?]+(?:\s+|$)`)
 	multiSpaceCollapse  = regexp.MustCompile(`\s{2,}`)
 	cliFlagRegex        = regexp.MustCompile(`(?:^|[\s"'` + "`" + `])--[a-zA-Z0-9]`)
-
-	newProseDocument = func(text string) (*prose.Document, error) {
-		return prose.NewDocument(text)
-	}
 
 	lexicalSuggestions = map[string]string{
 		"utilize":        "use",
@@ -374,11 +341,11 @@ type CriteriaResult struct {
 	Raw   float64 `json:"raw"`
 }
 
-// SlopFinding represents a single line-indexed AI trope, lexical tell, or passive span found in the text.
+// SlopFinding represents a single line-indexed AI trope or lexical tell found in the text.
 type SlopFinding struct {
 	Line       int    `json:"line"`
 	Span       [2]int `json:"span"`
-	Category   string `json:"category"` // "lexical" | "structural" | "passive"
+	Category   string `json:"category"` // "lexical" | "structural"
 	Match      string `json:"match"`
 	Message    string `json:"message"`
 	Suggestion string `json:"suggestion,omitempty"`
@@ -405,7 +372,6 @@ type ParagraphSlop struct {
 	SlopScore       float64 `json:"slop_score"`
 	LexicalCount    int     `json:"lexical_count"`
 	StructuralCount int     `json:"structural_count"`
-	PassiveCount    int     `json:"passive_count"`
 	FillerRatio     float64 `json:"filler_ratio"`
 	RhythmCV        float64 `json:"rhythm_cv"`
 	SentenceLengths []int   `json:"sentence_lengths"`
@@ -417,7 +383,6 @@ type SlopResult struct {
 	FillerWords       CriteriaResult       `json:"filler_words"`
 	StructuralCliches CriteriaResult       `json:"structural_cliches"`
 	RhythmVariance    CriteriaResult       `json:"rhythm_variance"`
-	SyntacticVoice    CriteriaResult       `json:"syntactic_voice"`
 	OverallScore      float64              `json:"overall_slop_score"`
 	Findings          []SlopFinding        `json:"findings,omitempty"`
 	SentenceRhythm    []SentenceRhythmItem `json:"sentence_rhythm,omitempty"`
@@ -528,28 +493,13 @@ func computeRhythmMetrics(lens []float64) (cv float64, score float64) {
 	return cv, score
 }
 
-func isAbstractNominalization(word string) bool {
-	lower := strings.ToLower(word)
-	if len(lower) < 8 || concreteTechNouns[lower] {
-		return false
-	}
-	suffixes := []string{"tion", "tions", "sion", "sions", "ment", "ments", "ance", "ances", "ence", "ences", "ity", "ities", "ness", "nesses", "ship", "ships", "hood", "hoods"}
-	for _, suf := range suffixes {
-		if strings.HasSuffix(lower, suf) {
-			return true
-		}
-	}
-	return false
-}
-
-func combineSlopScores(structScore, lexScore, fillerScore, rhythmScore, voiceScore float64) float64 {
-	// Weighted 5-dimension base score:
-	// 38% Structural Clichés, 30% Lexical Slop, 12% Filler/Hedges, 10% Rhythm Variance, 10% Syntactic Voice.
-	base := (structScore * 0.38) +
-		(lexScore * 0.30) +
-		(fillerScore * 0.12) +
-		(rhythmScore * 0.10) +
-		(voiceScore * 0.10)
+func combineSlopScores(structScore, lexScore, fillerScore, rhythmScore float64) float64 {
+	// Weighted 4-dimension base score:
+	// 42% Structural Clichés, 33% Lexical Slop, 15% Filler/Hedges, 10% Rhythm Variance.
+	base := (structScore * 0.42) +
+		(lexScore * 0.33) +
+		(fillerScore * 0.15) +
+		(rhythmScore * 0.10)
 
 	// Dominant-tell & co-occurrence synergy boost: when direct AI tells (structural clichés
 	// or lexical slop) are heavily present, prevent low filler/rhythm scores from diluting the alert.
@@ -564,7 +514,7 @@ func combineSlopScores(structScore, lexScore, fillerScore, rhythmScore, voiceSco
 
 	// Clean-prose noise floor suppression: when a passage has zero structural clichés
 	// and minimal lexical/filler tells (e.g. a human essay using "certainly" or "strategic" once),
-	// damp secondary cadence/voice variance so pre-2021 human prose stays in the clean (< 10) range.
+	// damp secondary cadence variance so pre-2021 human prose stays in the clean (< 10) range.
 	if structScore == 0 && lexScore < 12.0 && fillerScore < 10.0 {
 		base *= 0.40
 	}
@@ -693,26 +643,6 @@ func extractFindings(rawText string) []SlopFinding {
 				After:      after,
 			})
 		}
-
-		// 3. Passive voice span findings
-		passiveMatches := passiveVoiceRegex.FindAllStringSubmatchIndex(searchLine, -1)
-		for _, sub := range passiveMatches {
-			fullStart, fullEnd := sub[0], sub[1]
-			partStart, partEnd := sub[2], sub[3]
-			participle := strings.ToLower(searchLine[partStart:partEnd])
-			if passiveExceptions[participle] {
-				continue
-			}
-			matchText := displayLine[fullStart:fullEnd]
-			findings = append(findings, SlopFinding{
-				Line:     lineNum,
-				Span:     [2]int{fullStart + 1, fullEnd + 1},
-				Category: "passive",
-				Match:    matchText,
-				Message:  "Passive voice construction; rewrite with an active subject and direct verb.",
-				Before:   strings.TrimSpace(displayLine),
-			})
-		}
 	}
 
 	return findings
@@ -771,7 +701,6 @@ func computeParagraphSlop(rawText string, findings []SlopFinding) ([]ParagraphSl
 
 		lexCount := 0
 		structCount := 0
-		passiveCount := 0
 		for _, f := range findings {
 			if f.Line >= blk.StartLine && f.Line <= blk.EndLine {
 				switch f.Category {
@@ -779,8 +708,6 @@ func computeParagraphSlop(rawText string, findings []SlopFinding) ([]ParagraphSl
 					lexCount++
 				case "structural":
 					structCount++
-				case "passive":
-					passiveCount++
 				}
 			}
 		}
@@ -811,15 +738,14 @@ func computeParagraphSlop(rawText string, findings []SlopFinding) ([]ParagraphSl
 		lexScore := normalizeSmooth(lexDensity, 6.0, 65.0)
 		structScore := normalizeSmooth(structDensity, 1.5, 42.0)
 		fillerScore := normalizeSmooth(fillerRatio, 0.008, 0.045)
-		passivePenalty := math.Min(100.0, float64(passiveCount)*30.0)
 
-		blkSlop := combineSlopScores(structScore, lexScore, fillerScore, rhythmScore, passivePenalty)
+		blkSlop := combineSlopScores(structScore, lexScore, fillerScore, rhythmScore)
 
 		tint := "green"
 		switch {
 		case blkSlop >= 25.0 || structCount >= 2 || lexCount >= 3:
 			tint = "red"
-		case blkSlop >= 15.0 || lexCount+structCount+passiveCount >= 1:
+		case blkSlop >= 15.0 || lexCount+structCount >= 1:
 			tint = "amber"
 		}
 
@@ -832,7 +758,6 @@ func computeParagraphSlop(rawText string, findings []SlopFinding) ([]ParagraphSl
 			SlopScore:       blkSlop,
 			LexicalCount:    lexCount,
 			StructuralCount: structCount,
-			PassiveCount:    passiveCount,
 			FillerRatio:     fillerRatio,
 			RhythmCV:        cv,
 			SentenceLengths: sentenceLengths,
@@ -844,7 +769,7 @@ func computeParagraphSlop(rawText string, findings []SlopFinding) ([]ParagraphSl
 }
 
 // Calculate computes the AI slop score for the given text.
-func Calculate(rawText string) (SlopResult, error) {
+func Calculate(rawText string) SlopResult {
 	// Strip HTML comments, frontmatter (YAML/TOML), code blocks, markdown table separator lines, and markdown links
 	text := maskHTMLComments(rawText)
 	text = frontmatterRegex.ReplaceAllString(text, "")
@@ -867,7 +792,7 @@ func Calculate(rawText string) (SlopResult, error) {
 			Findings:       []SlopFinding{},
 			SentenceRhythm: []SentenceRhythmItem{},
 			Paragraphs:     []ParagraphSlop{},
-		}, nil
+		}
 	}
 
 	findings := extractFindings(rawText)
@@ -936,36 +861,11 @@ func Calculate(rawText string) (SlopResult, error) {
 	}
 	cv, rhythmScore := computeRhythmMetrics(lens)
 
-	// 4. Syntactic Voice (POS Nominalization Burden + Passive Voice Rate)
-	doc, err := newProseDocument(text)
-	if err != nil {
-		return SlopResult{}, fmt.Errorf("failed to initialize prose POS document: %w", err)
-	}
-	tokens := doc.Tokens()
-	abstractNomCount := 0.0
-	for _, tok := range tokens {
-		if strings.HasPrefix(tok.Tag, "NN") && isAbstractNominalization(tok.Text) {
-			abstractNomCount++
-		}
-	}
-	passiveCount := 0
-	for _, f := range findings {
-		if f.Category == "passive" {
-			passiveCount++
-		}
-	}
-	sentenceCount := math.Max(1.0, float64(len(lens)))
-	passiveRate := float64(passiveCount) / sentenceCount
-	nomRate := abstractNomCount / totalW
-	voiceBurden := math.Round(((passiveRate*0.65)+(nomRate*4.5*0.35))*10000) / 10000
-	voiceScore := normalizeSmooth(voiceBurden, 0.08, 0.35)
-
 	res := SlopResult{
 		LexicalSlop:       CriteriaResult{Score: normalizeSmooth(effectiveLexDensity, 6.0, 65.0), Raw: lexDensity},
 		FillerWords:       CriteriaResult{Score: normalizeSmooth(fillerRatio, 0.008, 0.045), Raw: fillerRatio},
 		StructuralCliches: CriteriaResult{Score: normalizeSmooth(effectiveStructDensity, 1.5, 42.0), Raw: structDensity},
 		RhythmVariance:    CriteriaResult{Score: rhythmScore, Raw: cv},
-		SyntacticVoice:    CriteriaResult{Score: voiceScore, Raw: voiceBurden},
 		Findings:          findings,
 		SentenceRhythm:    rhythm,
 		Paragraphs:        paragraphs,
@@ -976,9 +876,8 @@ func Calculate(rawText string) (SlopResult, error) {
 		res.LexicalSlop.Score,
 		res.FillerWords.Score,
 		res.RhythmVariance.Score,
-		res.SyntacticVoice.Score,
 	)
-	return res, nil
+	return res
 }
 
 // Config holds configuration options for the slop tool.
@@ -994,7 +893,7 @@ func Register(server *mcp.Server, cfg ...Config) {
 	}
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "slop",
-		Description: "Calculates an AI 'slop score' (0-100) using 5 weighted metrics. Calibrated for tech writing.",
+		Description: "Calculates an AI 'slop score' (0-100) using 4 weighted metrics. Calibrated for tech writing.",
 	}, makeSlopHandler(c))
 }
 
@@ -1035,10 +934,7 @@ func handleSlop(cfg Config, input SlopParams) (*mcp.CallToolResult, *SlopResult,
 		return nil, nil, err
 	}
 
-	res, err := Calculate(text)
-	if err != nil {
-		return nil, nil, err
-	}
+	res := Calculate(text)
 	return nil, &res, nil
 }
 

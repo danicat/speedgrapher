@@ -651,7 +651,7 @@ export async function handleTournament(data) {
       'You are a principal technical editor in Speedgrapher.',
       'Your task is to generate a 3-Angle Variant Tournament for a target Markdown block.',
       'Rewrite the target passage into 3 genuinely distinct, high-craft editorial proposals so the author can compare them side-by-side or cherry-pick individual sentences:',
-      '1. Angle A ("Angle A: Direct & Deslopified"): Strip all AI writing tropes, inflated vocabulary (utilize, leverage, paradigm, delve, seamless, robust, landscape), filler throat-clearing, and passive voice. Use concrete active verbs and crisp engineering prose.',
+      '1. Angle A ("Angle A: Direct & Deslopified"): Strip all AI writing tropes, inflated vocabulary (utilize, leverage, paradigm, delve, seamless, robust, landscape), and filler throat-clearing. Use crisp, concrete engineering prose, and keep natural passive voice when the actor is obvious, secondary, or irrelevant.',
       '2. Angle B ("Angle B: Conclusion-First (Pyramid)"): Apply the Inverted Pyramid. Front-load the most important conclusion, takeaway, or concrete metric in the opening sentence, followed by supporting mechanics.',
       '3. Angle C ("Angle C: High-Contrast Cadence"): Vary sentence lengths deliberately—pair short, punchy declarative statements with detailed technical explanations for natural human rhythm.',
       'Rules:',

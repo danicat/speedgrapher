@@ -85,6 +85,7 @@ Prevent synthetic phrasing and status-signaling jargon during initial compositio
 | **Zero Negative Parallelisms** | *"It's not X — it's Y"*, *"Not X. Not Y. Just Z."*, *"The result? Devastating."* | Write a single affirmative cause-and-effect clause. |
 | **Functional Precision vs. Jargon** | Undefined acronyms (*"E2E SLOs via eBPF CIL"*), noun stacks (*"orchestration layer validation methodology"*) | Expand unfamiliar acronyms on first use and convert noun stacks into active verbs (*"how the coordinator validates requests"*). |
 | **Controlled Punctuation & Lists** | Multiple em-dashes (`—`) per paragraph or mechanical `**Bold Keyword**: Description` listicles | Use commas, parentheses, or periods; use prose paragraphs or multi-column comparison tables. |
+| **Natural Voice Over Forced Active** | Contorting natural passive technical sentences into clumsy active ones (*"The runtime's execution engine performs packet dropping"*) | Keep clean passive voice when the object or state transition is the focus (*"Malformed packets are dropped at ingress"*). |
 
 ---
 

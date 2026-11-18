@@ -17,7 +17,7 @@ metadata:
 `readability` turns dense, bureaucratic, or synthetic drafts into clear, human-authored technical prose. It combines three complementary disciplines:
 
 1. **The 4-Step HBR Framework** to remove status-signaling jargon and raw acronyms while preserving technical accuracy.
-2. **The 5-Dimension AI Slop Purge (`deslopify`)** to eliminate LLM clichés and re-establish natural syntax.
+2. **The 4-Dimension AI Slop Purge (`deslopify`)** to eliminate LLM clichés and re-establish natural syntax.
 3. **Per-Paragraph `fog` and `vale` Hotspot Remediation** to fix density issues via Speedgrapher MCP metrics and [`references/tropes-and-jargon.md`](references/tropes-and-jargon.md).
 
 ---
@@ -47,13 +47,13 @@ Apply these four steps from the HBR framework to every document you edit:
    - Expand unfamiliar acronyms on first use (for example, *"extended Berkeley Packet Filter (eBPF)"* or *"Generative Engine Optimization (GEO)"*), while leaving universally understood primitives (`HTTP`, `JSON`, `CPU`, `API`, `URL`, `CLI`, `SQL`) unexpanded unless writing for beginners.
    - Replace every corporate verb (*utilize*, *leverage*, *operationalize*, *facilitate*) with its direct plain-English equivalent (*use*, *run*, *help*).
 4. **Write to Be Understood, Not to Impress**:
-   - Whenever a sentence hides a simple engineering trade-off behind formal passive abstractions (*"A determination was made to effectuate memory reclamation"*), rewrite it with an explicit subject and active verb (*"The collector frees unused heap buffers every five seconds"*).
+   - Rewrite bureaucratic abstractions that hide who owns a decision (*"A determination was made to effectuate memory reclamation"* becomes *"The collector frees unused heap buffers every five seconds"*). Keep normal passive voice when the object or mechanism is the natural focus (*"Spans are compressed with Zstandard before upload"*). Never contort clean passive sentences into awkward active ones.
 
 ---
 
-## 2. The 5-Dimension AI Slop Purge (`deslopify`)
+## 2. The 4-Dimension AI Slop Purge (`deslopify`)
 
-When `speedgrapher`'s `slop` MCP tool audits a file, it scores synthetic phrasing from 0 to 100 across five dimensions. Load [`references/tropes-and-jargon.md`](references/tropes-and-jargon.md) and purge every matched pattern:
+When `speedgrapher`'s `slop` MCP tool audits a file, it scores synthetic phrasing from 0 to 100 across four dimensions. Load [`references/tropes-and-jargon.md`](references/tropes-and-jargon.md) and purge every matched pattern:
 
 | Dimension | What `slop` Measures | Common Failure Mode | Target Remediation |
 | :--- | :--- | :--- | :--- |
@@ -61,7 +61,8 @@ When `speedgrapher`'s `slop` MCP tool audits a file, it scores synthetic phrasin
 | **2. Lexical** | High-probability LLM vocabulary (*delve*, *tapestry*, *landscape*, *paradigm*, *testament*, *beacon*, *catalyst*, *robust*, *seamless*) and magic adverbs (*quietly*, *deeply*, *fundamentally*, *merely*, *simply*). | Substituting ornate metaphors and unverified adjectives for concrete engineering properties. | Delete magic adverbs; replace inflated words with exact system nouns, failure modes, and metrics. |
 | **3. Filler** | Throat-clearing transitions (*It's worth noting*, *Importantly*, *Here's the kicker*), copula evasions (*serves as*, *stands as*), and fractal signposting (*Let's break this down*, *In conclusion*). | Padding transitions without adding technical information. | Delete signposts and replace copula evasions with *is* or *are*. |
 | **4. Rhythm Variance** | Sentence-length Coefficient of Variation ($CV = \sigma / \mu$). | Monotonous 15–20 word sentences or choppy staccato fragments. | Alternate short diagnostic statements (5–8 words) with compound technical explanations (20–28 words). |
-| **5. Syntactic Voice** | Ratio of abstract nominalizations and passive constructions to active verbs and concrete subjects. | Hiding system agency behind noun stacks (*"The execution of the validation step..."*). | Restore concrete subjects (*we*, *the scheduler*, *the client*) and active verbs. |
+
+Passive voice is not an AI slop signal. Keep natural passive constructions when the actor is obvious, unknown, or less important than the object being acted upon.
 
 ---
 

@@ -454,6 +454,15 @@ func TestRegister(t *testing.T) {
 }
 
 func TestManageRules(t *testing.T) {
+	origExe := executablePathFunc
+	origHome := userHomeDirFunc
+	defer func() {
+		executablePathFunc = origExe
+		userHomeDirFunc = origHome
+	}()
+	executablePathFunc = func() (string, error) { return "", os.ErrNotExist }
+	userHomeDirFunc = func() (string, error) { return t.TempDir(), nil }
+
 	wsDir := t.TempDir()
 	iniPath := filepath.Join(wsDir, ".vale.ini")
 	initialIni := `StylesPath = styles
@@ -775,4 +784,44 @@ func TestValeP1Fixes(t *testing.T) {
 			t.Errorf("expected acronym AWS to be preserved, got %q", gotAcronym)
 		}
 	})
+}
+
+func TestBundledValeIniDisablesPassiveByDefault(t *testing.T) {
+	repoRoot, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	if err != nil {
+		t.Fatalf("failed to resolve repo root: %v", err)
+	}
+
+	origExe := executablePathFunc
+	origHome := userHomeDirFunc
+	defer func() {
+		executablePathFunc = origExe
+		userHomeDirFunc = origHome
+	}()
+	executablePathFunc = func() (string, error) { return "", os.ErrNotExist }
+	userHomeDirFunc = func() (string, error) { return t.TempDir(), nil }
+
+	state, err := ManageRules(ValeRuleActionParams{Action: "list"}, Config{WorkspaceDir: repoRoot})
+	if err != nil {
+		t.Fatalf("ManageRules(list) on bundled repo root failed: %v", err)
+	}
+
+	wantDisabled := map[string]bool{
+		"write-good.E-Prime": false,
+		"write-good.Passive": false,
+		"Google.Passive":     false,
+	}
+	for _, r := range state.Rules {
+		if _, ok := wantDisabled[r.ID]; ok {
+			wantDisabled[r.ID] = true
+			if r.Enabled {
+				t.Errorf("expected rule %s to be disabled by default in .vale.ini, got Enabled=true (EffectiveLevel=%q)", r.ID, r.EffectiveLevel)
+			}
+		}
+	}
+	for id, found := range wantDisabled {
+		if !found {
+			t.Errorf("expected rule %s to be present in bundled Vale catalog", id)
+		}
+	}
 }

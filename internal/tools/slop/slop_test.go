@@ -16,14 +16,12 @@ package slop
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/danicat/speedgrapher/internal/tools/fog"
-	"github.com/jdkato/prose/v2"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -62,10 +60,7 @@ This is a standard human sentence without excessive jargon.`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res, err := Calculate(tt.text)
-			if err != nil {
-				t.Fatalf("Calculate() unexpected error: %v", err)
-			}
+			res := Calculate(tt.text)
 			if res.OverallScore < tt.wantScoreThreshold {
 				t.Errorf("Calculate() gotScore = %v, want >= %v", res.OverallScore, tt.wantScoreThreshold)
 			}
@@ -73,23 +68,6 @@ This is a standard human sentence without excessive jargon.`,
 				t.Errorf("Calculate() gotScore = %v, want <= %v", res.OverallScore, tt.maxScore)
 			}
 		})
-	}
-}
-
-func TestCalculate_ProseErrorFailsFast(t *testing.T) {
-	orig := newProseDocument
-	defer func() { newProseDocument = orig }()
-
-	newProseDocument = func(_ string) (*prose.Document, error) {
-		return nil, errors.New("synthetic prose failure")
-	}
-
-	_, err := Calculate("This is a sentence.")
-	if err == nil {
-		t.Fatal("expected error when prose.NewDocument fails, got nil")
-	}
-	if !strings.Contains(err.Error(), "failed to initialize prose POS document") {
-		t.Errorf("unexpected error message: %v", err)
 	}
 }
 
@@ -105,10 +83,7 @@ We utilize this tool. It serves as a fast parser.
 | :--- | :---: | ---: |
 | 1 | 2 | 3 |
 `
-	res, err := Calculate(text)
-	if err != nil {
-		t.Fatalf("Calculate() error: %v", err)
-	}
+	res := Calculate(text)
 
 	if len(res.Findings) != 2 {
 		t.Fatalf("expected 2 findings (1 lexical, 1 structural), got %d: %+v", len(res.Findings), res.Findings)
@@ -126,10 +101,7 @@ We utilize this tool. It serves as a fast parser.
 
 	// Verify table dashes alone produce 0 structural cliches
 	tableOnly := "Simple prose sentence here.\n\n| A | B | C |\n| :--- | :--- | :--- |\n| x | y | z |\n"
-	tableRes, err := Calculate(tableOnly)
-	if err != nil {
-		t.Fatalf("Calculate(tableOnly) error: %v", err)
-	}
+	tableRes := Calculate(tableOnly)
 	if tableRes.StructuralCliches.Raw != 0 {
 		t.Errorf("expected 0 structural cliche density for markdown table, got %v", tableRes.StructuralCliches.Raw)
 	}
@@ -322,10 +294,7 @@ func TestRegister(t *testing.T) {
 
 func TestCalculate_HyphenatedWordsNotFlagged(t *testing.T) {
 	text := "Compare the outputs side-by-side and inspect them line-by-line. Follow the step-by-step guide for open-source-security."
-	res, err := Calculate(text)
-	if err != nil {
-		t.Fatalf("Calculate() error: %v", err)
-	}
+	res := Calculate(text)
 	for _, f := range res.Findings {
 		if f.Category == "structural" {
 			t.Errorf("hyphenated compound word falsely flagged as structural cliche: %+v", f)
@@ -337,10 +306,7 @@ func TestCalculate_HyphenatedWordsNotFlagged(t *testing.T) {
 
 	// Verify actual parenthetical double dashes ARE flagged
 	dashText := "The engine — in fact — runs fast and the parser -- by design -- avoids allocations."
-	dashRes, err := Calculate(dashText)
-	if err != nil {
-		t.Fatalf("Calculate(dashText) error: %v", err)
-	}
+	dashRes := Calculate(dashText)
 	structFound := 0
 	for _, f := range dashRes.Findings {
 		if f.Category == "structural" {
@@ -363,16 +329,17 @@ We utilize this parser to process payloads.
 
 The configuration file was written by the operator, and the request was rejected by the gateway.
 `
-	res, err := Calculate(text)
-	if err != nil {
-		t.Fatalf("Calculate() error: %v", err)
-	}
+	res := Calculate(text)
 
-	// Ensure nothing from line 4 HTML comment ("delve", "tapestry", "it's worth noting") was flagged
-	var foundUtilize, foundPassive bool
+	// Ensure nothing from line 4 HTML comment ("delve", "tapestry", "it's worth noting") was flagged,
+	// and passive voice on line 9 is NOT flagged or penalized.
+	var foundUtilize bool
 	for _, f := range res.Findings {
 		if f.Line == 4 {
 			t.Errorf("HTML comment on line 4 should be masked, but got finding: %+v", f)
+		}
+		if f.Category == "passive" {
+			t.Errorf("passive voice should not be flagged as slop, got finding: %+v", f)
 		}
 		if f.Category == "lexical" && strings.EqualFold(f.Match, "utilize") {
 			foundUtilize = true
@@ -383,18 +350,12 @@ The configuration file was written by the operator, and the request was rejected
 				t.Errorf("expected Before/After preview with 'use', got Before=%q After=%q", f.Before, f.After)
 			}
 		}
-		if f.Category == "passive" {
-			foundPassive = true
-			if f.Line != 9 {
-				t.Errorf("expected passive finding on line 9, got line %d", f.Line)
-			}
-		}
 	}
 	if !foundUtilize {
 		t.Errorf("expected 'utilize' lexical finding on line 7, got %+v", res.Findings)
 	}
-	if !foundPassive {
-		t.Errorf("expected passive voice finding on line 9, got %+v", res.Findings)
+	if len(res.Findings) != 1 {
+		t.Errorf("expected exactly 1 finding ('utilize'), got %d: %+v", len(res.Findings), res.Findings)
 	}
 	if len(res.SentenceRhythm) == 0 {
 		t.Errorf("expected non-empty SentenceRhythm")
@@ -402,8 +363,8 @@ The configuration file was written by the operator, and the request was rejected
 	if len(res.Paragraphs) != 3 {
 		t.Fatalf("expected 3 prose blocks (heading, paragraph, paragraph), got %d: %+v", len(res.Paragraphs), res.Paragraphs)
 	}
-	if res.Paragraphs[2].PassiveCount < 1 {
-		t.Errorf("expected paragraph 2 to record PassiveCount >= 1, got %+v", res.Paragraphs[2])
+	if res.Paragraphs[2].SlopScore != 0 || res.Paragraphs[2].HeatmapTint != "green" {
+		t.Errorf("expected passive-only paragraph 2 to have SlopScore=0 and HeatmapTint=green, got %+v", res.Paragraphs[2])
 	}
 }
 
@@ -476,17 +437,13 @@ func TestRealWorldWebCalibrationCorpus(t *testing.T) {
 
 	for _, tc := range corpus {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := Calculate(tc.text)
-			if err != nil {
-				t.Fatalf("Calculate(%s) unexpected error: %v", tc.name, err)
-			}
-			t.Logf("[%s | %s] Overall=%.2f (Struct=%.1f [raw=%.2f], Lex=%.1f [raw=%.2f], Filler=%.1f [raw=%.4f], Rhythm=%.1f [cv=%.2f], Voice=%.1f [raw=%.4f], Findings=%d)",
+			res := Calculate(tc.text)
+			t.Logf("[%s | %s] Overall=%.2f (Struct=%.1f [raw=%.2f], Lex=%.1f [raw=%.2f], Filler=%.1f [raw=%.4f], Rhythm=%.1f [cv=%.2f], Findings=%d)",
 				tc.category, tc.name, res.OverallScore,
 				res.StructuralCliches.Score, res.StructuralCliches.Raw,
 				res.LexicalSlop.Score, res.LexicalSlop.Raw,
 				res.FillerWords.Score, res.FillerWords.Raw,
 				res.RhythmVariance.Score, res.RhythmVariance.Raw,
-				res.SyntacticVoice.Score, res.SyntacticVoice.Raw,
 				len(res.Findings),
 			)
 			if res.OverallScore < tc.minScore || res.OverallScore > tc.maxScore {
@@ -501,14 +458,8 @@ func TestCalculate_HugoShortcodeLinksIgnored(t *testing.T) {
 	withHugo := `In the [previous article]({{< ref "/posts/20261006-delve-tapestry-pivotal-landscape" >}}), we wrote a simple HTTP server in Go. It reads requests from a socket and writes JSON responses.`
 	withStandard := `In the [previous article](https://example.com/post), we wrote a simple HTTP server in Go. It reads requests from a socket and writes JSON responses.`
 
-	resHugo, err := Calculate(withHugo)
-	if err != nil {
-		t.Fatalf("Calculate(withHugo) unexpected error: %v", err)
-	}
-	resStandard, err := Calculate(withStandard)
-	if err != nil {
-		t.Fatalf("Calculate(withStandard) unexpected error: %v", err)
-	}
+	resHugo := Calculate(withHugo)
+	resStandard := Calculate(withStandard)
 
 	if len(resHugo.Findings) != len(resStandard.Findings) {
 		t.Errorf("expected Hugo shortcode URL contents to be ignored by slop detector: got findings %+v, want %+v", resHugo.Findings, resStandard.Findings)
@@ -535,10 +486,7 @@ func TestSlopFixes_P1(t *testing.T) {
 
 	t.Run("SLOP-02 Inline code not counted as slop", func(t *testing.T) {
 		textWithCode := "Run the command with `utilize` and `framework` and `leverage` options."
-		res, err := Calculate(textWithCode)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		res := Calculate(textWithCode)
 		if res.LexicalSlop.Score > 0 {
 			t.Errorf("expected 0 lexical slop score for inline code, got %f", res.LexicalSlop.Score)
 		}
@@ -546,10 +494,7 @@ func TestSlopFixes_P1(t *testing.T) {
 
 	t.Run("SLOP-03 Analogy bridge without target in same sentence", func(t *testing.T) {
 		text := "This cache layer is similar to an in-memory hash map.\n\nLater in the chapter we discuss the rendering engine."
-		res, err := Calculate(text)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		res := Calculate(text)
 		if res.StructuralCliches.Score > 0 {
 			t.Errorf("expected 0 structural cliché score when bridge is not in the same sentence as target, got %f", res.StructuralCliches.Score)
 		}
@@ -557,10 +502,7 @@ func TestSlopFixes_P1(t *testing.T) {
 
 	t.Run("SLOP-04 CLI flags not counted as dashes", func(t *testing.T) {
 		text := "Run the tool using --verbose --debug --output json --workspace-dir /tmp/test to check results."
-		res, err := Calculate(text)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		res := Calculate(text)
 		if res.StructuralCliches.Score > 0 {
 			t.Errorf("expected CLI double dash flags to not trigger structural cliché score, got %f", res.StructuralCliches.Score)
 		}
